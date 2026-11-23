@@ -212,6 +212,8 @@ details.add[open] > summary { margin-bottom: var(--s-3); }
 .danger-zone p { max-width: 62ch; }
 .empty { display: grid; gap: var(--s-3); max-width: 62ch; margin: var(--s-6) var(--s-5); padding: var(--s-5); border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--panel); }
 .empty h1, .empty h2 { font-size: var(--t-xl); font-weight: 700; font-stretch: 106%; }
+.empty-start { max-width: 72ch; margin-inline: 0; border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.page-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .empty-steps { display: grid; gap: var(--s-2); padding-left: 1.2rem; list-style: decimal; }
 .plain { list-style: disc; padding-left: 1.2rem; display: grid; gap: 0.2rem; }
 .ok-line { display: flex; gap: var(--s-2); align-items: center; color: var(--r-success-fg); font-weight: 580; }
