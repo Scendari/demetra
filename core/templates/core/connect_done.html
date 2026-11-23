@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}IA connectée — Demetra{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+  <header class="page-head"><h1>C'est autorisé</h1></header>
+  <section class="reveal" role="status">
+    <h2>Retournez à votre IA</h2>
+    <p>Dites-lui « c'est autorisé ». « {{ client }} » récupère son accès et le range elle-même : vous n'avez rien à copier.</p>
+  </section>
+  <p class="hint">Cet accès apparaît dans <a class="link" href="{% url 'tokens' %}">Jetons d'accès</a> dès que votre IA l'a récupéré. Vous pouvez le révoquer à tout moment.</p>
+</div>
+{% endblock %}

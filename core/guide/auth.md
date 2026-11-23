@@ -12,6 +12,8 @@ Authorization: Bearer dmt_xxxxxxxxxx_…
 
 Le jeton est créé par l'utilisateur dans l'interface (**Compte › Jetons d'accès**). Il n'est affiché qu'une fois ; le site n'en conserve qu'un condensé. Il peut expirer, être révoqué à tout moment, et être limité à certaines études. Ne le placez jamais dans une URL.
 
+Le jeton est un mot de passe : rangé dans la variable d'environnement `DEMETRA_TOKEN`, jamais collé dans la conversation d'une IA. Un outil de lecture de page web n'envoie pas d'en-tête et reçoit donc 401 : appelez l'API depuis un terminal. Voir **Brancher une IA en sécurité** (`/api/v1/guide/agents`).
+
 `GET /api/v1/me` renvoie l'utilisateur, les portées du jeton, sa date d'expiration et les études auxquelles il est éventuellement limité.
 
 ## Portées

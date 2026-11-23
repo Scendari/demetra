@@ -34,4 +34,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD ["python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/sante/', timeout=4).status == 200 else 1)"]
 # Migrations puis gunicorn : 2 processus × 8 fils (le flux d'événements en direct garde un fil par étude ouverte).
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn demetra.wsgi:application --bind 0.0.0.0:8000 --worker-class gthread --workers 2 --threads 8 --timeout 90 --graceful-timeout 30 --worker-tmp-dir /dev/shm --forwarded-allow-ips '*' --access-logfile - --error-logfile -"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn demetra.wsgi:application --bind 0.0.0.0:8000 --worker-class gthread --workers 2 --threads 8 --timeout 90 --graceful-timeout 30 --worker-tmp-dir /dev/shm --no-control-socket --forwarded-allow-ips '*' --access-logfile - --error-logfile -"]

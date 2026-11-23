@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import connect, views
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -20,4 +20,5 @@ urlpatterns = [
     path("etudes/<str:sid>/historique/", views.study_history, name="study_history"),
     path("etudes/<str:sid>/definitions/", views.study_setup, name="study_setup"),
     path("compte/jetons/", views.tokens, name="tokens"),
+    path("connecter/", connect.approve_page, name="connect"),
 ]

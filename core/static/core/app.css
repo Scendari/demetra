@@ -652,6 +652,10 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .import-result code { font-weight: 700; margin-right: 0.4em; }
 .reveal { padding: var(--s-4); border: 1px solid var(--accent); border-radius: var(--radius-lg); background: var(--accent-soft); }
 .reveal h2 { font-size: var(--t-lg); }
+.connect-ask { display: grid; gap: var(--s-3); margin-bottom: var(--s-5); }
+.connect-code { font-size: var(--t-lg); font-weight: 700; letter-spacing: 0.08em; }
+.connect-code-form { max-width: 22rem; }
+.connect-code-form input { font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
 .copy-row { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
 .copy-row > code { flex: 1 1 16rem; padding: 0.5rem 0.7rem; border: 1px solid var(--field-line); border-radius: var(--radius); background: var(--raised); font-size: var(--t-sm); overflow-wrap: anywhere; user-select: all; }
 .copy-block { align-items: flex-start; }

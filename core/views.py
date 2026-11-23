@@ -180,7 +180,7 @@ def home(request):
 def guide_page(request, topic: str = "index"):
     if topic not in guide.TOPICS:
         raise Http404
-    html = md.markdown(guide.markdown(topic), extensions=["tables", "fenced_code", "toc"])
+    html = md.markdown(guide.markdown(topic, request.build_absolute_uri("/").rstrip("/")), extensions=["tables", "fenced_code", "toc"])
     return render(request, "core/guide.html", {
         "nav": "guide", "topic": topic, "topics": guide.topics("/guide/"), "content": mark_safe(html), "title": guide.TOPICS[topic],
         "version": settings.DEMETRA_GUIDE_VERSION, "origin": request.build_absolute_uri("/").rstrip("/"),

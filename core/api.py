@@ -16,7 +16,7 @@ from ninja.errors import AuthenticationError, ValidationError
 from ninja.security import HttpBearer
 from pydantic import Field
 
-from . import bricks, casemodel, guide
+from . import bricks, casemodel, connect, guide
 from . import preview as pv
 from . import services as svc
 from .models import (
@@ -63,7 +63,10 @@ def on_service_error(request, exc: svc.ServiceError):
 def on_auth_error(request, exc):
     return JsonResponse(svc.ServiceError(
         401, "unauthenticated", "Jeton absent, inconnu, expiré ou révoqué.",
-        hint="Envoyez l'en-tête « Authorization: Bearer dmt_… ». Un jeton se crée dans l'interface : Compte › Jetons d'accès.", guide="auth").payload(),
+        hint=("Envoyez l'en-tête « Authorization: Bearer $DEMETRA_TOKEN » depuis un terminal (curl) : un outil de lecture "
+              "de page web n'envoie pas d'en-tête. IA sans jeton : obtenez un accès par le lien d'autorisation "
+              "(POST /api/v1/connect), ne demandez jamais le jeton dans la conversation et ne le mettez jamais dans "
+              "une URL."), guide="agents").payload(),
         status=401, json_dumps_params={"ensure_ascii": False})
 
 
@@ -236,8 +239,8 @@ def _verdict_counts(study: Study) -> dict:
 def guide_index(request, format: str = "json"):
     """À lire avant toute écriture. Sans authentification."""
     if format == "md":
-        return HttpResponse(guide.full_markdown(), content_type="text/markdown; charset=utf-8")
-    return {"version": settings.DEMETRA_GUIDE_VERSION, "topics": guide.topics("/api/v1/guide/"), "start": guide.markdown("index"),
+        return HttpResponse(guide.full_markdown(_origin(request)), content_type="text/markdown; charset=utf-8")
+    return {"version": settings.DEMETRA_GUIDE_VERSION, "topics": guide.topics("/api/v1/guide/"), "start": guide.markdown("index", _origin(request)),
             "full_markdown": "/api/v1/guide?format=md", "openapi": "/api/v1/openapi.json", "llms_txt": "/llms.txt"}
 
 
@@ -246,8 +249,13 @@ def guide_topic(request, topic: str, format: str = "json"):
     if topic not in guide.TOPICS:
         raise svc.ServiceError(404, "not_found", f"Chapitre « {topic} » inconnu.", details=[{"path": "topic", "expected": list(guide.TOPICS)}])
     if format == "md":
-        return HttpResponse(guide.markdown(topic), content_type="text/markdown; charset=utf-8")
-    return {"topic": topic, "title": guide.TOPICS[topic], "version": settings.DEMETRA_GUIDE_VERSION, "markdown": guide.markdown(topic)}
+        return HttpResponse(guide.markdown(topic, _origin(request)), content_type="text/markdown; charset=utf-8")
+    return {"topic": topic, "title": guide.TOPICS[topic], "version": settings.DEMETRA_GUIDE_VERSION,
+            "markdown": guide.markdown(topic, _origin(request))}
+
+
+def _origin(request) -> str:
+    return request.build_absolute_uri("/").rstrip("/")
 
 
 @api.get("/bricks", auth=None, tags=["Représentations"], summary="Catalogue des briques de représentation")
@@ -263,6 +271,33 @@ def bricks_schema(request):
 # ---------------------------------------------------------------------------
 # Compte
 # ---------------------------------------------------------------------------
+
+class ConnectIn(Schema):
+    client_name: str = ""
+    scopes: list[str] | None = None
+
+
+class ConnectTokenIn(Schema):
+    device_code: str
+
+
+@api.post("/connect", auth=None, tags=["Compte"], summary="Demander un accès par lien d'autorisation (sans jeton)", response={201: dict})
+def connect_start(request, payload: ConnectIn):
+    """Rend un lien à donner à la personne et un code secret (`device_code`) à garder pour soi. Voir le chapitre
+    « Brancher une IA en sécurité »."""
+    return Status(201, connect.start(payload.client_name, payload.scopes, _origin(request)))
+
+
+@api.post("/connect/token", auth=None, tags=["Compte"], summary="Récupérer le jeton une fois l'accès autorisé")
+def connect_token(request, payload: ConnectTokenIn):
+    """202 tant que la personne n'a pas autorisé ; 200 avec le jeton, une seule fois. Avec `Accept: text/plain`, le
+    corps d'une réponse 200 est le jeton seul (pratique pour le ranger sans l'afficher) et les autres sont vides."""
+    status, body = connect.fetch_token(payload.device_code)
+    if "text/plain" in request.headers.get("Accept", ""):
+        return HttpResponse(body.get("token", "") if status == 200 else "", status=status,
+                            content_type="text/plain; charset=utf-8")
+    return JsonResponse(body, status=status)
+
 
 @api.get("/me", tags=["Compte"], summary="Qui suis-je, que peut ce jeton")
 def me(request):

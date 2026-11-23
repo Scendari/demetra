@@ -3,18 +3,38 @@
 {% block content %}
 <div class="page page-narrow">
   <header class="page-head"><h1>Jetons d'accès</h1></header>
-  <p class="lead-sm">Un jeton permet à une IA externe (Claude Code, Cursor…) d'agir sur vos études par l'API, en votre nom et dans la limite de vos droits. Il ne peut ni rendre un avis, ni partager sans votre confirmation.</p>
+  <p class="lead-sm">Un jeton permet à une IA externe (Copilot, Claude Code, Codex, Cursor…) d'agir sur vos études par l'API, en votre nom et dans la limite de vos droits. Il ne peut ni rendre un avis, ni partager sans votre confirmation.</p>
+
+  {% if not fresh %}
+  <section class="reveal connect-ask">
+    <h2>Brancher une IA : le plus simple</h2>
+    <p>Dites à votre IA (mode Agent de Copilot, Claude Code, Codex, Cursor…) :</p>
+    <div class="copy-row copy-block"><pre id="connect-brief">Connecte-toi à mes études Demetra en suivant {{ origin }}/llms.txt</pre><button type="button" class="btn" data-copy="#connect-brief"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <p>Elle vous donnera un lien : ouvrez-le, vérifiez le code, cliquez « Autoriser ». Elle range son accès elle-même : aucun jeton à copier. <a class="link" href="{% url 'connect' %}">Saisir un code</a></p>
+  </section>
+  {% endif %}
 
   {% if fresh %}
   <section class="reveal" role="status">
     <h2>Jeton « {{ fresh.name }} » créé — copiez-le maintenant</h2>
     <p>Il ne sera plus jamais affiché : Demetra n'en garde qu'un condensé.</p>
     <div class="copy-row"><code id="new-token" data-testid="new-token">{{ fresh.secret }}</code><button type="button" class="btn btn-primary" data-copy="#new-token"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
-    <h3>À donner à votre IA</h3>
-    <div class="copy-row copy-block"><pre id="ai-brief">Tu peux travailler sur mes études Demetra.
-Lis d'abord le mode d'emploi : {{ origin }}/llms.txt
-API : {{ origin }}/api/v1/ — en-tête « Authorization: Bearer {{ fresh.secret }} »
-Commence par GET {{ origin }}/api/v1/me puis GET {{ origin }}/api/v1/guide.</pre><button type="button" class="btn" data-copy="#ai-brief"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <h3>1. Rangez-le dans votre session, pas dans la conversation</h3>
+    <p>Ne collez jamais le jeton dans le chat de votre IA. Lancez une fois cette commande dans un terminal, puis <b>quittez et relancez votre éditeur</b> (VS Code, Cursor…).</p>
+    <p class="hint">macOS (zsh)</p>
+    <div class="copy-row copy-block"><pre id="env-mac">echo 'export DEMETRA_TOKEN="{{ fresh.secret }}"' &gt;&gt; ~/.zshrc</pre><button type="button" class="btn" data-copy="#env-mac"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <p class="hint">Linux (bash)</p>
+    <div class="copy-row copy-block"><pre id="env-linux">echo 'export DEMETRA_TOKEN="{{ fresh.secret }}"' &gt;&gt; ~/.bashrc</pre><button type="button" class="btn" data-copy="#env-linux"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <p class="hint">Windows</p>
+    <div class="copy-row copy-block"><pre id="env-win">setx DEMETRA_TOKEN "{{ fresh.secret }}"</pre><button type="button" class="btn" data-copy="#env-win"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <h3>2. Donnez ce message à votre IA</h3>
+    <p>Il ne contient pas le jeton. Votre IA doit pouvoir lancer des commandes : mode Agent de Copilot, Claude Code, Codex, Cursor.</p>
+    <div class="copy-row copy-block"><pre id="ai-brief">Tu peux travailler sur mes études Demetra ({{ origin }}).
+Lis d'abord les règles pour les IA : {{ origin }}/api/v1/guide/agents?format=md
+Mon jeton est dans la variable d'environnement DEMETRA_TOKEN : ne me le demande pas, ne l'affiche jamais, ne le mets jamais dans une URL, écris toujours $DEMETRA_TOKEN dans tes commandes.
+Appelle l'API depuis le terminal avec curl -H "Authorization: Bearer $DEMETRA_TOKEN" (PowerShell : curl.exe et $env:DEMETRA_TOKEN) ; ton outil de lecture de page web ne peut pas s'authentifier.
+Commence par GET {{ origin }}/api/v1/me puis lis {{ origin }}/api/v1/guide?format=md.</pre><button type="button" class="btn" data-copy="#ai-brief"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <p class="hint">Pour ne pas le répéter à chaque conversation, mettez les consignes permanentes dans le fichier d'instructions de votre projet (<code>.github/copilot-instructions.md</code>, <code>AGENTS.md</code> ou <code>CLAUDE.md</code>) : modèle dans <a class="link" href="{% url 'guide_topic' 'agents' %}">Brancher une IA en sécurité</a>.</p>
   </section>
   {% endif %}
 
@@ -44,7 +64,8 @@ Commence par GET {{ origin }}/api/v1/me puis GET {{ origin }}/api/v1/guide.</pre
   </section>
 
   <section class="form-section">
-    <h2>Créer un jeton</h2>
+    <h2>Créer un jeton à la main</h2>
+    <p class="hint">Pour un script ou un outil qui ne sait pas suivre le lien d'autorisation.</p>
     <form method="post" class="form">{% csrf_token %}
       <div class="field"><label for="tk-name">Nom</label><input id="tk-name" name="name" required maxlength="80" placeholder="Claude Code, portable"><p class="hint">Pour le reconnaître dans le journal des études.</p></div>
       <fieldset class="field"><legend>Ce que le jeton peut faire</legend>

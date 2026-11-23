@@ -8,6 +8,7 @@ from django.conf import settings
 
 TOPICS = {
     "index": "Prise en main : ce qu'est Demetra et l'ordre des opérations",
+    "agents": "Brancher une IA en sécurité : jeton, terminal, Copilot, Claude Code, Codex",
     "auth": "Jetons, portées et limites d'un jeton",
     "studies": "Études : statuts, dimensions, règles de gestion",
     "cases": "Cas : format, dépôt en lot, validation à blanc, erreurs",
@@ -25,16 +26,16 @@ def _read(topic: str) -> str:
     return (_DIR / f"{topic}.md").read_text(encoding="utf-8")
 
 
-def markdown(topic: str) -> str:
-    return _read(topic).replace("{{version}}", settings.DEMETRA_GUIDE_VERSION)
+def markdown(topic: str, origin: str = "https://votre-site-demetra") -> str:
+    return _read(topic).replace("{{version}}", settings.DEMETRA_GUIDE_VERSION).replace("{{origin}}", origin)
 
 
 def topics(base: str) -> list[dict]:
     return [{"topic": key, "title": title, "url": f"{base}{key}"} for key, title in TOPICS.items()]
 
 
-def full_markdown() -> str:
-    return "\n\n---\n\n".join(markdown(topic) for topic in TOPICS)
+def full_markdown(origin: str = "https://votre-site-demetra") -> str:
+    return "\n\n---\n\n".join(markdown(topic, origin) for topic in TOPICS)
 
 
 def llms_txt(origin: str) -> str:
@@ -46,6 +47,12 @@ def llms_txt(origin: str) -> str:
         "le site vérifie, mesure la couverture et dessine. Seuls les humains rendent un avis."),
         "",
         f"Version du mode d'emploi : {settings.DEMETRA_GUIDE_VERSION}. Authentification de l'API : en-tête `Authorization: Bearer <jeton>`.",
+        "",
+        ("**IA : pour vous connecter, n'attendez pas de jeton dans la conversation.** Si la variable d'environnement "
+         "`DEMETRA_TOKEN` est vide, obtenez un accès par le lien d'autorisation : `POST /api/v1/connect`, donnez le "
+         "lien à la personne, qui clique « Autoriser », puis `POST /api/v1/connect/token` et rangez le jeton sans "
+         f"l'afficher. Mode opératoire et règles : {origin}/api/v1/guide/agents?format=md. Appelez l'API depuis un "
+         "terminal (curl) : un outil de lecture de page web n'envoie pas d'en-tête et reçoit 401."),
         "",
         "## Mode d'emploi",
         "",

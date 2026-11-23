@@ -367,6 +367,40 @@ class ExternalIdentity(models.Model):
         return f"{self.subject} @ {self.issuer}"
 
 
+class ConnectRequest(models.Model):
+    """Demande d'accès d'une IA par lien d'autorisation (même principe que « gh auth login »).
+
+    L'IA demande un lien ; l'utilisateur l'ouvre, connecté, et autorise ; l'IA récupère alors un jeton, une seule
+    fois, avec le code secret reçu au départ. Le site ne garde que le condensé de ce code, jamais de jeton en clair :
+    le jeton est créé au moment où l'IA vient le chercher.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "En attente"
+        APPROVED = "approved", "Autorisée"
+        DENIED = "denied", "Refusée"
+        CONSUMED = "consumed", "Jeton remis"
+
+    device_hash = models.CharField(max_length=64, unique=True)
+    user_code = models.CharField(max_length=9)
+    client_name = models.CharField(max_length=60)
+    requested_scopes = models.JSONField(default=list)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="+")
+    scopes = models.JSONField(default=list, blank=True)
+    study_ids = models.JSONField(default=list, blank=True)
+    days = models.PositiveIntegerField(null=True, blank=True)
+    token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    last_poll_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "demande de connexion d'IA"
+        verbose_name_plural = "demandes de connexion d'IA"
+
+
 class IdempotencyRecord(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
     key = models.CharField(max_length=120)
