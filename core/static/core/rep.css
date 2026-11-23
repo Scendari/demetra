@@ -218,6 +218,9 @@
 }
 .rep-grid .is-diff .fd-tag { visibility: visible; }
 .rep-grid .is-diff .fd-val { font-weight: 650; }
+/* Les gabarits invisibles réservent la place du texte en gras : la cellule ne se replie pas quand la valeur
+   change de graisse à l'étape suivante (visible selon la police, par exemple sous Linux). */
+.rep-grid .fd-val .tx-size { font-weight: 650; }
 .rep-grid.tm-highlight tr.row-field.is-changed td.is-diff { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
 
 /* Table de règles */
