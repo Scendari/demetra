@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Mode d'emploi Demetra{% endblock %}
+{% block content %}
+<div class="doc">
+  <nav class="doc-nav" aria-label="Chapitres du mode d'emploi">
+    <p class="doc-nav-title">Mode d'emploi</p>
+    <ul>{% for t in topics %}<li><a href="{% if t.topic == 'index' %}{% url 'guide' %}{% else %}{% url 'guide_topic' t.topic %}{% endif %}"{% if t.topic == topic %} aria-current="page"{% endif %}>{{ t.title }}</a></li>{% endfor %}</ul>
+    <div class="doc-machine">
+      <p>Pour une IA, le même texte est servi sans mise en page :</p>
+      <ul>
+        <li><a class="link" href="/llms.txt"><code>/llms.txt</code></a></li>
+        <li><a class="link" href="/api/v1/guide"><code>/api/v1/guide</code></a></li>
+        <li><a class="link" href="/api/v1/guide?format=md"><code>/api/v1/guide?format=md</code></a></li>
+        <li><a class="link" href="/api/v1/docs">Référence interactive de l'API</a></li>
+      </ul>
+      <p class="hint">Version {{ version }}</p>
+    </div>
+  </nav>
+  <article class="prose">{{ content }}</article>
+</div>
+{% endblock %}

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Catalogue des runs · Lancelot</title>
+  <link rel="stylesheet" href="catalogue-runs.css?v=20261119-1">
+  <script src="catalogue-runs-data.js?v=20261119-1" defer></script>
+  <script src="catalogue-runs.js?v=20261119-1" defer></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="eyebrow">Lancelot · revue du comportement actuel</div>
+      <h1>Catalogue des runs</h1>
+      <p class="intro">Du lancement d’une seule Task aux interactions entre erreurs, dépendances et désactivations. Parcours chaque schéma, puis valide ou conteste le comportement représenté.</p>
+    </header>
+    <nav class="page-tabs" aria-label="Pages de la carte du moteur">
+      <a href="arbre-decision.html">Arbre de décision</a>
+      <a href="cas-a-la-marge.html">Cas à la marge</a>
+      <a href="catalogue-runs.html" aria-current="page">Catalogue des runs</a>
+    </nav>
+
+    <section class="scope" aria-labelledby="scope-title">
+      <h2 id="scope-title">Ce que cette page permet de vérifier</h2>
+      <p>Les schémas décrivent <strong>le comportement de référence soumis à ta validation</strong>. Les TNR doivent comparer le moteur à ces règles, jamais modifier les attendus pour obtenir des tests verts. Un écart connu reste un échec du test ; le succès d’un banc isolé ne le corrige pas. Cette page ne lance pas de véritable Workflow. Les étapes montrent les moments importants ; certains lancements et résultats peuvent être regroupés dans une même étape. En exécution réelle, les durées et l’ordre des événements peuvent varier.</p>
+      <p><strong>Évolution proposée · cas 99 à 133 :</strong> la famille « Évolution · désactivation » présente des règles à valider, <strong>non implémentées et non testées</strong>. L’option envisagée est <code>self.deactivate_tasks(["a"], propagate=False)</code> ; <code>propagate=True</code> reste la valeur proposée par défaut. Les anciens cas restent la référence du moteur actuel : pour une désactivation dynamique, leur <code>DEACTIVATED</code> s’accompagne d’une propagation, contrairement au nouveau sens proposé. Les avis existants sont conservés ; les nouvelles propositions ont leurs propres avis.</p>
+      <p class="small">Les anciens cas 57 et 58 ont été retirés : ils reposaient sur une exception interceptée volontairement par un test, sans parcours utilisateur normal démontré. Les autres numéros sont conservés. Les éventuels avis sur ces cas restent sauvegardés et inclus dans l’export JSON.</p>
+      <p class="small">Le cas 74 a également été retiré : il supposait une Task déjà annulée alors que l’ordonnanceur continuait, sans parcours utilisateur normal démontré. Son test technique est conservé, ainsi que les éventuels avis enregistrés et leur export JSON.</p>
+      <p class="small">Le cas 75 a été retiré pour la même raison : le test impose une Task annulée et une autre réussie, sans démontrer un blocage du Workflow sur un run normal. Le test et les éventuels avis restent conservés.</p>
+      <p>Il existe une infinité de graphes possibles. Ce catalogue couvre les principales situations prévues par le code : dépendances, places d’exécution, erreurs, <code>stop_on_error</code>, <code>always_run</code>, <code>ignore_on_error</code>, désactivation et finalisation. Les cas 83 à 98 ajoutent les contrôles de cycle de vie, les boucles sans Step actif, les scripts, un prérequis entre Steps et la finalisation d’une erreur de Step ignorée. Ils ne constituent pas un catalogue exhaustif des requêtes SQL, plugins ou commandes ciblées telles que <code>run-task</code>.</p>
+      <p>Chaque cas porte un <strong>niveau principal : Workflow, Task, Itération ou Step</strong>. Le filtre « Niveau » isole ce niveau ; le tri « Workflow → Task → Itération → Step » regroupe les tuiles dans cet ordre. Une tuile peut aussi montrer les conséquences sur d’autres niveaux, sans être classée plusieurs fois. Les flèches représentent toujours des prérequis, jamais un lien parent-enfant.</p>
+      <p>Ce catalogue appartient désormais au <strong>TNR wkf_16</strong>. Le manifeste <code>scenarios.yml</code> relie les variantes exécutables aux numéros du catalogue. Les références des nouveaux cas 83 à 98 donnent la commande et distinguent <strong>Workflow réel</strong> et <strong>banc ciblé</strong>. Un banc impose un état ou isole des opérations externes : son succès ne garantit pas qu’une configuration soit acceptée par la commande <code>run</code>. Le cas 86 vérifie désormais le refus explicite d’une boucle vide, sur un vrai chargement et sur un contrôle isolé.</p>
+      <p class="small">Le cas 82 décrit désormais le comportement corrigé : la Task et l’itération courante sont <code>RUNNING</code> pendant leur pré-SQL. Les numéros et liens existants sont conservés. Les anciens avis restent disponibles, mais un avis sur la version non corrigée du cas 82 doit être relu.</p>
+      <div class="legend">
+        <span><b>→</b> prérequis → Task dépendante</span>
+        <span><b class="action-key">⇢</b> action de désactivation, pas une dépendance</span>
+        <span><strong>Parcours</strong> : étapes d’un run jusqu’à son résultat</span>
+        <span><strong>État ciblé</strong> : exemple commençant dans un état choisi pour vérifier une règle</span>
+        <span><strong>Configuration</strong> : refus avant le run</span>
+        <span><strong>Observation réelle</strong> : état constaté pendant une recette ; une anomalie signalée n’est pas un comportement validé</span>
+      </div>
+      <p class="small">Chaque nœud indique son niveau. Une Task affiche ses options ; les valeurs absentes du schéma sont <code>active: true</code> et <code>ignore_on_error: false</code>. Une Itération ou un Step affiche son contexte, sans option <code>always_run</code> de Task. Un statut coloré n’est pas une validation métier. Les cas sensibles sont signalés séparément.</p>
+      <p class="small"><strong>Probabilité estimée</strong> de rencontrer la situation décrite : <strong>1 · Très rare</strong> (situation exceptionnelle ou course entre exécutions), <strong>2 · Faible</strong> (situation occasionnelle, option ou erreur particulière), <strong>3 · Commun</strong> (situation usuelle de dépendances, de capacité ou de gestion d’un KO). Cette échelle est une appréciation qualitative, sans statistiques de vos runs. Elle ne mesure ni la gravité, ni la probabilité de réussite du test. « Commun » ne signifie pas que les erreurs surviennent souvent ; les états ciblés ne sont pas tous des parcours ordinaires.</p>
+      <details>
+        <summary>Quelques repères pour lire les cas</summary>
+        <ul class="small">
+          <li><strong>Task ordinaire</strong> : Task avec <code>always_run: false</code>. Elle attend que tous ses prérequis aient terminé avec succès, avec un avertissement ou avec une erreur explicitement ignorée.</li>
+          <li><strong>Prérequis direct ou indirect</strong> : dans A → B → C, C dépend directement de B et indirectement de A. A est aussi appelée un ancêtre de C.</li>
+          <li><strong>Désactivation et always_run</strong> : la désactivation atteint les descendantes ordinaires encore en attente, même à travers une Task <code>always_run</code>. Dans A → C → B, si A est désactivée, C avec <code>always_run: true</code> peut s’exécuter ; B reste désactivée, sauf si B porte aussi cette option. Une Task déjà lancée ou réservée est préservée.</li>
+          <li><strong>Place d’exécution</strong> : <code>max_threads_tasks: 2</code> autorise au maximum deux Tasks à travailler en même temps. Une Task sans prérequis peut donc devoir attendre une place.</li>
+          <li><strong>Lancement réservé</strong> : Lancelot a choisi la Task et prépare son démarrage. Même si elle affiche encore WAITING, elle n’est plus disponible pour un autre lancement ou une désactivation directe.</li>
+          <li><strong>Thread</strong> : exécution Python dédiée à une Task. Son démarrage et sa fin complète peuvent être légèrement décalés par rapport à l’affichage du statut de la Task.</li>
+          <li><strong>Statut de fin</strong> : la Task n’est plus en attente ni en cours. Cela inclut la réussite, l’échec, l’avertissement, la désactivation, l’annulation et le blocage. Cela ne signifie donc pas forcément qu’elle a été exécutée.</li>
+          <li><strong>Nettoyage et finalisation</strong> : une Task nommée <code>cleanup</code> représente un nettoyage déclaré dans le Workflow. Elle ne remplace pas les opérations automatiques de fin du Workflow : attente des exécutions, suppression des ressources temporaires, bilan, audit et logs.</li>
+        </ul>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Statut</th><th>Signification dans les schémas</th></tr></thead>
+            <tbody>
+              <tr><td>WAITING</td><td>En attente de démarrage ; vérifier aussi si le lancement est déjà réservé ou engagé.</td></tr>
+              <tr><td>RUNNING</td><td>En cours, sans erreur actuellement signalée par le statut.</td></tr>
+              <tr><td>RUNNING_KO</td><td>Une erreur est signalée, mais l’exécution ou les opérations de fin ne sont pas terminées.</td></tr>
+              <tr><td>FINISHED_OK</td><td>Terminé avec succès.</td></tr>
+              <tr><td>WARNING</td><td>Terminé avec un avertissement, sans échec bloquant.</td></tr>
+              <tr><td>KO_IGNORED</td><td>Terminé en erreur, mais l’erreur est explicitement ignorée. Même couleur que WARNING ; les dépendantes peuvent démarrer et ce résultat n’impose pas un KO au Workflow.</td></tr>
+              <tr><td>FINISHED_KO</td><td>Terminé en erreur.</td></tr>
+              <tr><td>BLOCKED</td><td>Task non exécutée parce qu’une erreur empêche son lancement.</td></tr>
+              <tr><td>DEACTIVATED</td><td>Task désactivée : par configuration, par un appel direct ou parce qu’un prérequis a été désactivé.</td></tr>
+              <tr><td>DEACTIVATED_PG</td><td>Statut proposé uniquement dans les cas 99 à 133 : Task désactivée avec propagation. Dans ces cas, DEACTIVATED signifie désactivée sans propagation.</td></tr>
+              <tr><td>ABORTED</td><td>Task annulée alors qu’elle attendait encore son lancement.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">Dans un cas de type « Configuration », NON_DÉMARRÉ et CONTRÔLE_KO sont des repères de lecture : aucun run n’a commencé. Dans un « État ciblé », les statuts de départ sont choisis pour examiner une règle ; l’exemple ne garantit pas qu’un run ordinaire atteindra ces états.</p>
+      </details>
+      <details>
+        <summary>Inventaire par famille et limites de preuve</summary>
+        <div id="inventory" class="inventory"></div>
+        <p class="small">Les références indiquent les fonctions et tests utilisés pour construire les cas. Un test cité ne rejoue pas nécessairement toutes les étapes du schéma. Certains exemples sont déduits de la lecture du code et ne sont pas des traces de runs réellement exécutés. À toi de valider si le comportement décrit te convient.</p>
+      </details>
+      <details>
+        <summary>Matrice des statuts d’un prérequis</summary>
+        <p class="small">Ce tableau suppose que Lancelot peut encore lancer des Tasks, après avoir appliqué les désactivations, sans autre prérequis bloquant ni arrêt global. « Peut démarrer » signifie qu’il reste à obtenir une place libre. Attention : une Task ordinaire peut aussi être bloquée par un échec plus ancien, même si sa dépendance directe avec <code>always_run</code> a ensuite réussi.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>État du prérequis</th><th>Task ordinaire</th><th>Task always_run</th></tr></thead>
+            <tbody>
+              <tr><td>WAITING</td><td>Attend</td><td>Attend</td></tr>
+              <tr><td>RUNNING</td><td>Attend</td><td>Attend</td></tr>
+              <tr><td>RUNNING_KO, erreur non ignorée</td><td>BLOCKED</td><td>Attend</td></tr>
+              <tr><td>RUNNING_KO, ignore_on_error: true</td><td>Attend</td><td>Attend</td></tr>
+              <tr><td>FINISHED_OK</td><td>Peut démarrer</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>WARNING</td><td>Peut démarrer</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>KO_IGNORED</td><td>Peut démarrer</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>FINISHED_KO</td><td>BLOCKED</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>BLOCKED</td><td>BLOCKED</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>DEACTIVATED</td><td>Est désactivée à son tour</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+              <tr><td>ABORTED</td><td>Attend — voir les cas limites</td><td>Peut démarrer après la fin de tous ses prérequis, directs et indirects</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small">Lancelot vérifie d’abord que la Task est active et n’a pas déjà de lancement engagé. Une Task <code>always_run</code> attend la fin de tous ses prérequis. Pour les autres Tasks, Lancelot vérifie les erreurs non ignorées des prérequis, puis l’arrêt global, puis que les prérequis ont terminé avec succès, avertissement ou erreur ignorée. Une Task autorisée à démarrer doit enfin obtenir une place libre. Une désactivation peut aussi faire passer une Task de BLOCKED à DEACTIVATED.</p>
+      </details>
+    </section>
+
+    <section class="review-tools" aria-labelledby="review-title">
+      <h2 id="review-title">Ta revue</h2>
+      <p>Les décisions et commentaires sont enregistrés <strong>dans ce navigateur, pour cette adresse</strong>, pas sur le serveur. Exporte la revue pour la conserver ou la transmettre. Un autre navigateur ou port local aura un stockage distinct.</p>
+      <p id="keyboard-help">Clique sur le fond d’une tuile pour la sélectionner (contour vert). <kbd>←</kbd> / <kbd>→</kbd> : étape précédente / suivante ; <kbd>V</kbd> : validé ; <kbd>R</kbd> : refusé ; <kbd>X</kbd> : à revoir ; <kbd>Tab</kbd> / <kbd>Maj+Tab</kbd> : tuile visible suivante / précédente. Les raccourcis s’appliquent uniquement lorsque la tuile elle-même a le focus ; les champs et commandes gardent leurs touches habituelles.</p>
+      <div class="toolbar">
+        <button type="button" id="export-review">Exporter la revue JSON</button>
+        <label class="file-button" for="import-review">Importer une revue JSON</label>
+        <input id="import-review" type="file" accept=".json,application/json">
+        <span id="save-status" role="status" aria-live="polite"></span>
+      </div>
+      <p id="storage-error" class="error" role="alert" hidden></p>
+      <p id="review-counts" aria-live="polite"></p>
+    </section>
+
+    <form class="filters" role="search" aria-label="Filtrer les scénarios">
+      <label>Rechercher
+        <input id="search" type="search" placeholder="KO, ancêtre, réservation, identifiant…" autocomplete="off">
+      </label>
+      <label>Famille
+        <select id="family"><option value="">Toutes les familles</option></select>
+      </label>
+      <label>Niveau
+        <select id="scope"><option value="">Tous les niveaux</option></select>
+      </label>
+      <label>Trier par
+        <select id="sort">
+          <option value="catalog">Ordre du catalogue</option>
+          <option value="scope">Workflow → Task → Itération → Step</option>
+        </select>
+      </label>
+      <label>Type
+        <select id="mode">
+          <option value="">Tous les types</option>
+          <option value="parcours">Parcours</option>
+          <option value="état ciblé">État ciblé</option>
+          <option value="configuration">Configuration</option>
+          <option value="observation réelle">Observation réelle</option>
+        </select>
+      </label>
+      <label>Revue
+        <select id="review-filter">
+          <option value="">Tous les avis</option>
+          <option value="pending">À revoir</option>
+          <option value="accepted">Validé</option>
+          <option value="rejected">Refusé</option>
+        </select>
+      </label>
+      <label class="checkbox"><input id="sensitive" type="checkbox"> Cas avec point d’attention</label>
+      <button type="reset">Effacer les filtres</button>
+    </form>
+
+    <p id="result-count" class="results" role="status" aria-live="polite"></p>
+    <p id="empty-results" hidden>Aucun scénario ne correspond à ces filtres.</p>
+    <noscript><p class="error">JavaScript est nécessaire pour afficher les scénarios et enregistrer ta revue.</p></noscript>
+    <p id="loading-message" role="status">Chargement des scénarios…</p>
+    <main id="catalog" aria-label="Scénarios de run"></main>
+    <footer id="catalog-end" tabindex="-1">Source : copie de travail locale du moteur Lancelot · catalogue <span id="catalog-version"></span>. Sans modification du moteur. Une évolution du code peut nécessiter une nouvelle revue des scénarios.</footer>
+  </div>
+</body>
+</html>

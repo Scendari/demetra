@@ -1,0 +1,48 @@
+[project]
+name = "demetra"
+version = "0.1.0"
+description = "Demetra — modéliser, illustrer et faire relire tous les cas d'un ensemble de règles de gestion."
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.1.3",
+    "django-allauth>=65.22.1",
+    "django-ninja>=1.8.0",
+    "gunicorn>=23",
+    "jsonschema>=4.26.0",
+    "markdown>=3.11.3",
+    "playwright>=1.65.2",
+    "pyjwt[crypto]>=2.15",
+    "whitenoise>=6.9",
+]
+
+[project.optional-dependencies]
+ldap = [
+    "django-auth-ldap>=5.2",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.6",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "demetra.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-q"
+# Sans collectstatic (développement, tests), WhiteNoise signale que STATIC_ROOT est absent : sans objet ici.
+filterwarnings = ["ignore:No directory at:UserWarning"]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["sources", "research_notes", "reports", "core/migrations"]
+
+[tool.ruff.lint]
+# RUF012 : attributs de classe des modèles Django (Meta.ordering…) ; RUF059 : valeurs dépaquetées non lues ;
+# BLE001 : les deux « except Exception » sont voulus (aperçu image facultatif, Chromium absent).
+ignore = ["RUF012", "RUF059", "BLE001"]

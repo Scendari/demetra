@@ -1,0 +1,172 @@
+"""Couverture sur dimensions déclarées et contrôles de structure à l'échelle de l'étude.
+
+Le site ne sait pas si « tous les cas » existent ; il sait compter les combinaisons de
+valeurs de dimensions qu'aucun cas n'illustre. La couverture ne vaut que ce que vaut la
+liste des dimensions déclarées par l'étude.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from itertools import combinations, product
+
+MAX_MISSING_LISTED = 200
+
+
+def _excluded(combo: dict, exclusions: list[dict]) -> str | None:
+    for exclusion in exclusions:
+        when = exclusion["when"]
+        if all(combo.get(k) == v for k, v in when.items()):
+            return exclusion.get("reason") or "exclue"
+    return None
+
+
+def coverage(dimensions: list[dict], exclusions: list[dict], cases: list[dict], strength: int = 2) -> dict:
+    """Combinaisons de `strength` dimensions couvertes et manquantes.
+
+    `cases` : liste de {key, number, dimensions}. Une exclusion ne s'applique à une
+    combinaison que si elle porte sur des dimensions toutes présentes dans la combinaison.
+    """
+    dims = {d["key"]: [v["value"] for v in d["values"]] for d in dimensions}
+    labels = {d["key"]: d.get("label") or d["key"] for d in dimensions}
+    keys = list(dims)
+    strength = max(1, min(strength, 3, len(keys))) if keys else 0
+    result = {
+        "strength": strength,
+        "dimensions": [{"key": k, "label": labels[k], "values": dims[k]} for k in keys],
+        "cases_counted": 0,
+        "cases_without_dimensions": [],
+        "total": 0,
+        "covered": 0,
+        "excluded": 0,
+        "missing_count": 0,
+        "ratio": None,
+        "missing": [],
+        "truncated": False,
+        "by_dimension": [],
+        "note": "La couverture mesure les combinaisons de valeurs déclarées qu'au moins un cas illustre. "
+                "Elle ne dit rien des situations que les dimensions ne décrivent pas.",
+    }
+    if not keys:
+        result["note"] = ("Aucune dimension n'est déclarée : la couverture ne peut pas être mesurée. "
+                          "Déclarez les facteurs qui varient d'un cas à l'autre (PATCH /studies/{id}, champ dimensions).")
+        return result
+
+    seen: dict[tuple, list[str]] = defaultdict(list)
+    for case in cases:
+        cdims = case.get("dimensions") or {}
+        if not cdims:
+            result["cases_without_dimensions"].append(case["key"])
+            continue
+        result["cases_counted"] += 1
+        for group in combinations(keys, strength):
+            if all(k in cdims for k in group):
+                seen[(group, tuple(cdims[k] for k in group))].append(case["key"])
+
+    missing = []
+    total = covered = excluded = 0
+    for group in combinations(keys, strength):
+        for values in product(*(dims[k] for k in group)):
+            combo = dict(zip(group, values))
+            applicable = [e for e in exclusions if set(e["when"]) <= set(group)]
+            reason = _excluded(combo, applicable)
+            if reason is not None:
+                excluded += 1
+                continue
+            total += 1
+            if (group, values) in seen:
+                covered += 1
+            else:
+                missing.append(combo)
+    result.update(total=total, covered=covered, excluded=excluded, missing_count=len(missing))
+    result["ratio"] = round(covered / total, 4) if total else None
+    result["missing"] = missing[:MAX_MISSING_LISTED]
+    result["truncated"] = len(missing) > MAX_MISSING_LISTED
+
+    for key in keys:
+        counts = {value: 0 for value in dims[key]}
+        for case in cases:
+            value = (case.get("dimensions") or {}).get(key)
+            if value in counts:
+                counts[value] += 1
+        result["by_dimension"].append({
+            "key": key, "label": labels[key],
+            "values": [{"value": v, "cases": n} for v, n in counts.items()],
+            "unused": [v for v, n in counts.items() if n == 0],
+        })
+    return result
+
+
+def matrix(dimensions: list[dict], exclusions: list[dict], cases: list[dict], row_key: str, col_key: str) -> dict:
+    """Matrice de couverture pour deux dimensions : chaque cellule liste les cas qui l'illustrent."""
+    dims = {d["key"]: d for d in dimensions}
+    if row_key not in dims or col_key not in dims or row_key == col_key:
+        return {}
+    rows = [v["value"] for v in dims[row_key]["values"]]
+    cols = [v["value"] for v in dims[col_key]["values"]]
+    cells: dict[tuple, list[dict]] = defaultdict(list)
+    for case in cases:
+        cdims = case.get("dimensions") or {}
+        if row_key in cdims and col_key in cdims:
+            cells[(cdims[row_key], cdims[col_key])].append({"key": case["key"], "number": case.get("number"), "label": case.get("label") or f"{case.get('number') or 0:02d}", "title": case.get("title", "")})
+    applicable = [e for e in exclusions if set(e["when"]) <= {row_key, col_key}]
+    grid = []
+    for row in rows:
+        line = []
+        for col in cols:
+            reason = _excluded({row_key: row, col_key: col}, applicable)
+            line.append({"cases": cells.get((row, col), []), "excluded": reason})
+        grid.append({"value": row, "cells": line})
+    return {
+        "row": {"key": row_key, "label": dims[row_key].get("label") or row_key},
+        "col": {"key": col_key, "label": dims[col_key].get("label") or col_key, "values": cols},
+        "rows": grid,
+    }
+
+
+def study_checks(statuses: list[dict], rules: list[dict], cases: list[dict]) -> list[dict]:
+    """Contrôles de structure à l'échelle de l'étude (niveau 0) : doublons, éléments jamais utilisés."""
+    findings = []
+    by_hash: dict[str, list[str]] = defaultdict(list)
+    used_statuses: set[str] = set()
+    used_rules: set[str] = set()
+    for case in cases:
+        by_hash[case["content_hash"]].append(case["key"])
+        content = case["content"]
+        used_rules.update(content.get("rules", []))
+        used_statuses.update(content.get("initial", {}).values())
+        for step in content.get("steps", []):
+            used_statuses.update(c["status"] for c in step.get("changes", {}).values())
+            if step.get("global"):
+                used_statuses.add(step["global"])
+        if (content.get("outcome") or {}).get("status"):
+            used_statuses.add(content["outcome"]["status"])
+        if len(content.get("steps", [])) == 1:
+            findings.append({"code": "single_step", "severity": "info", "cases": [case["key"]],
+                             "message": f"Le cas « {case['key']} » ne montre qu'une étape : aucune évolution à suivre."})
+    for keys in by_hash.values():
+        if len(keys) > 1:
+            findings.append({"code": "duplicate_content", "severity": "warning", "cases": keys,
+                             "message": "Ces cas ont exactement le même déroulé (même structure, mêmes changements) : " + ", ".join(keys) + "."})
+    if cases:
+        fallback = next((s["key"] for s in statuses if s.get("default")), statuses[0]["key"] if statuses else None)
+        unused = [s["key"] for s in statuses if s["key"] not in used_statuses and s["key"] != fallback]
+        if unused:
+            findings.append({"code": "unused_status", "severity": "info", "statuses": unused,
+                             "message": "Statuts déclarés mais jamais atteints par un cas : " + ", ".join(unused) + "."})
+        orphan_rules = [r["key"] for r in rules if r["key"] not in used_rules]
+        if orphan_rules:
+            findings.append({"code": "rule_without_case", "severity": "warning", "rules": orphan_rules,
+                             "message": "Règles de gestion qu'aucun cas n'illustre : " + ", ".join(orphan_rules) + "."})
+        # « compare_with » vers un cas absent ou retiré : la comparaison ne peut pas s'afficher.
+        keys = {c["key"] for c in cases}
+        dangling = [f"{c['key']} → {other}" for c in cases for other in c["content"].get("compare_with", []) if other not in keys]
+        if dangling:
+            findings.append({"code": "compare_missing_case", "severity": "warning", "cases": [d.split(" → ")[0] for d in dangling][:50],
+                             "message": "Comparaisons vers un cas absent ou retiré : " + ", ".join(dangling[:20]) + "."})
+        if rules:
+            unlinked = [c["key"] for c in cases if not c["content"].get("rules")]
+            if unlinked:
+                findings.append({"code": "case_without_rule", "severity": "info", "cases": unlinked[:50],
+                                 "message": f"{len(unlinked)} cas ne sont rattachés à aucune règle de gestion."})
+    return findings

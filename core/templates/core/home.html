@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Demetra — vos règles, cas par cas, étape par étape{% endblock %}
+{% block body_class %}page-home{% endblock %}
+{% block content %}
+<div class="home">
+  <div class="home-hero">
+    <section class="home-lead">
+      <div class="home-title">
+        <h1><span class="home-name">Demetra</span> <span class="home-acronym"><b>Dé</b>cisions <b>mé</b>tier <b>tr</b>acées et <b>a</b>rbitrées</span></h1>
+        <img class="home-figure" src="{% static 'core/demetra-sm.png' %}" srcset="{% static 'core/demetra-sm.png' %} 1x, {% static 'core/demetra.png' %} 2x" width="424" height="363" alt="">
+      </div>
+      <p class="home-tagline">Vos règles, cas&nbsp;par&nbsp;cas, étape&nbsp;par&nbsp;étape.</p>
+      <p class="home-actions">
+        {% if signup_open %}<a class="btn btn-primary btn-lg" href="{% url 'account_signup' %}">Créer un compte</a>{% endif %}
+        <a class="btn btn-lg" href="{% url 'account_login' %}">Se connecter</a>
+      </p>
+    </section>
+
+    <section class="home-demo" aria-labelledby="home-demo-title" data-panel data-autoplay data-step="{{ sample.step }}" data-steps="{{ sample.steps_json }}">
+      <h2 class="home-demo-kicker" id="home-demo-title">Exemple de processus<span class="sr-only"> : {{ sample.case_title }}</span></h2>
+      <header class="home-demo-head">
+        <p class="home-demo-step tx-stack"><span data-step-title>{{ sample.current.title }}</span>{% for s in sample.steps %}<span class="tx-size" aria-hidden="true">{{ s.title }}</span>{% endfor %}</p>
+        <div class="home-demo-ctl">
+          <button type="button" class="icon-btn" data-step-prev aria-label="Étape précédente"><svg class="ic" aria-hidden="true"><use href="#ui-prev"/></svg></button>
+          <span class="step-count" aria-live="polite">Étape <b data-step-n>{{ sample.step_n }}</b> / {{ sample.n_steps }}</span>
+          <button type="button" class="icon-btn" data-step-next aria-label="Étape suivante"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg></button>
+          <button type="button" class="icon-btn" data-autoplay-btn aria-label="Mettre en pause" aria-pressed="true"><svg class="ic when-playing" aria-hidden="true"><use href="#ui-pause"/></svg><svg class="ic when-paused" aria-hidden="true"><use href="#ui-play"/></svg></button>
+        </div>
+      </header>
+      {{ sample.html }}
+      <p class="home-demo-hint">Cas fictif<span class="keys-hint"> · <kbd>←</kbd> <kbd>→</kbd> pour avancer</span></p>
+    </section>
+
+    <section class="home-how">
+      <h2>Comment ça se passe</h2>
+      <ol class="how">
+        <li><h3>Vous décrivez</h3><p>Vous confiez à votre IA vos règles, un processus ou le code existant.</p></li>
+        <li><h3>L'IA propose</h3><p>Elle lit le <a class="link" href="{% url 'guide' %}">mode d'emploi</a> et dépose les cas par l'API.</p></li>
+        <li><h3>Le site vérifie</h3><p>Il rejoue chaque étape et montre les cas qui manquent.</p></li>
+        <li><h3>Vous tranchez</h3><p>Seul un humain rend un avis.</p></li>
+      </ol>
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Règles et définitions — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page page-narrow">
+  <section>
+    <h2>Règles de gestion <span class="count">{{ rules|length }}</span></h2>
+    {% if rules %}
+    <ul class="rules">
+      {% for r in rules %}
+      <li>
+        <div class="rule-head"><b class="rule-key">{{ r.key }}</b><h3>{{ r.title }}</h3>
+          <span class="rule-cases">{% if r.cases %}{{ r.cases|length }} cas{% else %}<span class="warn-text"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg>aucun cas</span>{% endif %}</span></div>
+        {% if r.text %}<p>{{ r.text }}</p>{% endif %}
+        {% if r.source %}<p class="sub">Source : {{ r.source }}</p>{% endif %}
+        {% if can_edit and not r.cases %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="remove_rule"><input type="hidden" name="key" value="{{ r.key }}"><button class="btn btn-quiet btn-danger" type="submit">Retirer la règle {{ r.key }}</button></form>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="hint">Aucune règle pour l'instant. Une règle est un énoncé en langage clair ; chaque cas cite les règles qu'il illustre, ce qui permet de voir une règle sans cas.</p>
+    {% endif %}
+    {% if can_edit %}
+    <details class="add"{% if not rules %} open{% endif %}>
+      <summary class="btn"><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>Ajouter une règle</summary>
+      <form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="add_rule">
+        <div class="field-row">
+          <div class="field field-short"><label for="rule-key">Clé</label><input id="rule-key" name="key" maxlength="40" placeholder="R{{ rules|length|add:1 }}"></div>
+          <div class="field"><label for="rule-title">Titre</label><input id="rule-title" name="title" required maxlength="200" placeholder="Rétractation sous 14 jours"></div>
+        </div>
+        <div class="field"><label for="rule-text">Énoncé</label><textarea id="rule-text" name="text" rows="2" placeholder="Un produit intact est remboursé intégralement sous 14 jours."></textarea></div>
+        <p class="form-actions"><button class="btn btn-primary" type="submit">Ajouter la règle</button></p>
+      </form>
+    </details>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Statuts <span class="count">{{ statuses|length }}</span></h2>
+    <p class="hint">Chaque statut a un rôle visuel, qui fixe sa couleur et son icône dans toutes les représentations.</p>
+    <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Statut</th><th scope="col">Clé</th><th scope="col">Rôle visuel</th><th scope="col" class="num">Cas</th></tr></thead>
+      <tbody>{% for s in statuses %}<tr><th scope="row"><span class="st" data-role="{{ s.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ s.role }}"/></svg><span class="st-tx">{{ s.label }}</span></span>{% if s.default %} <span class="hint">statut de départ</span>{% endif %}{% if s.description %}<p class="sub">{{ s.description }}</p>{% endif %}</th><td><code>{{ s.key }}</code></td><td>{{ s.role_label }}</td><td class="num">{{ s.cases }}</td></tr>{% endfor %}</tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Dimensions <span class="count">{{ study.dimensions|length }}</span></h2>
+    {% if study.dimensions %}
+    <dl class="dims">{% for d in study.dimensions %}<div><dt>{{ d.label }} <code>{{ d.key }}</code></dt><dd>{% for v in d.values %}<span class="tag">{{ v.label }}</span>{% endfor %}</dd></div>{% endfor %}</dl>
+    {% else %}<p class="hint">Aucune dimension : la <a class="link" href="{% url 'study_coverage' study.public_id %}">couverture</a> ne peut pas être mesurée.</p>{% endif %}
+  </section>
+
+  <section>
+    <h2>Options des entités <span class="count">{{ study.attributes|length }}</span></h2>
+    {% if study.attributes %}
+    <dl class="dims">{% for a in study.attributes %}<div><dt>{{ a.label }} <code>{{ a.key }}</code></dt><dd>{% if a.text %}{{ a.text }}{% else %}<span class="hint">Pas de définition.</span>{% endif %}</dd></div>{% endfor %}</dl>
+    {% else %}<p class="hint">Aucune option déclarée : les options des entités (par exemple <code>always_run</code>) s'affichent sous leur nom technique, sans définition.</p>{% endif %}
+  </section>
+
+  {% if can_edit %}
+  <section class="form-section" id="definitions">
+    <h2>Modifier statuts, dimensions, exclusions et options</h2>
+    <p class="hint">Format JSON, le même que celui de l'API. Un statut, une valeur ou une règle encore utilisés par des cas ne peuvent pas être retirés.</p>
+    {% if definition_message %}<div class="errors" role="alert"><p><strong>{{ definition_message }}</strong></p><ul>{% for e in definition_errors %}<li><code>{{ e.path }}</code> {{ e.message }}</li>{% endfor %}</ul></div>{% endif %}
+    <form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="definitions">
+      <div class="field"><label for="defs">Définitions</label><textarea id="defs" name="json" rows="12" class="code" spellcheck="false">{{ posted_definitions|default:definitions_json }}</textarea></div>
+      <p class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer les définitions</button></p>
+    </form>
+  </section>
+
+  <section class="form-section" id="import">
+    <h2>Déposer des cas</h2>
+    <p class="hint">Le plus souvent c'est votre IA qui dépose les cas par l'API. Vous pouvez aussi les coller ici. Un cas est identifié par sa clé : redéposer le même cas le met à jour, sans doublon. Format : <a class="link" href="{% url 'guide_topic' 'cases' %}">mode d'emploi, chapitre Cas</a>.</p>
+    {% if import_message %}<div class="errors" role="alert"><p><strong>{{ import_message }}</strong></p><ul>{% for e in import_errors %}<li><code>{{ e.path }}</code> {{ e.message }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if import_result %}
+    <div class="import-result{% if import_result.counts.error %} has-errors{% endif %}" role="status">
+      <p><strong>{% if import_checked %}Vérification, rien n'a été écrit.{% elif import_result.counts.error %}Rien n'a été écrit pour les cas en erreur.{% endif %}</strong>
+        {% for status, n in import_result.counts.items %}<span class="chip">{{ n }} {% if status == "created" %}à créer{% elif status == "updated" %}modifiés (avis à refaire){% elif status == "updated_cosmetic" %}textes modifiés{% elif status == "unchanged" %}inchangés{% elif status == "restored" %}rétablis{% else %}en erreur{% endif %}</span>{% endfor %}</p>
+      <ul>{% for item in import_result.results %}{% if item.errors %}{% for e in item.errors %}<li><code>{{ e.path }}</code> {{ e.message }}{% if e.expected %} <span class="sub">Attendu : {{ e.expected|join:", "|truncatechars:160 }}</span>{% endif %}</li>{% endfor %}{% endif %}{% endfor %}</ul>
+    </div>
+    {% endif %}
+    <form method="post" class="form">{% csrf_token %}
+      <div class="field"><label for="cases-json">Cas au format JSON</label><textarea id="cases-json" name="json" rows="14" class="code" spellcheck="false" placeholder='{"cases": [ … ]}'>{{ posted_cases|default:"" }}</textarea></div>
+      <p class="form-actions"><button class="btn" type="submit" name="action" value="check">Vérifier sans enregistrer</button><button class="btn btn-primary" type="submit" name="action" value="import">Déposer les cas</button></p>
+    </form>
+    <details class="json"><summary>Exemple de cas</summary><pre><code>{{ example_case }}</code></pre></details>
+  </section>
+
+  <section class="form-section">
+    <h2>Titre et description</h2>
+    <form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="identity">
+      <div class="field"><label for="st-title">Titre</label><input id="st-title" name="title" required maxlength="200" value="{{ study.title }}"></div>
+      <div class="field"><label for="st-desc">Description</label><textarea id="st-desc" name="description" rows="3">{{ study.description }}</textarea></div>
+      <p class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer</button><span class="hint">Identifiant pour l'API : <code>{{ study.public_id }}</code></span></p>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if is_owner %}
+  <section class="form-section danger-zone">
+    <h2>Archiver l'étude</h2>
+    <p>L'étude disparaît de la liste pour tous ses membres. Ses {{ cases_count }} cas et leurs avis sont conservés en base.</p>
+    <details class="confirm"><summary class="btn btn-danger">Archiver cette étude…</summary>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="archive"><p>Archiver « {{ study.title }} » ? L'interface ne permet pas de la rétablir.</p><button class="btn btn-danger" type="submit">Oui, archiver l'étude</button></form>
+    </details>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

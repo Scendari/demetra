@@ -1,0 +1,24 @@
+{# Déroulé du cas : la ligne et ses arrêts (une étape = un arrêt nommé). À côté, sans redire le titre : la note de l'étape affichée et ce qui y change. #}
+<section class="steps" aria-label="Déroulé du cas, étape par étape">
+  <ol class="stops">
+    {% for s in p.steps %}<li class="stop{% if forloop.counter0 < p.step %} is-past{% endif %}"><button type="button" class="stop-btn" data-step="{{ forloop.counter0 }}"{% if forloop.counter0 == p.step %} aria-current="step"{% endif %}><span class="stop-n"><span class="sr-only">Étape </span>{{ s.n }}</span><span class="stop-title" data-text="{{ s.title }}"><span>{{ s.title }}</span></span></button></li>
+    {% endfor %}
+  </ol>
+  {# Toutes les étapes sont empilées dans la même case : le bloc garde la hauteur de la plus longue, et le schéma en dessous ne bouge pas. #}
+  <div class="step-now">
+    <p class="sr-only" aria-live="polite">Étape <span data-step-n>{{ p.step_n }}</span> sur {{ p.n_steps }} : <span data-step-title>{{ p.current.title }}</span></p>
+    {% for s in p.steps %}<div class="step-pane{% if forloop.counter0 == p.step %} is-current{% endif %}" data-step-pane="{{ forloop.counter0 }}">
+      {% if s.note %}<p class="step-note">{{ s.note }}</p>{% endif %}
+      {% if s.focus %}<p class="step-focus"><svg class="ic" aria-hidden="true"><use href="#ui-arrow"/></svg><span><b>À regarder :</b> {% for f in s.focus %}{% if not forloop.first %} ; {% endif %}<span class="chg-ent">{{ f.entity }}</span>{% if f.note %}, {{ f.note }}{% endif %}{% endfor %}</span></p>{% endif %}
+      <div class="step-changes">
+        <h3>Ce qui change à cette étape</h3>
+        <ul class="changes">
+          {% for c in s.changes %}<li{% if c.overall %} class="chg-overall"{% endif %}><span class="chg-ent">{{ c.entity }}</span><span class="chg-flow">{% if c.before and c.before != c.status %}<span class="chg-before">{{ c.before }}</span><svg class="ic chg-to" aria-hidden="true"><use href="#ui-to"/></svg><span class="sr-only"> devient </span>{% endif %}<span class="st" data-role="{{ c.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.role }}"/></svg><span class="st-tx">{{ c.status }}</span></span></span></li>
+          {% empty %}<li class="chg-none">Aucun état ne change : l'étape décrit la situation.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>

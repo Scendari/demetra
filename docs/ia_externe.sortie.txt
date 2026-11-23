@@ -1,0 +1,54 @@
+
+ 1. Lire le mode d'emploi, sans jeton
+    ok  /llms.txt indique où lire le mode d'emploi
+    ok  mode d'emploi version 2026-11-21.1, 8 chapitres
+    ok  chapitre « cases » lu (6115 caractères)
+    ok  chapitre « representations » lu (6801 caractères)
+
+ 2. Vérifier son identité et ses droits
+    ok  sans jeton : 401
+    ok  jeton « Script IA externe » de demo, portées : studies:read, studies:write, representations:write, share:request
+
+ 3. Créer une étude
+    ok  étude créée : xwi2jwnvdr
+
+ 4. Valider à blanc un lot qui contient une faute, puis la corriger
+    ok  faute repérée sans rien écrire : cases[2].steps[2].changes.decision — Statut « A_VALIDE » non déclaré dans l'étude.
+    ok  l'erreur donne les valeurs attendues, dont la bonne
+    ok  toujours aucun cas dans l'étude
+
+ 5. Déposer les cas, puis rejouer le même lot
+    ok  5 cas créés
+    ok  même clé d'idempotence : réponse enregistrée renvoyée
+    ok  même lot sans clé : tout est « unchanged »
+
+ 6. Lire la couverture
+    ok  5 combinaisons sur 6 ; manque : {'montant': '> 500 €', 'justificatif': 'absent'}
+    ok  cas manquant ajouté : couverture complète
+
+ 7. Assembler une représentation avec les briques du site
+    ok  25 briques au catalogue
+    ok  recommandées pour cette étude : table-decision, table-trace
+    ok  une brique inconnue est refusée (aucun code n'est exécuté)
+    ok  le document assemblé est valide
+    ok  représentation créée : 759nxdf29t
+    ok  ajustement personnel d'une représentation système créé
+    ok  représentation dupliquée
+
+ 8. Regarder le rendu avant de le proposer
+    ok  résumé textuel : Cas « Montant moyen : le responsable valide » : 3 entités, 2 liens, 3 étapes ; rendu à l'étape 2.
+    ok  aperçu image reçu (64811 octets)
+    ok  représentation proposée à l'utilisateur, qui choisira dans l'interface
+    ok  brique manquante signalée
+
+ 9. Ce qu'un jeton ne peut pas faire
+    ok  rendre un avis : 403 human_only
+    ok  partage : demande en attente de confirmation dans l'interface
+    ok  le partage n'a pas pris effet
+
+10. Lire les avis et la liste de travail
+    ok  0 avis lus (les humains n'ont pas encore relu) ; état : {'cases': 6, 'with_a_decision': 0, 'without_decision': 6, 'accepted_by_someone': 0, 'rejected_by_someone': 0, 'reviewers': 0}
+    ok  liste de travail : 6 cas, 0 refusé, 0 combinaison manquante
+    ok  journal : 6 actions, toutes inscrites au nom du jeton
+
+Terminé. Étude à relire : http://127.0.0.1:8765/etudes/xwi2jwnvdr/

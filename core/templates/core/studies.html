@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Études — Demetra{% endblock %}
+{% block content %}
+<div class="page">
+  <header class="page-head">
+    <h1>Études</h1>
+    <a class="btn btn-primary" href="#nouvelle"><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>Nouvelle étude</a>
+  </header>
+
+  {% if rows %}
+  <div class="table-wrap">
+  <table class="data studies">
+    <thead><tr><th scope="col">Étude</th><th scope="col">Nature</th><th scope="col" class="num">Cas</th><th scope="col">Votre revue</th><th scope="col">Accès</th><th scope="col">Modifiée</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <th scope="row"><a class="row-link" href="{% url 'workspace' r.study.public_id %}">{{ r.study.title }}</a>{% if r.study.is_example %} <span class="chip" title="Étude d'exemple fournie avec Demetra : ses règles et ses cas sont inventés.">Exemple · données fictives</span>{% endif %}{% if r.study.description %}<p class="sub">{{ r.study.description|truncatechars:140 }}</p>{% endif %}</th>
+        <td>{{ r.study.get_kind_display }}</td>
+        <td class="num">{{ r.total }}</td>
+        <td class="review-cell">
+          {% if r.total %}
+          <div class="progress-bar" role="img" aria-label="{{ r.accepted }} validés, {{ r.rejected }} refusés, {{ r.todo }} à analyser"><span class="pb pb-accepted" style="width: {{ r.pct_accepted|stringformat:'.1f' }}%"></span><span class="pb pb-rejected" style="width: {{ r.pct_rejected|stringformat:'.1f' }}%"></span></div>
+          <p class="sub">{{ r.accepted }} validés · {{ r.rejected }} refusés · <b>{{ r.todo }} à analyser</b></p>
+          {% else %}<p class="sub">Aucun cas pour l'instant</p>{% endif %}
+        </td>
+        <td>{% if r.shared %}<span class="chip"><svg class="ic" aria-hidden="true"><use href="#ui-people"/></svg>Partagée par {{ r.study.owner.username }} · {{ r.role_label|lower }}</span>{% elif r.members > 1 %}<span class="chip"><svg class="ic" aria-hidden="true"><use href="#ui-people"/></svg>{{ r.members }} membres</span>{% else %}<span class="chip"><svg class="ic" aria-hidden="true"><use href="#ui-lock"/></svg>Privée</span>{% endif %}{% if r.pending %} <a class="chip chip-alert" href="{% url 'study_sharing' r.study.public_id %}">{{ r.pending }} demande{{ r.pending|pluralize }} à confirmer</a>{% endif %}</td>
+        <td class="when">{{ r.study.updated_at|date:"j M Y" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <section class="empty">
+    <h2>Aucune étude pour l'instant</h2>
+    <p>Une étude rassemble des règles de gestion et les cas qui en découlent. Créez-en une ci-dessous, ou demandez à votre IA de le faire avec un <a class="link" href="{% url 'tokens' %}">jeton d'accès</a>.</p>
+  </section>
+  {% endif %}
+
+  <section class="form-section" id="nouvelle">
+    <h2>Nouvelle étude</h2>
+    <form method="post" class="form">{% csrf_token %}
+      <div class="field"><label for="title">Titre</label><input id="title" name="title" required maxlength="200" placeholder="Remboursement d'une commande"></div>
+      <div class="field"><label for="description">Description <span class="hint">facultative</span></label><textarea id="description" name="description" rows="2" maxlength="4000"></textarea></div>
+      <fieldset class="field">
+        <legend>Nature des règles</legend>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="kind" value="workflow" checked><span><b>Workflows et états</b>Des tâches qui s'enchaînent, attendent, échouent, se bloquent.</span></label>
+          <label class="choice"><input type="radio" name="kind" value="decision"><span><b>Règles de décision</b>Des conditions qui, combinées, donnent un résultat.</span></label>
+          <label class="choice"><input type="radio" name="kind" value="temporal"><span><b>Règles temporelles</b>Des délais, des échéances, des relances.</span></label>
+          <label class="choice"><input type="radio" name="kind" value="mixed"><span><b>Mixte</b>Plusieurs natures dans la même étude.</span></label>
+        </div>
+        <p class="hint">Sert à préparer une liste de statuts de départ et à présélectionner une représentation. Tout reste modifiable.</p>
+      </fieldset>
+      <p class="form-actions"><button class="btn btn-primary" type="submit">Créer l'étude</button><span class="hint">Elle sera privée : vous seul y aurez accès tant que vous ne la partagez pas.</span></p>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Page introuvable — Demetra{% endblock %}
+{% block content %}
+<section class="empty"><h1>Page introuvable</h1><p>Cette page n'existe pas, ou vous n'y avez pas accès. Une étude privée répond de la même façon qu'une étude inexistante.</p><p><a class="btn btn-primary" href="{% url 'studies' %}">Revenir à mes études</a></p></section>
+{% endblock %}

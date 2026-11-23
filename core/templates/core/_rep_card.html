@@ -1,0 +1,45 @@
+{% load demetra %}<li class="rep-card{% if card.is_current %} is-current{% endif %}">
+  <div class="rep-card-thumb" aria-hidden="true" inert>{% if card.thumb %}{{ card.thumb }}{% else %}<p class="hint">Aperçu indisponible : l'étude n'a pas encore de cas.</p>{% endif %}</div>
+  <div class="rep-card-body">
+    <h3>{{ card.rep.name }}
+      {% if card.is_current %}<span class="chip chip-on"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>Affichée pour vous</span>{% endif %}
+      {% if card.is_default %}<span class="chip">Représentation de l'étude</span>{% endif %}
+      {% if card.is_case_choice %}<span class="chip chip-on"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>Choisie pour le cas {{ sample_case.display_number }}</span>{% endif %}
+    </h3>
+    <p class="rep-origin">{% if card.rep.scope == "system" %}Fournie par Demetra{% elif card.rep.scope == "adjustment" %}Ajustement personnel de « {{ card.rep.parent.name }} »{% else %}Thème de {{ card.rep.owner.username }}{% if card.rep.via_token_id %} · créé par jeton{% endif %}{% endif %} · version {{ card.rep.version }}</p>
+    {% if card.rep.description %}<p>{{ card.rep.description }}</p>{% endif %}
+    {% if card.reason %}<blockquote class="rep-reason"><p>{{ card.reason }}</p><footer>{% if card.via_token %}<svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>Proposée par jeton ({{ card.proposed_by }}){% else %}<svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg>Proposée par {{ card.proposed_by }}{% endif %}</footer></blockquote>{% endif %}
+    {% if card.reasons %}<ul class="pros">{% for r in card.reasons %}<li><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>{{ r }}</li>{% endfor %}</ul>{% endif %}
+    {% if card.reservations %}<ul class="cons">{% for r in card.reservations %}<li><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg>{{ r }}</li>{% endfor %}</ul>{% endif %}
+    {% if card.warnings %}<ul class="cons">{% for w in card.warnings|slice:":2" %}<li><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg>Sur ce cas : {{ w }}</li>{% endfor %}</ul>{% endif %}
+    <div class="rep-actions">
+      <form method="post">{% csrf_token %}<input type="hidden" name="representation" value="{{ card.rep.public_id }}"><input type="hidden" name="action" value="choose">
+        <button class="btn btn-primary" type="submit" name="scope" value="me"{% if card.is_current %} disabled{% endif %}>{% if card.is_current %}Affichée pour vous{% else %}Utiliser pour moi{% endif %}</button>
+        {% if sample_case %}<input type="hidden" name="case" value="{{ sample_case.key }}"><button class="btn" type="submit" name="scope" value="case"{% if card.is_case_choice %} disabled{% endif %}>Pour le cas {{ sample_case.display_number }} seulement</button>{% endif %}
+        {% if can_edit and not card.is_default and card.rep.scope != "adjustment" %}<button class="btn" type="submit" name="scope" value="study">Utiliser pour toute l'étude</button>{% endif %}
+      </form>
+      {% if card.proposal_id %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="dismiss"><input type="hidden" name="proposal" value="{{ card.proposal_id }}"><button class="btn btn-quiet" type="submit">Écarter la proposition</button></form>{% endif %}
+    </div>
+    <details class="rep-detail">
+      <summary>Ajuster, dupliquer, voir les briques</summary>
+      <p class="brick-list">{% for b in card.bricks %}<code>{{ b }}</code>{% endfor %}</p>
+      <form method="post" class="adjust">{% csrf_token %}<input type="hidden" name="representation" value="{{ card.rep.public_id }}"><input type="hidden" name="action" value="adjust">
+        <div class="adjust-grid">
+          {% for key, options in token_choices.items %}<label>{% if key == "density" %}Densité{% elif key == "corners" %}Angles{% elif key == "status_label" %}Libellé des statuts{% elif key == "status_fill" %}Remplissage{% else %}Fond{% endif %}
+            <select name="{{ key }}">{% for o in options %}<option value="{{ o }}"{% if card.tokens|get_item:key == o %} selected{% endif %}>{{ o|token_label }}</option>{% endfor %}</select></label>{% endfor %}
+        </div>
+        <p class="form-actions"><button class="btn" type="submit">{% if card.rep.owner_id == user.id %}Enregistrer ces réglages{% else %}Créer mon ajustement{% endif %}</button>
+        <span class="hint">{% if card.rep.owner_id == user.id %}Cette représentation vous appartient : elle est modifiée pour tous ceux qui l'utilisent.{% else %}Un ajustement n'est visible que de vous. Pour aller plus loin (formes, liens, vues), demandez-le à votre IA.{% endif %}</span></p>
+      </form>
+      <form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="representation" value="{{ card.rep.public_id }}"><input type="hidden" name="action" value="duplicate">
+        <label for="dup-{{ card.rep.public_id }}">Dupliquer en nouveau thème</label><input id="dup-{{ card.rep.public_id }}" name="name" placeholder="{{ card.rep.name }} (copie)" maxlength="120"><button class="btn" type="submit">Dupliquer</button>
+      </form>
+      {% if card.rep.owner_id == user.id %}
+      <details class="confirm"><summary class="btn btn-quiet btn-danger">Supprimer…</summary>
+        <form method="post">{% csrf_token %}<input type="hidden" name="representation" value="{{ card.rep.public_id }}"><input type="hidden" name="action" value="archive"><p>Supprimer « {{ card.rep.name }} » ? Les études qui l'utilisent reviendront à leur représentation recommandée.</p><button class="btn btn-danger" type="submit">Supprimer cette représentation</button></form>
+      </details>
+      {% endif %}
+      <details class="json"><summary>Document JSON</summary><pre><code>{{ card.json }}</code></pre><p class="hint">Identifiant pour l'API : <code>{{ card.rep.public_id }}</code></p></details>
+    </details>
+  </div>
+</li>

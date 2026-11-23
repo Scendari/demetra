@@ -1,0 +1,120 @@
+{% with p=panel c=panel.case %}
+<article class="case-panel{% if c.retired_at %} is-retired{% endif %}" data-panel data-key="{{ c.key }}" data-step="{{ p.step }}" data-steps="{{ p.steps_json }}"
+         data-decision="{{ p.decision }}" data-verdict-url="{% url 'case_verdict' p.study.public_id c.key %}" data-title="{{ c.display_number }} · {{ c.title }}">
+  <header class="cp-head">
+    <div class="cp-bar">
+      <button type="button" class="btn btn-quiet only-narrow" data-show-list><svg class="ic" aria-hidden="true"><use href="#ui-prev"/></svg>Cas</button>
+      <button type="button" class="icon-btn only-list-hidden" data-dock="list" aria-label="Afficher la liste des cas" title="Afficher la liste des cas (L)"><svg class="ic" aria-hidden="true"><use href="#ui-dock"/></svg></button>
+      <p class="cp-id"><span class="cp-num">{{ c.display_number }}</span><span class="cp-family">{{ c.family }}</span></p>
+      <div class="cp-tools">
+        <button type="button" class="icon-btn" data-case-prev aria-label="Cas précédent" title="Cas précédent (Maj+Tab, K ou ↑)"><svg class="ic" aria-hidden="true"><use href="#ui-up"/></svg></button>
+        <button type="button" class="icon-btn" data-case-next aria-label="Cas suivant" title="Cas suivant (Tab, J ou ↓)"><svg class="ic" aria-hidden="true"><use href="#ui-down"/></svg></button>
+        <button type="button" class="icon-btn" data-focus-toggle aria-pressed="false" aria-label="Mode focus" title="Mode focus (f)"><svg class="ic when-unfocused" aria-hidden="true"><use href="#ui-focus"/></svg><svg class="ic when-focused" aria-hidden="true"><use href="#ui-unfocus"/></svg></button>
+        <button type="button" class="icon-btn" data-help aria-label="Raccourcis clavier" title="Raccourcis clavier (?)"><svg class="ic" aria-hidden="true"><use href="#ui-keyboard"/></svg></button>
+      </div>
+    </div>
+    <h2 class="cp-title" id="case-title" tabindex="-1">{{ c.title }}</h2>
+    {% if c.summary %}<p class="cp-summary">{{ c.summary }}</p>{% endif %}
+    {% if c.retired_at %}<p class="notice notice-retired"><svg class="ic" aria-hidden="true"><use href="#ui-retired"/></svg>Ce cas a été retiré de la revue le {{ c.retired_at|date:"j F Y" }}. Il reste consultable avec ses avis.</p>{% endif %}
+    {% if p.stale_label %}<p class="notice notice-changed" data-stale-notice><svg class="ic" aria-hidden="true"><use href="#ui-changed"/></svg><span><strong>Modifié depuis votre avis.</strong> Vous l'aviez {{ p.stale_label }} ; son déroulé a changé, il est repassé « à analyser ».</span></p>{% endif %}
+    {# Deux rubriques nommées, dans l'ordre où l'on raisonne : les paramètres du cas, puis le résultat attendu. Les paramètres mis en avant par l'auteur restent visibles ; les autres se déplient, et le choix est mémorisé. #}
+    {% if p.highlight_rows or p.other_rows or p.outcome.label %}
+    <dl class="cp-facts">
+      {% if p.highlight_rows or p.other_rows %}<div>
+        <dt>Paramètres</dt>
+        <dd class="cp-fact-body">
+          {% if p.highlight_rows %}<dl class="cp-key" aria-label="Paramètres mis en avant">{% for h in p.highlight_rows %}<div{% if h.title %} title="{{ h.title }}"{% endif %}><dt>{{ h.label }}</dt><dd{% if h.cls %} class="{{ h.cls }}"{% endif %}>{{ h.value }}</dd></div>{% endfor %}</dl>{% endif %}
+          {% if p.other_rows %}<button type="button" class="fold-btn" data-fold-btn="facts" aria-expanded="false" aria-controls="facts-{{ c.pk }}"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg>{% if p.highlight_rows %}Autres{% else %}Afficher{% endif %}<span class="sr-only"> paramètres</span> <span class="count">{{ p.other_rows|length }}</span></button>
+          <dl class="cp-meta" id="facts-{{ c.pk }}" data-fold-region="facts">{% for r in p.other_rows %}<div><dt>{{ r.label }}</dt><dd>{{ r.value }}</dd></div>{% endfor %}</dl>{% endif %}
+        </dd>
+      </div>{% endif %}
+      {% if p.outcome.label %}<div><dt>Résultat attendu</dt><dd>{% if p.outcome_role %}<span class="st" data-role="{{ p.outcome_role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ p.outcome_role }}"/></svg><span class="st-tx">{{ p.outcome.label }}</span></span>{% else %}<b>{{ p.outcome.label }}</b>{% endif %}</dd></div>{% endif %}
+    </dl>
+    {% endif %}
+  </header>
+
+  {% include "core/_steps.html" with p=p %}
+
+  <section class="cp-rep" aria-label="Schéma du cas">
+    <div class="cp-rep-head">
+      <p>Représentation : <strong>{{ p.rep.name }}</strong>{% if p.rep_for_case %} <span class="chip">pour ce cas</span>{% endif %}</p>
+      <a class="link" href="{% url 'study_representations' p.study.public_id %}?cas={{ c.key }}">Changer</a>
+      {% if p.rep_for_case %}<form method="post" action="{% url 'study_representations' p.study.public_id %}">{% csrf_token %}<input type="hidden" name="action" value="reset_case"><input type="hidden" name="case" value="{{ c.key }}"><input type="hidden" name="then" value="cases"><button class="link-btn" type="submit">Suivre l'étude</button></form>{% endif %}
+      <button type="button" class="fold-btn" data-fold-btn="legend" aria-expanded="false" aria-controls="legend-{{ c.pk }}"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg>Légende des statuts</button>
+    </div>
+    <div id="legend-{{ c.pk }}" data-fold-region="legend">{% include "core/_legend.html" with legend=p.legend %}</div>
+    {{ p.rep_html }}
+  </section>
+
+  {% if p.compare %}
+  <section class="compare-block" aria-labelledby="compare-{{ c.pk }}">
+    <h3 id="compare-{{ c.pk }}">À comparer avec</h3>
+    <ul class="compare-list">
+      {% for o in p.compare %}<li>
+        {% if o.missing %}<p class="hint">Le cas « {{ o.key }} » n'existe pas, ou il a été retiré.</p>
+        {% else %}<a class="link" href="?cas={{ o.key }}" data-open-case="{{ o.key }}"><b>{{ o.number }}</b> {{ o.title }}</a>
+        {% if o.diffs %}<table class="compare-diff"><thead><tr><th scope="col">Ce qui diffère</th><th scope="col">Ce cas</th><th scope="col">Cas {{ o.number }}</th></tr></thead>
+          <tbody>{% for d in o.diffs %}<tr><th scope="row">{{ d.label }}</th><td>{{ d.here }}</td><td>{{ d.there }}</td></tr>{% endfor %}</tbody></table>
+          {% if o.more %}<p class="hint">et {{ o.more }} autre{{ o.more|pluralize }} différence{{ o.more|pluralize }}.</p>{% endif %}
+        {% else %}<p class="hint">Mêmes paramètres et même résultat : seul le déroulé diffère.</p>{% endif %}
+        {% endif %}
+      </li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if p.others %}
+  <section class="others-block">
+    <h3>Avis des autres relecteurs</h3>
+    <ul class="others">
+      {% for v in p.others %}<li><span class="vstate vstate-{{ v.decision }}"><svg class="ic" aria-hidden="true"><use href="#ui-{{ v.decision }}"/></svg>{{ v.get_decision_display }}</span> <span class="who">{{ v.reviewer.username }}</span>{% if v.stale_from %} <span class="hint">avis à refaire : le cas a changé</span>{% endif %}{% if v.comment %}<q>{{ v.comment }}</q>{% endif %}</li>{% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="cp-more">
+    {% if p.content.caution %}<p class="notice notice-caution"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><span>{{ p.content.caution }}</span></p>{% endif %}
+    {% if p.rules %}
+    <details>
+      <summary>Règles illustrées <span class="count">{{ p.rules|length }}</span></summary>
+      <ul class="rule-list">{% for r in p.rules %}<li><b>{{ r.key }}</b> {{ r.title }}{% if r.text %}<span>{{ r.text }}</span>{% endif %}</li>{% endfor %}</ul>
+    </details>
+    {% endif %}
+    {% if p.content.references or p.content.tags %}
+    <details>
+      <summary>Sources et étiquettes <span class="count">{{ p.content.references|length }}</span></summary>
+      <ul class="ref-list">{% for r in p.content.references %}<li><span class="ref-kind">{{ r.kind }}</span><code>{{ r.label }}</code></li>{% endfor %}</ul>
+      {% if p.content.tags %}<p class="tags">{% for t in p.content.tags %}<span class="tag">{{ t }}</span>{% endfor %}</p>{% endif %}
+    </details>
+    {% endif %}
+    <details>
+      <summary>Révisions <span class="count">{{ c.revision_no }}</span></summary>
+      <ol class="rev-list">{% for r in p.revisions %}<li><b>Révision {{ r.number }}</b> {{ r.summary }}{% if not r.semantic_change %} <span class="hint">avis conservés</span>{% endif %}<span>{% if r.actor_token_id %}<svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>par jeton ({{ r.actor_user.username }}){% else %}<svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg>{{ r.actor_user.username|default:"—" }}{% endif %} · {{ r.created_at|date:"j M Y, H:i" }}</span></li>{% endfor %}</ol>
+      <p class="hint">Fondement : <b>{{ p.proof }}</b>. {{ p.proof_help }}</p>
+      <p class="hint">Empreinte du déroulé : <code>{{ c.content_hash|slice:":12" }}</code>. Un avis reste valable tant que cette empreinte ne change pas.</p>
+    </details>
+  </section>
+  <section class="verdict" aria-label="Votre avis">
+    <div class="toast" data-toast hidden role="status"><p data-toast-text></p><button type="button" class="btn btn-quiet" data-toast-undo>Annuler <kbd aria-hidden="true">Z</kbd></button></div>
+    {% if p.content.question %}<p class="verdict-question"><svg class="ic" aria-hidden="true"><use href="#ui-comment"/></svg><span><b>À vérifier :</b> {{ p.content.question }}</span></p>{% endif %}
+    {% if p.can_review %}
+    <div class="verdict-row" role="group" aria-label="Votre avis sur ce cas">
+      <button type="button" class="vbtn vbtn-accepted" data-decision="accepted" aria-pressed="{% if p.decision == 'accepted' %}true{% else %}false{% endif %}"><svg class="ic" aria-hidden="true"><use href="#ui-accepted"/></svg>Valider<kbd aria-hidden="true">V</kbd></button>
+      <button type="button" class="vbtn vbtn-rejected" data-decision="rejected" aria-pressed="{% if p.decision == 'rejected' %}true{% else %}false{% endif %}"><svg class="ic" aria-hidden="true"><use href="#ui-rejected"/></svg>Refuser<kbd aria-hidden="true">R</kbd></button>
+      <button type="button" class="vbtn vbtn-to_analyze" data-decision="to_analyze" aria-pressed="{% if p.decision == 'to_analyze' %}true{% else %}false{% endif %}"><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>À analyser<kbd aria-hidden="true">A</kbd></button>
+      <p class="verdict-state" data-verdict-state role="status"></p>
+    </div>
+    <div class="comment">
+      <label for="comment-{{ c.key }}">Commentaire <span class="hint">lu par l'IA quand elle corrige ce cas</span></label>
+      <textarea id="comment-{{ c.key }}" data-comment rows="1" maxlength="4000" placeholder="Ce qui ne va pas, ou ce qui reste à vérifier">{{ p.comment }}</textarea>
+      <button type="button" class="btn btn-quiet" data-comment-save hidden>Enregistrer le commentaire</button>
+    </div>
+    {% else %}
+    <p class="verdict-readonly">
+      <span class="vstate vstate-{{ p.decision }}"><svg class="ic" aria-hidden="true"><use href="#ui-{{ p.decision }}"/></svg>{% if p.decision == 'accepted' %}Validé{% elif p.decision == 'rejected' %}Refusé{% else %}À analyser{% endif %}</span>
+      {% if c.retired_at %}Cas retiré : les avis ne sont plus modifiables.{% else %}Votre rôle de lecteur ne permet pas de rendre un avis.{% endif %}
+    </p>
+    {% endif %}
+  </section>
+</article>
+{% endwith %}

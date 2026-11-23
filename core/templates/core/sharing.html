@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Partage — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page page-narrow">
+  {% if pending %}
+  <section class="pending">
+    <h2>Demandes à confirmer <span class="count">{{ pending|length }}</span></h2>
+    <p class="hint">Un jeton ne partage jamais seul : il demande, et rien ne change tant que vous n'avez pas confirmé ici.</p>
+    <ul class="requests">
+      {% for r in pending %}
+      <li>
+        <div>
+          <p><strong>{{ r.invitee.username }}</strong> en tant que <strong>{{ r.get_role_display|lower }}</strong></p>
+          <p class="sub">{% if r.via_token %}<svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>Demandé par le jeton « {{ r.via_token.name }} » de {{ r.requested_by.username }}{% else %}<svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg>Demandé par {{ r.requested_by.username }}{% endif %} · {{ r.created_at|date:"j M Y, H:i" }}</p>
+          {% if r.message %}<q>{{ r.message }}</q>{% endif %}
+        </div>
+        {% if is_owner %}
+        <form method="post" class="request-actions">{% csrf_token %}<input type="hidden" name="request" value="{{ r.pk }}">
+          <button class="btn btn-primary" type="submit" name="action" value="confirm">Confirmer le partage</button>
+          <button class="btn" type="submit" name="action" value="reject">Refuser</button>
+        </form>
+        {% else %}<p class="hint">Seul le propriétaire peut confirmer.</p>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Membres <span class="count">{{ members|length }}</span></h2>
+    <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Personne</th><th scope="col">Rôle</th><th scope="col">Depuis</th>{% if is_owner %}<th scope="col"><span class="sr-only">Actions</span></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for m in members %}
+        <tr>
+          <th scope="row">{{ m.user.username }}{% if m.user_id == user.id %} <span class="hint">vous</span>{% endif %}</th>
+          <td>{% if is_owner and m.role != "owner" %}
+            <form method="post" class="inline-form">{% csrf_token %}<input type="hidden" name="action" value="role"><input type="hidden" name="member" value="{{ m.user_id }}">
+              <label class="sr-only" for="role-{{ m.user_id }}">Rôle de {{ m.user.username }}</label>
+              <select id="role-{{ m.user_id }}" name="role" data-autosubmit>{% for value, label, help in roles %}<option value="{{ value }}"{% if m.role == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+              <button class="btn js-hide" type="submit">Changer</button>
+            </form>{% else %}{{ m.role_label }}{% endif %}</td>
+          <td class="when">{{ m.created_at|date:"j M Y" }}</td>
+          {% if is_owner %}<td class="actions">{% if m.role != "owner" %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="member" value="{{ m.user_id }}"><button class="btn btn-quiet btn-danger" type="submit" aria-label="Retirer l'accès de {{ m.user.username }}">Retirer l'accès</button></form>{% endif %}</td>{% endif %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  {% if is_owner %}
+  <section class="form-section">
+    <h2>Partager avec quelqu'un</h2>
+    <form method="post" class="form">{% csrf_token %}<input type="hidden" name="action" value="invite">
+      <div class="field"><label for="share-user">Nom d'utilisateur ou e-mail</label><input id="share-user" name="user" required autocomplete="off" placeholder="lea"><p class="hint">La personne doit déjà avoir un compte sur cette instance.</p></div>
+      <fieldset class="field"><legend>Rôle</legend>
+        <div class="choices">{% for value, label, help in roles %}<label class="choice"><input type="radio" name="role" value="{{ value }}"{% if value == "commenter" %} checked{% endif %}><span><b>{{ label }}</b>{{ help }}</span></label>{% endfor %}</div>
+      </fieldset>
+      <p class="form-actions"><button class="btn btn-primary" type="submit">Partager</button></p>
+    </form>
+  </section>
+  {% else %}
+  <p class="hint">Seul le propriétaire, {{ study.owner.username }}, peut partager cette étude ou modifier les rôles.</p>
+  {% endif %}
+
+  {% if decided %}
+  <section>
+    <h2>Demandes traitées</h2>
+    <ul class="decided">{% for r in decided %}<li><span class="chip">{{ r.get_status_display }}</span> {{ r.invitee.username }} · {{ r.get_role_display|lower }} · demandé par {{ r.requested_by.username }}{% if r.via_token_id %} (jeton){% endif %}{% if r.decided_by %} · tranché par {{ r.decided_by.username }} le {{ r.decided_at|date:"j M Y" }}{% endif %}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

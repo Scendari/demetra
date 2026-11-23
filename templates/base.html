@@ -1,0 +1,61 @@
+{% load static %}<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Demetra{% endblock %}</title>
+<meta name="description" content="Demetra montre les cas de vos règles de gestion et de vos processus, étape par étape, signale ceux qui manquent et recueille votre avis sur chacun.">
+<script>(function(){document.documentElement.classList.add("js");try{var t=localStorage.getItem("demetra-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t;if(localStorage.getItem("demetra-rail")==="1")document.documentElement.dataset.railMini="1";if(localStorage.getItem("demetra-list")==="1")document.documentElement.dataset.listHidden="1";if(localStorage.getItem("demetra-fold-facts")==="1")document.documentElement.dataset.foldFacts="1";if(localStorage.getItem("demetra-fold-legend")==="1")document.documentElement.dataset.foldLegend="1"}catch(e){document.documentElement.dataset.theme="light"}})()</script>
+<link rel="preload" href="{% static 'core/fonts/archivo-variable.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{% static 'core/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'core/rep.css' %}">
+<link rel="stylesheet" href="{% static 'core/app.css' %}">
+<link rel="icon" href="{% static 'core/favicon-32.png' %}" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="{% static 'core/apple-touch-icon.png' %}">
+<link rel="manifest" href="{% static 'core/site.webmanifest' %}">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{{ status_sprite }}{% include "core/_icons.html" %}
+<a class="skip" href="#main">Aller au contenu</a>
+<div class="shell">
+  <header class="rail">
+    <a class="brand" href="{% url 'home' %}" aria-label="Demetra, accueil">
+      <img class="brand-mark" src="{% static 'core/brand-28.png' %}" srcset="{% static 'core/brand-28.png' %} 1x, {% static 'core/brand-56.png' %} 2x" width="28" height="28" alt="">
+      <span class="brand-name">Demetra</span>
+    </a>
+    <button class="rail-toggle" type="button" aria-expanded="false" aria-controls="rail-nav"><svg class="ic" aria-hidden="true"><use href="#ui-menu"/></svg><span class="sr-only">Menu</span></button>
+    <nav class="rail-nav" id="rail-nav" aria-label="Navigation principale">
+      <ul>
+        {% if user.is_authenticated %}
+        <li><a href="{% url 'studies' %}"{% if nav == "studies" %} aria-current="page"{% endif %} title="Études"><svg class="ic" aria-hidden="true"><use href="#ui-studies"/></svg><span class="rail-label">Études</span></a></li>
+        <li><a href="{% url 'tokens' %}"{% if nav == "tokens" %} aria-current="page"{% endif %} title="Jetons d'accès"><svg class="ic" aria-hidden="true"><use href="#ui-key"/></svg><span class="rail-label">Jetons d'accès</span></a></li>
+        {% endif %}
+        <li><a href="{% url 'guide' %}"{% if nav == "guide" %} aria-current="page"{% endif %} title="Mode d'emploi"><svg class="ic" aria-hidden="true"><use href="#ui-guide"/></svg><span class="rail-label">Mode d'emploi</span></a></li>
+        <li><a href="{% url 'bricks' %}"{% if nav == "bricks" %} aria-current="page"{% endif %} title="Briques"><svg class="ic" aria-hidden="true"><use href="#ui-bricks"/></svg><span class="rail-label">Briques</span></a></li>
+        {% if user.is_staff %}<li><a href="{% url 'admin:index' %}" title="Administration"><svg class="ic" aria-hidden="true"><use href="#ui-admin"/></svg><span class="rail-label">Administration</span></a></li>{% endif %}
+      </ul>
+      <div class="rail-foot">
+        <button class="rail-btn rail-dock" type="button" data-dock="rail" title="Réduire le menu"><svg class="ic" aria-hidden="true"><use href="#ui-dock"/></svg><span class="rail-label" data-dock-label>Réduire le menu</span></button>
+        <button class="rail-btn" type="button" data-theme-toggle title="Changer de thème">
+          <svg class="ic when-light" aria-hidden="true"><use href="#ui-moon"/></svg><svg class="ic when-dark" aria-hidden="true"><use href="#ui-sun"/></svg>
+          <span class="rail-label"><span class="when-light">Thème sombre</span><span class="when-dark">Thème clair</span></span>
+        </button>
+        {% if user.is_authenticated %}
+        <form method="post" action="{% url 'account_logout' %}" class="rail-user">{% csrf_token %}
+          <span class="rail-who" title="{{ user.username }}"><svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg><span class="rail-label">{{ user.username }}</span></span>
+          <button class="rail-btn" type="submit" title="Se déconnecter"><svg class="ic" aria-hidden="true"><use href="#ui-logout"/></svg><span class="rail-label">Se déconnecter</span></button>
+        </form>
+        {% else %}
+        <a class="rail-btn" href="{% url 'account_login' %}" title="Se connecter"><svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg><span class="rail-label">Se connecter</span></a>
+        {% endif %}
+      </div>
+    </nav>
+  </header>
+  <main id="main" tabindex="-1">
+    {% if messages %}<div class="flashes" role="status">{% for message in messages %}<p class="flash flash-{{ message.tags }}"><svg class="ic" aria-hidden="true"><use href="#ui-{% if message.tags == 'error' %}warning{% else %}check{% endif %}"/></svg><span>{{ message }}</span></p>{% endfor %}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{% static 'core/app.js' %}" defer></script>
+</body>
+</html>

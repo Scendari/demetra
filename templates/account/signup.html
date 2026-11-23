@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Créer un compte — Demetra{% endblock %}
+{% block body_class %}page-auth{% endblock %}
+{% block content %}
+<div class="auth">
+  <h1>Créer un compte</h1>
+  <form method="post" action="{% url 'account_signup' %}" class="form">{% csrf_token %}
+    {% if form.non_field_errors %}<div class="errors" role="alert">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    <div class="field"><label for="id_username">Nom d'utilisateur</label><input id="id_username" name="username" type="text" autocomplete="username" required autofocus value="{{ form.username.value|default:'' }}"><p class="hint">C'est le nom que les autres saisiront pour partager une étude avec vous.</p>{% for e in form.username.errors %}<p class="field-error">{{ e }}</p>{% endfor %}</div>
+    <div class="field"><label for="id_email">E-mail</label><input id="id_email" name="email" type="email" autocomplete="email" required value="{{ form.email.value|default:'' }}">{% for e in form.email.errors %}<p class="field-error">{{ e }}</p>{% endfor %}</div>
+    <div class="field"><label for="id_password1">Mot de passe</label><input id="id_password1" name="password1" type="password" autocomplete="new-password" required><p class="hint">8 caractères au moins.</p>{% for e in form.password1.errors %}<p class="field-error">{{ e }}</p>{% endfor %}</div>
+    <div class="field"><label for="id_password2">Mot de passe, encore une fois</label><input id="id_password2" name="password2" type="password" autocomplete="new-password" required>{% for e in form.password2.errors %}<p class="field-error">{{ e }}</p>{% endfor %}</div>
+    {% if redirect_field_value %}<input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">{% endif %}
+    <p class="form-actions"><button class="btn btn-primary btn-lg" type="submit">Créer mon compte</button></p>
+  </form>
+  <p class="auth-alt">Déjà un compte ? <a class="link" href="{% url 'account_login' %}">Se connecter</a></p>
+</div>
+{% endblock %}

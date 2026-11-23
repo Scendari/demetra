@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load demetra %}
+{% block title %}Représentation — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page">
+  <section class="rep-current">
+    <div>
+      <h2>Vous voyez cette étude en « {{ current.name }} »</h2>
+      <p>{% if has_personal_choice %}C'est votre choix personnel : les autres membres gardent le leur.{% elif study.representation_id == current.id %}C'est la représentation choisie pour toute l'étude.{% else %}Personne n'a encore choisi : c'est la représentation que Demetra recommande pour la forme de ces cas.{% endif %}
+      Une représentation est un assemblage de <a class="link" href="{% url 'bricks' %}">briques</a> ; votre IA peut en proposer et les ajuster, et c'est vous qui choisissez.</p>
+      <p class="hint">Une étude a une représentation{% if study_by == "ai" %}, choisie ici par l'IA qui l'a déposée{% endif %}. Vous pouvez en changer pour vous, pour un seul cas, ou pour toute l'étude : c'est votre choix.</p>
+      {% if case_choices_made %}<ul class="rep-case-choices" aria-label="Cas qui ont leur propre représentation">{% for chosen, rep in case_choices_made %}
+        <li><form method="post">{% csrf_token %}<input type="hidden" name="action" value="reset_case"><input type="hidden" name="case" value="{{ chosen.key }}">Cas {{ chosen.display_number }} : <b>{{ rep.name }}</b> <button class="link-btn" type="submit">Suivre l'étude<span class="sr-only"> pour le cas {{ chosen.display_number }}</span></button></form></li>{% endfor %}
+      </ul>{% endif %}
+    </div>
+    <div class="rep-current-tools">
+      {% if has_personal_choice %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="reset"><button class="btn" type="submit">Revenir au choix de l'étude</button></form>{% endif %}
+      {% if case_choices %}<form method="get" class="inline-form"><label for="cas">Aperçus sur le cas</label><select id="cas" name="cas" data-autosubmit>{% for c in case_choices %}<option value="{{ c.key }}"{% if sample_case and sample_case.key == c.key %} selected{% endif %}>{{ c.display_number }} · {{ c.title|truncatechars:60 }}</option>{% endfor %}</select><button class="btn js-hide" type="submit">Afficher</button></form>{% endif %}
+    </div>
+  </section>
+
+  {% if proposals %}
+  <section>
+    <h2>Proposées pour cette étude <span class="count">{{ proposals|length }}</span></h2>
+    <ul class="rep-cards">{% for card in proposals %}{% include "core/_rep_card.html" %}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if recommended %}
+  <section>
+    <h2>Recommandées par Demetra</h2>
+    <p class="hint">Présélection calculée d'après la forme des cas : {{ shape.cases }} cas, jusqu'à {{ shape.max_entities }} entités et {{ shape.max_steps }} étapes, {{ shape.dimensions }} dimension{{ shape.dimensions|pluralize }}.</p>
+    <ul class="rep-cards">{% for card in recommended %}{% include "core/_rep_card.html" %}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if mine %}
+  <section>
+    <h2>Vos thèmes et ajustements</h2>
+    <ul class="rep-cards">{% for card in mine %}{% include "core/_rep_card.html" %}{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  {% if others %}
+  <section>
+    <h2>Les autres représentations</h2>
+    <ul class="rep-cards">{% for card in others %}{% include "core/_rep_card.html" %}{% endfor %}</ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

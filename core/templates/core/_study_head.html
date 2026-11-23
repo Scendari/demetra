@@ -1,0 +1,16 @@
+<div class="study-head">
+  <div class="study-title">
+    <a class="crumb" href="{% url 'studies' %}">Études</a><span class="crumb-sep" aria-hidden="true">/</span>
+    <h1>{{ study.title }}</h1>
+    {% if study.is_example %}<span class="chip" title="Étude d'exemple fournie avec Demetra : ses règles et ses cas sont inventés.">Exemple · données fictives</span>{% endif %}
+    <span class="role-tag" title="Votre rôle sur cette étude">{% if is_owner %}<svg class="ic" aria-hidden="true"><use href="#ui-lock"/></svg>{% endif %}{{ role_label }}</span>
+  </div>
+  <nav class="tabs" aria-label="Sections de l'étude">
+    <a href="{% url 'workspace' study.public_id %}"{% if active == "cases" %} aria-current="page"{% endif %}>Cas</a>
+    <a href="{% url 'study_coverage' study.public_id %}"{% if active == "coverage" %} aria-current="page"{% endif %}>Couverture</a>
+    <a href="{% url 'study_representations' study.public_id %}"{% if active == "representations" %} aria-current="page"{% endif %}>Représentation{% if open_proposals %} <span class="count" title="{{ open_proposals }} proposition(s) à examiner">{{ open_proposals }}</span>{% endif %}</a>
+    <a href="{% url 'study_sharing' study.public_id %}"{% if active == "sharing" %} aria-current="page"{% endif %}>Partage{% if pending_shares %} <span class="count" title="{{ pending_shares }} demande(s) à confirmer">{{ pending_shares }}</span>{% endif %}</a>
+    <a href="{% url 'study_history' study.public_id %}"{% if active == "history" %} aria-current="page"{% endif %}>Historique</a>
+    <a href="{% url 'study_setup' study.public_id %}"{% if active == "setup" %} aria-current="page"{% endif %}>Règles et définitions</a>
+  </nav>
+</div>

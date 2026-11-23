@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Historique — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page">
+  <div class="section-head">
+    <h2>Journal de l'étude</h2>
+    <div class="seg" role="group" aria-label="Filtrer par acteur">
+      <a href="?" {% if who == "tous" %}aria-current="true"{% endif %}>Tout <span>{{ count_all }}</span></a>
+      <a href="?acteur=humain" {% if who == "humain" %}aria-current="true"{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg>Humains <span>{{ count_human }}</span></a>
+      <a href="?acteur=jeton" {% if who == "jeton" %}aria-current="true"{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>Jetons <span>{{ count_token }}</span></a>
+    </div>
+  </div>
+  {% if rows %}
+  <div class="table-wrap">
+  <table class="data journal">
+    <thead><tr><th scope="col">Quand</th><th scope="col">Qui</th><th scope="col">Quoi</th><th scope="col">Sur</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="when">{{ r.event.created_at|date:"j M Y, H:i" }}</td>
+        <td>{% if r.kind == "jeton" %}<span class="actor actor-token"><svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>Jeton « {{ r.token }} »</span><p class="sub">de {{ r.who }}</p>{% else %}<span class="actor"><svg class="ic" aria-hidden="true"><use href="#ui-human"/></svg>{{ r.who }}</span>{% endif %}</td>
+        <td>{{ r.label }}{% if r.bits %}<p class="sub">{{ r.bits }}</p>{% endif %}</td>
+        <td>{{ r.event.target }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="hint">Aucune action de ce type pour l'instant.</p>
+  {% endif %}
+  <p class="hint">L'historique de chaque cas (révisions, avis remis à analyser) se lit dans le panneau du cas, rubrique « Révisions ».</p>
+</div>
+{% endblock %}

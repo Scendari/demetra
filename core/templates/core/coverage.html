@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Couverture — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page">
+  {% if not report.dimensions %}
+  <section class="empty">
+    <h2>La couverture ne peut pas encore être mesurée</h2>
+    <p>Une <strong>dimension</strong> est un facteur qui varie d'un cas à l'autre : le délai, l'état du produit, le type de client. Une fois les dimensions déclarées, Demetra compte les combinaisons de valeurs qu'aucun cas n'illustre.</p>
+    <p><a class="btn" href="{% url 'study_setup' study.public_id %}#definitions">Déclarer des dimensions</a></p>
+  </section>
+  {% else %}
+  <section class="cov-top">
+    <div class="cov-figure">
+      <p class="cov-num">{{ report.covered }}<span> sur {{ report.total }}</span></p>
+      <p class="cov-label">combinaisons illustrées par au moins un cas{% if pct is not None %} ({{ pct }} %){% endif %}</p>
+      <div class="progress-bar progress-lg" role="img" aria-label="{{ report.covered }} combinaisons couvertes sur {{ report.total }}"><span class="pb pb-accent" style="width: {{ pct|default:0 }}%"></span></div>
+    </div>
+    <form method="get" class="cov-strength" aria-label="Finesse de la mesure">
+      <div class="seg" role="group" aria-label="Combinaisons mesurées">
+        {% for value, label in strength_labels %}<button type="submit" name="force" value="{{ value }}" aria-pressed="{% if strength == value %}true{% else %}false{% endif %}">{{ label }}</button>{% endfor %}
+      </div>
+      <p class="hint">{% if strength == 1 %}Chaque valeur de chaque dimension est-elle illustrée ?{% elif strength == 2 %}Chaque paire de valeurs de deux dimensions est-elle illustrée ?{% else %}Chaque triplet de valeurs de trois dimensions est-il illustré ?{% endif %}</p>
+    </form>
+    <p class="cov-limit"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>Cette mesure ne vaut que pour les dimensions déclarées. Une situation qu'elles ne décrivent pas n'apparaît pas comme manquante.</span></p>
+  </section>
+
+  <section>
+    <h2>Combinaisons manquantes <span class="count">{{ report.missing_count }}</span></h2>
+    {% if missing %}
+    <ul class="missing">
+      {% for combo in missing %}<li><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>{% for part in combo %}<span class="pair"><span>{{ part.dim }}</span> <b>{{ part.value }}</b></span>{% if not forloop.last %}<span class="times" aria-hidden="true">×</span><span class="sr-only"> avec </span>{% endif %}{% endfor %}</li>{% endfor %}
+    </ul>
+    {% if report.missing_count > missing|length %}<p class="hint">{{ missing|length }} premières affichées sur {{ report.missing_count }}. La liste complète est servie par l'API.</p>{% endif %}
+    <p class="hint">Pour chacune : ajouter un cas, déclarer la combinaison impossible avec sa raison, ou la laisser en le sachant.</p>
+    {% else %}
+    <p class="ok-line"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>À ce niveau de finesse, chaque combinaison possible est illustrée par au moins un cas.</p>
+    {% endif %}
+  </section>
+
+  {% if table %}
+  <section>
+    <div class="section-head">
+      <h2>Matrice</h2>
+      <form method="get" class="inline-form">
+        <input type="hidden" name="force" value="{{ strength }}">
+        <label for="lignes">Lignes</label><select id="lignes" name="lignes">{% for key, label in dimension_choices %}<option value="{{ key }}"{% if key == row_key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <label for="colonnes">Colonnes</label><select id="colonnes" name="colonnes">{% for key, label in dimension_choices %}<option value="{{ key }}"{% if key == col_key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        <button class="btn" type="submit">Afficher</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+    <table class="data matrix">
+      <caption class="sr-only">Cas par {{ table.row.label }} et {{ table.col.label }}</caption>
+      <thead><tr><th scope="col">{{ table.row.label }} <span aria-hidden="true">╲</span> {{ table.col.label }}</th>{% for label in table.col.labels %}<th scope="col">{{ label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for row in table.rows %}<tr><th scope="row">{{ row.label }}</th>
+        {% for cell in row.cells %}<td class="{% if cell.excluded %}mx-excluded{% elif cell.cases %}mx-covered{% else %}mx-missing{% endif %}">
+          {% if cell.excluded %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ic-disabled"/></svg>Exclue</span><span class="mx-reason">{{ cell.excluded }}</span>
+          {% elif cell.cases %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>{{ cell.cases|length }} cas</span><p class="mx-cases">{% for c in cell.cases|slice:":8" %}<a href="{% url 'workspace' study.public_id %}?cas={{ c.key }}" title="{{ c.title }}">{{ c.label }}</a>{% endfor %}{% if cell.cases|length > 8 %}<span>+{{ cell.cases|length|add:"-8" }}</span>{% endif %}</p>
+          {% else %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>Manque</span>{% endif %}
+        </td>{% endfor %}
+      </tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="cov-cols">
+    <div>
+      <h2>Par dimension</h2>
+      {% for dim in report.by_dimension %}
+      <h3>{{ dim.label }}</h3>
+      <ul class="bars">
+        {% for v in dim.values %}<li><span class="bar-label">{{ v.label|default:v.value }}</span><span class="bar-track"><span class="bar-fill" style="width: {% widthratio v.cases report.cases_counted|default:1 100 %}%"></span></span><span class="bar-num">{{ v.cases }} cas</span></li>{% endfor %}
+      </ul>
+      {% endfor %}
+      {% if report.cases_without_dimensions %}<p class="hint">{{ report.cases_without_dimensions|length }} cas ne renseignent aucune dimension et ne comptent pas dans la mesure.</p>{% endif %}
+    </div>
+    <div>
+      <h2>Combinaisons déclarées impossibles <span class="count">{{ exclusions|length }}</span></h2>
+      {% if exclusions %}<ul class="exclusions">{% for e in exclusions %}<li><p>{% for part in e.when %}<span class="pair"><span>{{ part.dim }}</span> <b>{{ part.value }}</b></span>{% if not forloop.last %}<span class="times" aria-hidden="true">×</span>{% endif %}{% endfor %}</p><p class="sub">{{ e.reason }}</p></li>{% endfor %}</ul>
+      {% else %}<p class="hint">Aucune. Une combinaison déclarée impossible, avec sa raison, n'est plus comptée comme manquante.</p>{% endif %}
+      <h2>Contrôles de structure <span class="count">{{ checks|length }}</span></h2>
+      {% if checks %}<ul class="findings">{% for f in checks %}<li class="finding-{{ f.severity }}"><svg class="ic" aria-hidden="true"><use href="#ui-{% if f.severity == 'warning' %}warning{% else %}info{% endif %}"/></svg><span>{{ f.message }}</span></li>{% endfor %}</ul>
+      {% else %}<p class="ok-line"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>Aucun doublon, aucune règle sans cas, aucun statut inutilisé.</p>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

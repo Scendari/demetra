@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Briques de représentation — Demetra{% endblock %}
+{% block content %}
+<div class="page">
+  <header class="page-head"><h1>Briques de représentation</h1></header>
+  <p class="lead-sm">Une représentation est un document JSON qui assemble ces briques. Demetra valide le document, puis dessine lui-même : aucun code fourni par une IA ou un utilisateur n'est exécuté. Si une brique manque, l'IA la signale et compose en attendant avec celles-ci.</p>
+
+  <section>
+    <h2>Quatre assemblages, le même cas</h2>
+    <div class="samples">
+      {% for s in samples %}
+      <figure class="sample" data-panel data-step="{{ s.render.step }}" data-steps="{{ s.render.steps_json }}">
+        <figcaption><h3>{{ s.name }}</h3><p>{{ s.description }}</p><p class="brick-list">{% for b in s.bricks %}<code>{{ b }}</code>{% endfor %}</p></figcaption>
+        {{ s.render.html }}
+        <div class="sample-ctl"><button type="button" class="icon-btn" data-step-prev aria-label="Étape précédente"><svg class="ic" aria-hidden="true"><use href="#ui-prev"/></svg></button><span class="step-count">Étape <b data-step-n>{{ s.render.step_n }}</b> / {{ s.render.n_steps }}</span><button type="button" class="icon-btn" data-step-next aria-label="Étape suivante"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg></button></div>
+        <details class="json"><summary>Document JSON</summary><pre><code>{{ s.json }}</code></pre></details>
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2>Règles et processus : neuf représentations, chacune sur son exemple</h2>
+    <p class="lead-sm">Ces représentations lisent des données que le cas ou l'étude doit porter : montants, champs, messages, jeu de règles, cycle de vie, tranches. Les exemples sont fictifs.</p>
+    <div class="samples samples-wide">
+      {% for s in extended %}
+      <figure class="sample" id="exemple-{{ s.slug }}" data-panel data-step="{{ s.render.step }}" data-steps="{{ s.render.steps_json }}">
+        <figcaption><h3>{{ s.name }}</h3><p>{{ s.description }}</p><p class="sub">Exemple : {{ s.render.study }} — {{ s.render.case_title }}</p><p class="brick-list">{% for b in s.bricks %}<code>{{ b }}</code>{% endfor %}</p></figcaption>
+        {{ s.render.html }}
+        <div class="sample-ctl"><button type="button" class="icon-btn" data-step-prev aria-label="Étape précédente"><svg class="ic" aria-hidden="true"><use href="#ui-prev"/></svg></button><span class="step-count">Étape <b data-step-n>{{ s.render.step_n }}</b> / {{ s.render.n_steps }}</span><button type="button" class="icon-btn" data-step-next aria-label="Étape suivante"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg></button></div>
+        <details class="json"><summary>Document JSON</summary><pre><code>{{ s.json }}</code></pre></details>
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% for family in catalog.families %}
+  <section>
+    <h2>{{ family.title }}</h2>
+    <div class="brick-table">
+      {% for b in family.bricks %}
+      <article class="brick" id="{{ b.brick }}">
+        <h3><code>{{ b.brick }}</code> {{ b.title }}</h3>
+        <p>{{ b.description }}</p>
+        {% if b.accepts_marks %}<p class="sub">Formes acceptées : {% for m in b.accepts_marks %}<code>{{ m }}</code> {% endfor %}</p>{% endif %}
+        {% if b.accepts_time %}<p class="sub">Évolution acceptée : {% for m in b.accepts_time %}<code>{{ m }}</code> {% endfor %}</p>{% endif %}
+        {% if b.param_rows %}
+        <div class="table-wrap"><table class="data params">
+          <thead><tr><th scope="col">Paramètre</th><th scope="col">Valeurs</th><th scope="col">Défaut</th><th scope="col">Effet</th></tr></thead>
+          <tbody>{% for p in b.param_rows %}<tr><th scope="row"><code>{{ p.name }}</code></th><td>{{ p.type }}</td><td>{% if p.has_default %}<code>{{ p.default }}</code>{% endif %}</td><td><span class="param-desc">{{ p.description }}</span></td></tr>{% endfor %}</tbody>
+        </table></div>
+        {% endif %}
+        <pre class="example"><code>{{ b.example_json }}</code></pre>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <section>
+    <h2>Ce que la représentation ne contrôle pas</h2>
+    <ul class="plain">{% for item in catalog.fixed_by_site %}<li>{{ item|capfirst }}</li>{% endfor %}</ul>
+    <p class="hint">Un statut est toujours rendu par une couleur de rôle, une icône et un libellé : jamais par la couleur seule.</p>
+  </section>
+
+  {% if brick_requests %}
+  <section>
+    <h2>Briques manquantes signalées <span class="count">{{ brick_requests|length }}</span></h2>
+    <ul class="requests">{% for r in brick_requests %}<li><div><p><strong>{{ r.title }}</strong>{% if r.family %} <span class="tag">{{ r.family }}</span>{% endif %}</p><p>{{ r.need }}</p><p class="sub">{% if r.via_token_id %}<svg class="ic" aria-hidden="true"><use href="#ui-token"/></svg>par jeton ({{ r.user.username }}){% else %}{{ r.user.username }}{% endif %} · {{ r.created_at|date:"j M Y" }}</p></div></li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

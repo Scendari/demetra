@@ -1,0 +1,115 @@
+/* Administration Django aux couleurs de Demetra : mêmes teintes que tokens.css, posées sur les variables de l'admin. */
+@font-face {
+  font-family: "Archivo";
+  src: url("fonts/archivo-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+
+html[data-theme="light"],
+:root {
+  --primary: oklch(0.44 0.165 259);
+  --secondary: oklch(0.27 0.06 255);
+  --accent: oklch(0.95 0.012 250);
+  --primary-fg: oklch(0.99 0.005 250);
+  --body-fg: oklch(0.235 0.035 255);
+  --body-bg: oklch(0.985 0.004 240);
+  --body-quiet-color: oklch(0.4 0.032 255);
+  --body-medium-color: oklch(0.32 0.035 255);
+  --body-loud-color: oklch(0.2 0.035 255);
+  --header-color: oklch(0.8 0.035 250);
+  --header-branding-color: oklch(0.95 0.012 250);
+  --header-bg: oklch(0.27 0.06 255);
+  --header-link-color: oklch(0.95 0.012 250);
+  --breadcrumbs-fg: oklch(0.8 0.035 250);
+  --breadcrumbs-link-fg: oklch(0.95 0.012 250);
+  --breadcrumbs-bg: oklch(0.335 0.075 255);
+  --link-fg: oklch(0.44 0.165 259);
+  --link-hover-color: oklch(0.38 0.165 259);
+  --link-selected-fg: oklch(0.38 0.165 259);
+  --hairline-color: oklch(0.92 0.01 245);
+  --border-color: oklch(0.885 0.012 245);
+  --error-fg: oklch(0.48 0.18 27);
+  --darkened-bg: oklch(0.96 0.008 240);
+  --selected-bg: oklch(0.94 0.01 240);
+  --selected-row: oklch(0.95 0.03 259);
+  --button-fg: oklch(0.99 0.005 250);
+  --button-bg: oklch(0.44 0.165 259);
+  --button-hover-bg: oklch(0.38 0.165 259);
+  --default-button-bg: oklch(0.38 0.165 259);
+  --default-button-hover-bg: oklch(0.33 0.16 259);
+  --delete-button-bg: oklch(0.48 0.18 27);
+  --delete-button-hover-bg: oklch(0.42 0.18 27);
+  --font-family-primary: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary: oklch(0.74 0.125 256);
+    --secondary: oklch(0.155 0.03 255);
+    --primary-fg: oklch(0.17 0.04 256);
+    --body-fg: oklch(0.94 0.012 250);
+    --body-bg: oklch(0.195 0.026 255);
+    --body-quiet-color: oklch(0.79 0.022 250);
+    --body-medium-color: oklch(0.86 0.018 250);
+    --body-loud-color: oklch(0.98 0.008 250);
+    --header-bg: oklch(0.155 0.03 255);
+    --breadcrumbs-bg: oklch(0.25 0.05 255);
+    --link-fg: oklch(0.74 0.125 256);
+    --link-hover-color: oklch(0.8 0.11 256);
+    --link-selected-fg: oklch(0.8 0.11 256);
+    --hairline-color: oklch(0.28 0.03 255);
+    --border-color: oklch(0.325 0.032 255);
+    --error-fg: oklch(0.72 0.15 27);
+    --darkened-bg: oklch(0.168 0.026 255);
+    --selected-bg: oklch(0.265 0.032 255);
+    --selected-row: oklch(0.3 0.06 259);
+    --button-fg: oklch(0.17 0.04 256);
+    --button-bg: oklch(0.74 0.125 256);
+    --button-hover-bg: oklch(0.8 0.11 256);
+    --default-button-bg: oklch(0.8 0.11 256);
+    --default-button-hover-bg: oklch(0.86 0.09 256);
+  }
+}
+
+html[data-theme="dark"] {
+  --primary: oklch(0.74 0.125 256);
+  --secondary: oklch(0.155 0.03 255);
+  --primary-fg: oklch(0.17 0.04 256);
+  --body-fg: oklch(0.94 0.012 250);
+  --body-bg: oklch(0.195 0.026 255);
+  --body-quiet-color: oklch(0.79 0.022 250);
+  --body-medium-color: oklch(0.86 0.018 250);
+  --body-loud-color: oklch(0.98 0.008 250);
+  --header-bg: oklch(0.155 0.03 255);
+  --breadcrumbs-bg: oklch(0.25 0.05 255);
+  --link-fg: oklch(0.74 0.125 256);
+  --link-hover-color: oklch(0.8 0.11 256);
+  --link-selected-fg: oklch(0.8 0.11 256);
+  --hairline-color: oklch(0.28 0.03 255);
+  --border-color: oklch(0.325 0.032 255);
+  --error-fg: oklch(0.72 0.15 27);
+  --darkened-bg: oklch(0.168 0.026 255);
+  --selected-bg: oklch(0.265 0.032 255);
+  --selected-row: oklch(0.3 0.06 259);
+  --button-fg: oklch(0.17 0.04 256);
+  --button-bg: oklch(0.74 0.125 256);
+  --button-hover-bg: oklch(0.8 0.11 256);
+  --default-button-bg: oklch(0.8 0.11 256);
+  --default-button-hover-bg: oklch(0.86 0.09 256);
+}
+
+#site-name a { display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 700; font-stretch: 110%; }
+#site-name img { border-radius: 6px; }
+#header { padding-block: 0.75rem; }
+.module caption, .module h2, .inline-group h2 { background: var(--breadcrumbs-bg); }
+
+.dm-figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.75rem; margin: 0 0 2rem; padding: 0; list-style: none; }
+.dm-figures li { margin: 0; padding: 0; list-style: none; }
+#content .dm-figures > li > a { display: grid; gap: 0.2rem; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--darkened-bg); color: var(--body-fg); text-decoration: none; }
+#content .dm-figures > li > a:hover, #content .dm-figures > li > a:focus-visible { color: var(--body-fg); text-decoration: none; border-color: var(--link-fg); }
+.dm-figures b { font-size: 1.9rem; font-weight: 720; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.dm-figures span { color: var(--body-quiet-color); font-size: 0.85rem; }
+.dm-note { max-width: 60ch; margin: 0 0 1.5rem; color: var(--body-quiet-color); }

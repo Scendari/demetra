@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Se déconnecter — Demetra{% endblock %}
+{% block body_class %}page-auth{% endblock %}
+{% block content %}
+<div class="auth">
+  <h1>Se déconnecter</h1>
+  <form method="post" action="{% url 'account_logout' %}" class="form">{% csrf_token %}
+    <p>Vous allez quitter votre session sur cet appareil.</p>
+    <p class="form-actions"><button class="btn btn-primary" type="submit">Se déconnecter</button><a class="btn" href="{% url 'studies' %}">Rester connecté</a></p>
+  </form>
+</div>
+{% endblock %}

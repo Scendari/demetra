@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ study.title }} — Demetra{% endblock %}
+{% block body_class %}page-workspace{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+{% if not rows %}
+<section class="empty">
+  <h2>Cette étude n'a pas encore de cas</h2>
+  <p>Un cas est une situation concrète qui découle de vos règles, décrite étape par étape. Deux façons d'en ajouter :</p>
+  <ol class="empty-steps">
+    <li><strong>Demandez-les à votre IA.</strong> Créez un <a class="link" href="{% url 'tokens' %}">jeton d'accès</a>, donnez-le-lui avec l'adresse du <a class="link" href="{% url 'guide' %}">mode d'emploi</a> : elle déposera les cas par l'API, et ils apparaîtront ici sans recharger la page.</li>
+    <li><strong>Collez-les vous-même</strong> au format JSON dans <a class="link" href="{% url 'study_setup' study.public_id %}#import">Règles et définitions</a>.</li>
+  </ol>
+  <p class="hint">Identifiant de l'étude pour l'API : <code>{{ study.public_id }}</code></p>
+</section>
+<div data-workspace data-sid="{{ study.public_id }}" hidden></div>
+{% else %}
+<div class="ws" data-workspace data-sid="{{ study.public_id }}" data-panel-url="/etudes/{{ study.public_id }}/cas/__KEY__/panneau/">
+  <aside class="ws-list" aria-label="Liste des cas">
+    <div class="progress" data-progress>
+      <div class="progress-head">
+        <p class="progress-text"><b data-count="done">{{ counts.done }}</b> jugés sur <span data-count="total">{{ counts.total }}</span></p>
+        <button type="button" class="icon-btn list-dock" data-dock="list" aria-label="Masquer la liste des cas" title="Masquer la liste des cas (L)"><svg class="ic" aria-hidden="true"><use href="#ui-dock"/></svg></button>
+      </div>
+      <div class="progress-bar" role="img" aria-label="Avancement de votre revue : {{ counts.accepted }} validés, {{ counts.rejected }} refusés, {{ counts.to_analyze }} à analyser">
+        <span class="pb pb-accepted" data-bar="accepted" style="width: {{ counts.pct_accepted|stringformat:'.2f' }}%"></span><span class="pb pb-rejected" data-bar="rejected" style="width: {{ counts.pct_rejected|stringformat:'.2f' }}%"></span>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="search">
+        <svg class="ic" aria-hidden="true"><use href="#ui-search"/></svg>
+        <label class="sr-only" for="q">Chercher un cas</label>
+        <input id="q" type="search" placeholder="Chercher un cas" autocomplete="off" data-filter-q>
+        <kbd aria-hidden="true">/</kbd>
+      </div>
+      <div class="seg" role="group" aria-label="Filtrer par avis">
+        <button type="button" aria-pressed="true" data-filter-decision="">Tous <span data-count="total">{{ counts.total }}</span></button>
+        <button type="button" aria-pressed="false" data-filter-decision="to_analyze"><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg><span class="seg-label">À analyser</span> <span data-count="to_analyze">{{ counts.to_analyze }}</span></button>
+        <button type="button" aria-pressed="false" data-filter-decision="accepted"><svg class="ic" aria-hidden="true"><use href="#ui-accepted"/></svg><span class="seg-label">Validés</span> <span data-count="accepted">{{ counts.accepted }}</span></button>
+        <button type="button" aria-pressed="false" data-filter-decision="rejected"><svg class="ic" aria-hidden="true"><use href="#ui-rejected"/></svg><span class="seg-label">Refusés</span> <span data-count="rejected">{{ counts.rejected }}</span></button>
+      </div>
+      <div class="filter-row">
+        <label class="sr-only" for="family">Famille</label>
+        <select id="family" data-filter-family>
+          <option value="">Toutes les familles</option>
+          {% for f in families %}<option>{{ f }}</option>{% endfor %}
+        </select>
+        <label class="sr-only" for="sort">Tri</label>
+        <select id="sort" data-sort>
+          <option value="number">Par numéro</option>
+          <option value="todo">À analyser d'abord</option>
+          <option value="changed">Modifiés récemment</option>
+          <option value="title">Par titre</option>
+        </select>
+      </div>
+      <div class="filter-row filter-checks">
+        <label class="check"><input type="checkbox" data-filter-stale> Modifiés depuis mon avis <span class="count" data-count="stale">{{ counts.stale }}</span></label>
+        {% if counts.retired %}<label class="check"><input type="checkbox" data-filter-retired> Retirés <span class="count">{{ counts.retired }}</span></label>{% endif %}
+      </div>
+    </div>
+    <p class="list-count" data-list-count aria-live="polite"></p>
+    <ol class="cases" data-cases>
+      {% for r in rows %}{% ifchanged r.family %}<li class="fam" data-fam="{{ r.family }}"><h2>{{ r.family }}</h2></li>{% endifchanged %}
+      <li class="case-item" data-key="{{ r.key }}" data-decision="{{ r.decision }}" data-family="{{ r.family }}" data-search="{{ r.search }}" data-n="{{ r.pos }}" data-changed="{{ r.changed_at }}"
+          {% if r.stale %}data-stale{% endif %} {% if r.retired %}data-retired hidden{% endif %}>
+        <a class="case{% if r.retired %} is-retired{% endif %}" href="?cas={{ r.key }}"{% if selected and selected.key == r.key %} aria-current="true"{% endif %}>
+          <span class="case-num">{{ r.number }}</span>
+          <span class="case-title">{{ r.title }}</span>
+          <span class="case-flags">
+            {% if r.stale %}<span class="flag flag-changed" title="Modifié depuis votre avis"><svg class="ic" aria-hidden="true"><use href="#ui-changed"/></svg><span class="sr-only">Modifié depuis votre avis.</span></span>{% endif %}
+            {% if r.has_comment %}<span class="flag" title="Vous avez laissé un commentaire" data-flag-comment><svg class="ic" aria-hidden="true"><use href="#ui-comment"/></svg><span class="sr-only">Commenté.</span></span>{% endif %}
+            {% if r.others_rejected %}<span class="flag flag-others" title="{{ r.others_rejected }} autre(s) relecteur(s) ont refusé ce cas">{{ r.others_rejected }}<svg class="ic" aria-hidden="true"><use href="#ui-rejected"/></svg><span class="sr-only"> refus par d'autres relecteurs.</span></span>{% endif %}
+            {% if r.retired %}<span class="flag" title="Retiré"><svg class="ic" aria-hidden="true"><use href="#ui-retired"/></svg><span class="sr-only">Retiré.</span></span>{% endif %}
+          </span>
+          <span class="vstate vstate-{{ r.decision }}" data-vstate><svg class="ic" aria-hidden="true"><use href="#ui-{{ r.decision }}"/></svg><span class="vstate-label">{{ r.decision_label }}</span></span>
+        </a>
+      </li>{% endfor %}
+    </ol>
+    <div class="no-match" data-no-match hidden>
+      <p>Aucun cas ne correspond à ces filtres.</p>
+      <button type="button" class="btn" data-filter-reset>Effacer les filtres</button>
+    </div>
+    <p class="list-keys" aria-hidden="true"><span><kbd>Tab</kbd> cas suivant</span><span><kbd>←</kbd> <kbd>→</kbd> étapes</span><span><kbd>?</kbd> tous les raccourcis</span></p>
+  </aside>
+  <section class="ws-detail" id="detail" data-detail aria-label="Cas affiché">
+    {% if panel %}{% include "core/_panel.html" %}{% endif %}
+  </section>
+</div>
+{% endif %}
+{{ state|json_script:"study-state" }}
+
+<div class="live" data-live hidden role="status">
+  <svg class="ic" aria-hidden="true"><use href="#ui-live"/></svg>
+  <p data-live-text></p>
+  <button type="button" class="btn btn-primary" data-live-reload>Actualiser</button>
+  <button type="button" class="icon-btn" data-live-dismiss aria-label="Ignorer pour l'instant"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button>
+</div>
+
+<dialog class="help" data-help-dialog aria-labelledby="help-title">
+  <form method="dialog">
+    <div class="help-head"><h2 id="help-title">Raccourcis clavier</h2><button class="icon-btn" aria-label="Fermer"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button></div>
+    <div class="keys">
+      <section>
+        <h3>Se déplacer</h3>
+        <dl>
+          <div><dt><kbd>Tab</kbd> <kbd>J</kbd> <kbd>↓</kbd></dt><dd>Cas suivant</dd></div>
+          <div><dt><kbd>Maj</kbd>+<kbd>Tab</kbd> <kbd>K</kbd> <kbd>↑</kbd></dt><dd>Cas précédent</dd></div>
+          <div><dt><kbd>N</kbd></dt><dd>Prochain cas à analyser</dd></div>
+          <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Étape précédente, suivante</dd></div>
+          <div><dt><kbd>/</kbd></dt><dd>Chercher un cas</dd></div>
+          <div><dt><kbd>Entrée</kbd></dt><dd>Entrer dans le cas affiché : Tab parcourt alors ses commandes</dd></div>
+        </dl>
+      </section>
+      <section>
+        <h3>Donner son avis</h3>
+        <dl>
+          <div><dt><kbd>V</kbd></dt><dd>Valider le cas</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Refuser le cas (ouvre le commentaire)</dd></div>
+          <div><dt><kbd>A</kbd></dt><dd>Remettre « à analyser »</dd></div>
+          <div><dt><kbd>C</kbd></dt><dd>Écrire un commentaire</dd></div>
+          <div><dt><kbd>Z</kbd></dt><dd>Annuler le dernier avis</dd></div>
+        </dl>
+      </section>
+      <section>
+        <h3>Affichage</h3>
+        <dl>
+          <div><dt><kbd>F</kbd></dt><dd>Mode focus : le cas seul à l'écran</dd></div>
+          <div><dt><kbd>L</kbd></dt><dd>Masquer ou afficher la liste des cas</dd></div>
+          <div><dt><kbd>M</kbd></dt><dd>Réduire ou agrandir le menu</dd></div>
+          <div><dt><kbd>Échap</kbd></dt><dd>Quitter un champ, le mode focus ou cette aide</dd></div>
+        </dl>
+      </section>
+    </div>
+    <label class="check"><input type="checkbox" data-auto-advance> Passer au cas suivant après un avis</label>
+  </form>
+</dialog>
+{% endblock %}

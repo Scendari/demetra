@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Jetons d'accès — Demetra{% endblock %}
+{% block content %}
+<div class="page page-narrow">
+  <header class="page-head"><h1>Jetons d'accès</h1></header>
+  <p class="lead-sm">Un jeton permet à une IA externe (Claude Code, Cursor…) d'agir sur vos études par l'API, en votre nom et dans la limite de vos droits. Il ne peut ni rendre un avis, ni partager sans votre confirmation.</p>
+
+  {% if fresh %}
+  <section class="reveal" role="status">
+    <h2>Jeton « {{ fresh.name }} » créé — copiez-le maintenant</h2>
+    <p>Il ne sera plus jamais affiché : Demetra n'en garde qu'un condensé.</p>
+    <div class="copy-row"><code id="new-token" data-testid="new-token">{{ fresh.secret }}</code><button type="button" class="btn btn-primary" data-copy="#new-token"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+    <h3>À donner à votre IA</h3>
+    <div class="copy-row copy-block"><pre id="ai-brief">Tu peux travailler sur mes études Demetra.
+Lis d'abord le mode d'emploi : {{ origin }}/llms.txt
+API : {{ origin }}/api/v1/ — en-tête « Authorization: Bearer {{ fresh.secret }} »
+Commence par GET {{ origin }}/api/v1/me puis GET {{ origin }}/api/v1/guide.</pre><button type="button" class="btn" data-copy="#ai-brief"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>Vos jetons <span class="count">{{ rows|length }}</span></h2>
+    {% if rows %}
+    <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th scope="col">Nom</th><th scope="col">Portées</th><th scope="col">Études</th><th scope="col">Dernier usage</th><th scope="col">État</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr class="{% if r.state != 'actif' %}is-off{% endif %}">
+          <th scope="row">{{ r.token.name }}<p class="sub"><code>{{ r.token.display }}</code></p></th>
+          <td><ul class="scopes">{% for key, label in r.scopes %}<li title="{{ label }}"><code>{{ key }}</code></li>{% endfor %}</ul></td>
+          <td>{% if r.studies %}{% for s in r.studies %}<span class="tag">{{ s.title|truncatechars:30 }}</span>{% endfor %}{% else %}Toutes{% endif %}</td>
+          <td class="when">{% if r.token.last_used_at %}{{ r.token.last_used_at|date:"j M Y, H:i" }}{% else %}Jamais{% endif %}</td>
+          <td>{% if r.state == "actif" %}<span class="chip chip-on"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>Actif</span><p class="sub">{% if r.token.expires_at %}expire le {{ r.token.expires_at|date:"j M Y" }}{% else %}sans expiration{% endif %}</p>{% else %}<span class="chip"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg>{{ r.state|capfirst }}</span>{% endif %}</td>
+          <td class="actions">{% if r.state == "actif" %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="revoke"><input type="hidden" name="token" value="{{ r.token.pk }}"><button class="btn btn-quiet btn-danger" type="submit" aria-label="Révoquer le jeton {{ r.token.name }}">Révoquer</button></form>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="hint">Aucun jeton. Créez-en un pour brancher votre IA.</p>
+    {% endif %}
+  </section>
+
+  <section class="form-section">
+    <h2>Créer un jeton</h2>
+    <form method="post" class="form">{% csrf_token %}
+      <div class="field"><label for="tk-name">Nom</label><input id="tk-name" name="name" required maxlength="80" placeholder="Claude Code, portable"><p class="hint">Pour le reconnaître dans le journal des études.</p></div>
+      <fieldset class="field"><legend>Ce que le jeton peut faire</legend>
+        <div class="choices">{% for key, label, checked in scopes %}<label class="choice"><input type="checkbox" name="scopes" value="{{ key }}"{% if checked %} checked{% endif %}><span><b><code>{{ key }}</code></b>{{ label }}</span></label>{% endfor %}</div>
+      </fieldset>
+      <div class="field-row">
+        <div class="field"><label for="tk-days">Expiration</label><select id="tk-days" name="days"><option value="30">Dans 30 jours</option><option value="90" selected>Dans 90 jours</option><option value="365">Dans un an</option><option value="0">Jamais</option></select></div>
+        {% if my_studies %}<div class="field"><label for="tk-studies">Limiter à certaines études <span class="hint">facultatif</span></label><select id="tk-studies" name="studies" multiple size="4">{% for s in my_studies %}<option value="{{ s.public_id }}">{{ s.title }}</option>{% endfor %}</select><p class="hint">Sans sélection, le jeton voit toutes vos études et peut en créer.</p></div>{% endif %}
+      </div>
+      <p class="form-actions"><button class="btn btn-primary" type="submit">Créer le jeton</button></p>
+    </form>
+  </section>
+</div>
+{% endblock %}

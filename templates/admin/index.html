@@ -1,0 +1,11 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+{% if demetra_figures %}
+<ul class="dm-figures">
+  {% for f in demetra_figures %}<li><a href="{{ f.url }}"><b>{{ f.value }}</b><span>{{ f.label }}</span></a></li>{% endfor %}
+</ul>
+<p class="dm-note">Comptes, accès aux études et jetons se gèrent ici. Le contenu des études (cas, avis, représentations) n'est pas modifiable dans l'administration : il passe par l'interface ou l'API, qui le vérifient et l'historisent.</p>
+{% endif %}
+{{ block.super }}
+{% endblock %}

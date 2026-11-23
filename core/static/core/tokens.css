@@ -1,0 +1,156 @@
+/* Demetra — jetons de design. Clair par défaut (bureau, lumière du jour) ; sombre sur [data-theme="dark"]. */
+
+@font-face {
+  font-family: "Archivo";
+  src: url("fonts/archivo-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --font: "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Échelle fixe, rapport voisin de 1,15 */
+  --t-xs: 0.75rem;
+  --t-sm: 0.8125rem;
+  --t-md: 0.9375rem;
+  --t-lg: 1.0625rem;
+  --t-xl: 1.25rem;
+  --t-2xl: 1.5rem;
+  --t-3xl: 2.25rem;
+  --t-hero: 3.25rem;     /* titre de la page d'accueil publique, seul endroit où le corps est fluide */
+
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Papier, panneaux, encre */
+  --surface: oklch(0.985 0.004 240);
+  --panel: oklch(0.962 0.007 240);
+  --sunken: oklch(0.94 0.01 240);
+  --raised: oklch(1 0 0);
+  --line: oklch(0.885 0.012 245);
+  --line-strong: oklch(0.76 0.022 248);
+  --field-line: oklch(0.63 0.03 250);   /* contour des contrôles : au moins 3:1 sur tous les fonds */
+  --grid: oklch(0.95 0.01 245);
+  --ink: oklch(0.235 0.035 255);
+  --ink-2: oklch(0.4 0.032 255);
+  --ink-3: oklch(0.49 0.028 255);
+
+  /* Rail de navigation : bleu d'étude */
+  --rail: oklch(0.27 0.06 255);
+  --rail-raised: oklch(0.335 0.075 255);
+  --rail-line: oklch(0.36 0.06 255);
+  --rail-ink: oklch(0.95 0.012 250);
+  --rail-ink-2: oklch(0.8 0.035 250);
+
+  /* Encre bleue : actions, sélection, étape courante */
+  --accent: oklch(0.44 0.165 259);
+  --accent-hover: oklch(0.38 0.165 259);
+  --accent-ink: oklch(0.99 0.005 250);
+  --accent-soft: oklch(0.935 0.035 259);
+  --accent-line: oklch(0.7 0.11 259);
+  --focus: oklch(0.55 0.2 259);
+  --select: oklch(0.86 0.07 259);
+
+  --danger: oklch(0.48 0.18 27);
+  --danger-hover: oklch(0.42 0.18 27);
+
+  /* Ce qui flotte : la zone d'avis, les messages, la fenêtre d'aide. Rien d'autre ne porte d'ombre. */
+  --shadow-bar: 0 -6px 14px -10px oklch(0.24 0.035 255 / 0.35);
+  --shadow-float: 0 10px 28px -12px oklch(0.2 0.04 255 / 0.55);
+  --shadow-dialog: 0 18px 40px -16px oklch(0.2 0.04 255 / 0.6);
+  --backdrop: oklch(0.2 0.04 255 / 0.4);
+
+  /* Rôles visuels des statuts : encre, fond teinté, trait, plein */
+  --r-neutral-fg: oklch(0.42 0.02 255);  --r-neutral-bg: oklch(0.955 0.005 250); --r-neutral-line: oklch(0.74 0.018 250); --r-neutral-solid: oklch(0.5 0.02 255);
+  --r-waiting-fg: oklch(0.42 0.03 255);  --r-waiting-bg: oklch(0.965 0.006 250); --r-waiting-line: oklch(0.72 0.025 250); --r-waiting-solid: oklch(0.52 0.03 255);
+  --r-active-fg: oklch(0.42 0.14 242);   --r-active-bg: oklch(0.94 0.04 236);    --r-active-line: oklch(0.64 0.13 240);    --r-active-solid: oklch(0.5 0.15 242);
+  --r-success-fg: oklch(0.39 0.1 152);   --r-success-bg: oklch(0.945 0.045 152); --r-success-line: oklch(0.62 0.13 152);   --r-success-solid: oklch(0.47 0.12 152);
+  --r-warning-fg: oklch(0.42 0.095 70);  --r-warning-bg: oklch(0.955 0.055 88);  --r-warning-line: oklch(0.65 0.13 76);     --r-warning-solid: oklch(0.52 0.11 68);
+  --r-error-fg: oklch(0.45 0.17 27);     --r-error-bg: oklch(0.95 0.032 25);     --r-error-line: oklch(0.62 0.18 27);      --r-error-solid: oklch(0.5 0.19 27);
+  --r-blocked-fg: oklch(0.4 0.14 322);   --r-blocked-bg: oklch(0.95 0.032 322);  --r-blocked-line: oklch(0.62 0.14 322);   --r-blocked-solid: oklch(0.46 0.15 322);
+  --r-disabled-fg: oklch(0.47 0.012 255);--r-disabled-bg: oklch(0.972 0.003 255);--r-disabled-line: oklch(0.78 0.012 255); --r-disabled-solid: oklch(0.56 0.012 255);
+  --r-info-fg: oklch(0.4 0.085 205);     --r-info-bg: oklch(0.945 0.035 205);    --r-info-line: oklch(0.62 0.1 205);       --r-info-solid: oklch(0.47 0.09 205);
+  --on-solid: oklch(0.99 0.004 250);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: oklch(0.195 0.026 255);
+  --panel: oklch(0.232 0.03 255);
+  --sunken: oklch(0.168 0.026 255);
+  --raised: oklch(0.265 0.032 255);
+  --line: oklch(0.325 0.032 255);
+  --line-strong: oklch(0.45 0.035 255);
+  --field-line: oklch(0.57 0.035 255);
+  --grid: oklch(0.255 0.03 255);
+  --ink: oklch(0.94 0.012 250);
+  --ink-2: oklch(0.79 0.022 250);
+  --ink-3: oklch(0.7 0.024 250);
+
+  --rail: oklch(0.155 0.03 255);
+  --rail-raised: oklch(0.25 0.05 255);
+  --rail-line: oklch(0.27 0.04 255);
+  --rail-ink: oklch(0.94 0.012 250);
+  --rail-ink-2: oklch(0.76 0.03 250);
+
+  --accent: oklch(0.74 0.125 256);
+  --accent-hover: oklch(0.8 0.11 256);
+  --accent-ink: oklch(0.17 0.04 256);
+  --accent-soft: oklch(0.3 0.07 256);
+  --accent-line: oklch(0.55 0.12 256);
+  --focus: oklch(0.78 0.14 256);
+  --select: oklch(0.42 0.1 256);
+
+  --danger: oklch(0.72 0.15 27);
+  --danger-hover: oklch(0.78 0.13 27);
+
+  --shadow-bar: 0 -6px 14px -10px oklch(0.08 0.03 255 / 0.7);
+  --shadow-float: 0 10px 28px -12px oklch(0.06 0.03 255 / 0.85);
+  --shadow-dialog: 0 18px 40px -16px oklch(0.06 0.03 255 / 0.9);
+  --backdrop: oklch(0.1 0.03 255 / 0.6);
+
+  --r-neutral-fg: oklch(0.82 0.015 250);  --r-neutral-bg: oklch(0.27 0.02 255);   --r-neutral-line: oklch(0.5 0.02 255);   --r-neutral-solid: oklch(0.72 0.015 250);
+  --r-waiting-fg: oklch(0.82 0.022 250);  --r-waiting-bg: oklch(0.26 0.025 255);  --r-waiting-line: oklch(0.5 0.03 255);   --r-waiting-solid: oklch(0.72 0.022 250);
+  --r-active-fg: oklch(0.83 0.1 236);     --r-active-bg: oklch(0.3 0.07 242);     --r-active-line: oklch(0.6 0.13 240);    --r-active-solid: oklch(0.76 0.12 238);
+  --r-success-fg: oklch(0.83 0.12 152);   --r-success-bg: oklch(0.29 0.06 152);   --r-success-line: oklch(0.58 0.12 152);  --r-success-solid: oklch(0.76 0.13 152);
+  --r-warning-fg: oklch(0.85 0.12 84);    --r-warning-bg: oklch(0.31 0.06 75);    --r-warning-line: oklch(0.64 0.12 78);   --r-warning-solid: oklch(0.8 0.13 82);
+  --r-error-fg: oklch(0.82 0.11 25);      --r-error-bg: oklch(0.3 0.075 25);      --r-error-line: oklch(0.6 0.16 27);      --r-error-solid: oklch(0.74 0.14 25);
+  --r-blocked-fg: oklch(0.83 0.1 322);    --r-blocked-bg: oklch(0.3 0.07 322);    --r-blocked-line: oklch(0.6 0.13 322);   --r-blocked-solid: oklch(0.76 0.12 322);
+  --r-disabled-fg: oklch(0.7 0.012 255);  --r-disabled-bg: oklch(0.235 0.015 255);--r-disabled-line: oklch(0.42 0.015 255);--r-disabled-solid: oklch(0.6 0.012 255);
+  --r-info-fg: oklch(0.83 0.085 205);     --r-info-bg: oklch(0.29 0.05 205);      --r-info-line: oklch(0.58 0.09 205);     --r-info-solid: oklch(0.76 0.09 205);
+  --on-solid: oklch(0.16 0.03 255);
+}
+
+/* Chaque rôle expose le même trio de variables aux formes qui le portent. */
+[data-role="neutral"]  { --fg: var(--r-neutral-fg);  --bg: var(--r-neutral-bg);  --ln: var(--r-neutral-line);  --solid: var(--r-neutral-solid); }
+[data-role="waiting"]  { --fg: var(--r-waiting-fg);  --bg: var(--r-waiting-bg);  --ln: var(--r-waiting-line);  --solid: var(--r-waiting-solid); }
+[data-role="active"]   { --fg: var(--r-active-fg);   --bg: var(--r-active-bg);   --ln: var(--r-active-line);   --solid: var(--r-active-solid); }
+[data-role="success"]  { --fg: var(--r-success-fg);  --bg: var(--r-success-bg);  --ln: var(--r-success-line);  --solid: var(--r-success-solid); }
+[data-role="warning"]  { --fg: var(--r-warning-fg);  --bg: var(--r-warning-bg);  --ln: var(--r-warning-line);  --solid: var(--r-warning-solid); }
+[data-role="error"]    { --fg: var(--r-error-fg);    --bg: var(--r-error-bg);    --ln: var(--r-error-line);    --solid: var(--r-error-solid); }
+[data-role="blocked"]  { --fg: var(--r-blocked-fg);  --bg: var(--r-blocked-bg);  --ln: var(--r-blocked-line);  --solid: var(--r-blocked-solid); }
+[data-role="disabled"] { --fg: var(--r-disabled-fg); --bg: var(--r-disabled-bg); --ln: var(--r-disabled-line); --solid: var(--r-disabled-solid); }
+[data-role="info"]     { --fg: var(--r-info-fg);     --bg: var(--r-info-bg);     --ln: var(--r-info-line);     --solid: var(--r-info-solid); }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.sprite { position: absolute; }
