@@ -1,4 +1,5 @@
 """Connexion d'entreprise (SSO OpenID Connect, LDAP) et réglages HTTPS."""
+
 from __future__ import annotations
 
 import time
@@ -16,13 +17,23 @@ from demetra.entreprise import https_settings, ldap_settings, oidc_settings
 ISSUER = "https://idp.exemple.test"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 JWK = {**jwt.algorithms.RSAAlgorithm.to_jwk(KEY.public_key(), as_dict=True), "kid": "k1", "use": "sig"}
-META = {"issuer": ISSUER, "authorization_endpoint": ISSUER + "/authorize", "token_endpoint": ISSUER + "/token",
-        "jwks_uri": ISSUER + "/jwks", "id_token_signing_alg_values_supported": ["RS256"]}
+META = {
+    "issuer": ISSUER,
+    "authorization_endpoint": ISSUER + "/authorize",
+    "token_endpoint": ISSUER + "/token",
+    "jwks_uri": ISSUER + "/jwks",
+    "id_token_signing_alg_values_supported": ["RS256"],
+}
 
 
 def conf(**extra):
-    env = {"DEMETRA_OIDC_ISSUER": ISSUER, "DEMETRA_OIDC_CLIENT_ID": "demetra", "DEMETRA_OIDC_CLIENT_SECRET": "s",
-           "DEMETRA_OIDC_NAME": "Annuaire test", **extra}
+    env = {
+        "DEMETRA_OIDC_ISSUER": ISSUER,
+        "DEMETRA_OIDC_CLIENT_ID": "demetra",
+        "DEMETRA_OIDC_CLIENT_SECRET": "s",
+        "DEMETRA_OIDC_NAME": "Annuaire test",
+        **extra,
+    }
     return oidc_settings(env)
 
 
@@ -40,9 +51,17 @@ def idp(monkeypatch, settings):
         assert url == META["token_endpoint"]
         state["posted"] = data
         now = int(time.time())
-        claims = {"iss": ISSUER, "aud": "demetra", "sub": "abc-123", "iat": now, "exp": now + 300,
-                  "nonce": state["nonce"], "preferred_username": "camille.martin",
-                  "email": "camille@exemple.test", **state["claims"]}
+        claims = {
+            "iss": ISSUER,
+            "aud": "demetra",
+            "sub": "abc-123",
+            "iat": now,
+            "exp": now + 300,
+            "nonce": state["nonce"],
+            "preferred_username": "camille.martin",
+            "email": "camille@exemple.test",
+            **state["claims"],
+        }
         return {"id_token": jwt.encode(claims, KEY, algorithm="RS256", headers={"kid": "k1"})}
 
     monkeypatch.setattr(sso, "_get_json", get_json)
@@ -145,8 +164,15 @@ def test_login_page_offers_sso_and_can_hide_passwords(client, settings):
 @pytest.mark.django_db
 def test_closed_signup_is_enforced_not_just_hidden(client, settings):
     settings.ACCOUNT_SIGNUP_OPEN = False
-    client.post("/comptes/signup/", {"username": "intrus", "email": "i@exemple.test",
-                                     "password1": "x-long-password-1", "password2": "x-long-password-1"})
+    client.post(
+        "/comptes/signup/",
+        {
+            "username": "intrus",
+            "email": "i@exemple.test",
+            "password1": "x-long-password-1",
+            "password2": "x-long-password-1",
+        },
+    )
     assert not get_user_model().objects.filter(username="intrus").exists()
 
 
@@ -169,10 +195,17 @@ def test_https_settings():
 def test_ldap_settings():
     pytest.importorskip("django_auth_ldap")
     assert ldap_settings({}) == {}
-    out = ldap_settings({"DEMETRA_LDAP_URI": "ldaps://annuaire.exemple.test", "DEMETRA_LDAP_USER_BASE": "ou=people,dc=ex",
-                         "DEMETRA_LDAP_USER_FILTER": "(sAMAccountName=%(user)s)", "DEMETRA_LDAP_GROUP_BASE": "ou=groups,dc=ex",
-                         "DEMETRA_LDAP_GROUP_TYPE": "activedirectory", "DEMETRA_LDAP_REQUIRE_GROUP": "cn=demetra,ou=groups,dc=ex",
-                         "DEMETRA_LDAP_ADMIN_GROUP": "cn=demetra-admins,ou=groups,dc=ex"})
+    out = ldap_settings(
+        {
+            "DEMETRA_LDAP_URI": "ldaps://annuaire.exemple.test",
+            "DEMETRA_LDAP_USER_BASE": "ou=people,dc=ex",
+            "DEMETRA_LDAP_USER_FILTER": "(sAMAccountName=%(user)s)",
+            "DEMETRA_LDAP_GROUP_BASE": "ou=groups,dc=ex",
+            "DEMETRA_LDAP_GROUP_TYPE": "activedirectory",
+            "DEMETRA_LDAP_REQUIRE_GROUP": "cn=demetra,ou=groups,dc=ex",
+            "DEMETRA_LDAP_ADMIN_GROUP": "cn=demetra-admins,ou=groups,dc=ex",
+        }
+    )
     assert out["AUTH_LDAP_SERVER_URI"] == "ldaps://annuaire.exemple.test"
     assert out["AUTH_LDAP_USER_SEARCH"].filterstr == "(sAMAccountName=%(user)s)"
     assert type(out["AUTH_LDAP_GROUP_TYPE"]).__name__ == "NestedActiveDirectoryGroupType"
@@ -187,12 +220,16 @@ def test_ldap_backend_is_used_by_the_login_form(client, settings, monkeypatch):
     """Le formulaire de connexion passe bien par le module LDAP quand il est réglé (annuaire simulé)."""
     pytest.importorskip("django_auth_ldap")
     from django_auth_ldap.backend import LDAPBackend
+
     seen = {}
 
     def fake_authenticate(self, request, username=None, password=None, **kwargs):
         seen["username"] = username
 
     monkeypatch.setattr(LDAPBackend, "authenticate", fake_authenticate)
-    settings.AUTHENTICATION_BACKENDS = ["django_auth_ldap.backend.LDAPBackend", *settings.AUTHENTICATION_BACKENDS]
+    settings.AUTHENTICATION_BACKENDS = [
+        "django_auth_ldap.backend.LDAPBackend",
+        *settings.AUTHENTICATION_BACKENDS,
+    ]
     client.post("/comptes/login/", {"login": "jdupont", "password": "secret"})
     assert seen["username"] == "jdupont"

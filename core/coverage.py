@@ -45,11 +45,13 @@ def coverage(dimensions: list[dict], exclusions: list[dict], cases: list[dict], 
         "truncated": False,
         "by_dimension": [],
         "note": "La couverture mesure les combinaisons de valeurs déclarées qu'au moins un cas illustre. "
-                "Elle ne dit rien des situations que les dimensions ne décrivent pas.",
+        "Elle ne dit rien des situations que les dimensions ne décrivent pas.",
     }
     if not keys:
-        result["note"] = ("Aucune dimension n'est déclarée : la couverture ne peut pas être mesurée. "
-                          "Déclarez les facteurs qui varient d'un cas à l'autre (PATCH /studies/{id}, champ dimensions).")
+        result["note"] = (
+            "Aucune dimension n'est déclarée : la couverture ne peut pas être mesurée. "
+            "Déclarez les facteurs qui varient d'un cas à l'autre (PATCH /studies/{id}, champ dimensions)."
+        )
         return result
 
     seen: dict[tuple, list[str]] = defaultdict(list)
@@ -89,15 +91,20 @@ def coverage(dimensions: list[dict], exclusions: list[dict], cases: list[dict], 
             value = (case.get("dimensions") or {}).get(key)
             if value in counts:
                 counts[value] += 1
-        result["by_dimension"].append({
-            "key": key, "label": labels[key],
-            "values": [{"value": v, "cases": n} for v, n in counts.items()],
-            "unused": [v for v, n in counts.items() if n == 0],
-        })
+        result["by_dimension"].append(
+            {
+                "key": key,
+                "label": labels[key],
+                "values": [{"value": v, "cases": n} for v, n in counts.items()],
+                "unused": [v for v, n in counts.items() if n == 0],
+            }
+        )
     return result
 
 
-def matrix(dimensions: list[dict], exclusions: list[dict], cases: list[dict], row_key: str, col_key: str) -> dict:
+def matrix(
+    dimensions: list[dict], exclusions: list[dict], cases: list[dict], row_key: str, col_key: str
+) -> dict:
     """Matrice de couverture pour deux dimensions : chaque cellule liste les cas qui l'illustrent."""
     dims = {d["key"]: d for d in dimensions}
     if row_key not in dims or col_key not in dims or row_key == col_key:
@@ -108,7 +115,14 @@ def matrix(dimensions: list[dict], exclusions: list[dict], cases: list[dict], ro
     for case in cases:
         cdims = case.get("dimensions") or {}
         if row_key in cdims and col_key in cdims:
-            cells[(cdims[row_key], cdims[col_key])].append({"key": case["key"], "number": case.get("number"), "label": case.get("label") or f"{case.get('number') or 0:02d}", "title": case.get("title", "")})
+            cells[(cdims[row_key], cdims[col_key])].append(
+                {
+                    "key": case["key"],
+                    "number": case.get("number"),
+                    "label": case.get("label") or f"{case.get('number') or 0:02d}",
+                    "title": case.get("title", ""),
+                }
+            )
     applicable = [e for e in exclusions if set(e["when"]) <= {row_key, col_key}]
     grid = []
     for row in rows:
@@ -124,8 +138,8 @@ def matrix(dimensions: list[dict], exclusions: list[dict], cases: list[dict], ro
     }
 
 
-def study_checks(statuses: list[dict], rules: list[dict], cases: list[dict]) -> list[dict]:
-    """Contrôles de structure à l'échelle de l'étude (niveau 0) : doublons, éléments jamais utilisés."""
+def _usage(cases: list[dict]) -> tuple[dict, set[str], set[str], list[dict]]:
+    """Cas par empreinte, statuts et règles utilisés, et constats « une seule étape »."""
     findings = []
     by_hash: dict[str, list[str]] = defaultdict(list)
     used_statuses: set[str] = set()
@@ -142,31 +156,92 @@ def study_checks(statuses: list[dict], rules: list[dict], cases: list[dict]) -> 
         if (content.get("outcome") or {}).get("status"):
             used_statuses.add(content["outcome"]["status"])
         if len(content.get("steps", [])) == 1:
-            findings.append({"code": "single_step", "severity": "info", "cases": [case["key"]],
-                             "message": f"Le cas « {case['key']} » ne montre qu'une étape : aucune évolution à suivre."})
+            findings.append(
+                {
+                    "code": "single_step",
+                    "severity": "info",
+                    "cases": [case["key"]],
+                    "message": f"Le cas « {case['key']} » ne montre qu'une étape : aucune évolution à "
+                    "suivre.",
+                }
+            )
+    return by_hash, used_statuses, used_rules, findings
+
+
+def _definition_findings(
+    statuses: list[dict], rules: list[dict], cases: list[dict], used_statuses: set[str], used_rules: set[str]
+) -> list[dict]:
+    """Statuts jamais atteints, règles sans cas, comparaisons vers un cas absent, cas sans règle."""
+    findings = []
+    fallback = next(
+        (s["key"] for s in statuses if s.get("default")), statuses[0]["key"] if statuses else None
+    )
+    unused = [s["key"] for s in statuses if s["key"] not in used_statuses and s["key"] != fallback]
+    if unused:
+        findings.append(
+            {
+                "code": "unused_status",
+                "severity": "info",
+                "statuses": unused,
+                "message": "Statuts déclarés mais jamais atteints par un cas : " + ", ".join(unused) + ".",
+            }
+        )
+    orphan_rules = [r["key"] for r in rules if r["key"] not in used_rules]
+    if orphan_rules:
+        findings.append(
+            {
+                "code": "rule_without_case",
+                "severity": "warning",
+                "rules": orphan_rules,
+                "message": "Règles de gestion qu'aucun cas n'illustre : " + ", ".join(orphan_rules) + ".",
+            }
+        )
+    # « compare_with » vers un cas absent ou retiré : la comparaison ne peut pas s'afficher.
+    keys = {c["key"] for c in cases}
+    dangling = [
+        f"{c['key']} → {other}"
+        for c in cases
+        for other in c["content"].get("compare_with", [])
+        if other not in keys
+    ]
+    if dangling:
+        findings.append(
+            {
+                "code": "compare_missing_case",
+                "severity": "warning",
+                "cases": [d.split(" → ")[0] for d in dangling][:50],
+                "message": "Comparaisons vers un cas absent ou retiré : " + ", ".join(dangling[:20]) + ".",
+            }
+        )
+    if rules:
+        unlinked = [c["key"] for c in cases if not c["content"].get("rules")]
+        if unlinked:
+            findings.append(
+                {
+                    "code": "case_without_rule",
+                    "severity": "info",
+                    "cases": unlinked[:50],
+                    "message": f"{len(unlinked)} cas ne sont rattachés à aucune règle de gestion.",
+                }
+            )
+    return findings
+
+
+def study_checks(statuses: list[dict], rules: list[dict], cases: list[dict]) -> list[dict]:
+    """Contrôles de structure à l'échelle de l'étude (niveau 0) : doublons, éléments jamais utilisés."""
+    by_hash, used_statuses, used_rules, findings = _usage(cases)
     for keys in by_hash.values():
         if len(keys) > 1:
-            findings.append({"code": "duplicate_content", "severity": "warning", "cases": keys,
-                             "message": "Ces cas ont exactement le même déroulé (même structure, mêmes changements) : " + ", ".join(keys) + "."})
+            findings.append(
+                {
+                    "code": "duplicate_content",
+                    "severity": "warning",
+                    "cases": keys,
+                    "message": "Ces cas ont exactement le même déroulé (même structure, mêmes changements) : "
+                    + ", ".join(keys)
+                    + ".",
+                }
+            )
     if cases:
-        fallback = next((s["key"] for s in statuses if s.get("default")), statuses[0]["key"] if statuses else None)
-        unused = [s["key"] for s in statuses if s["key"] not in used_statuses and s["key"] != fallback]
-        if unused:
-            findings.append({"code": "unused_status", "severity": "info", "statuses": unused,
-                             "message": "Statuts déclarés mais jamais atteints par un cas : " + ", ".join(unused) + "."})
-        orphan_rules = [r["key"] for r in rules if r["key"] not in used_rules]
-        if orphan_rules:
-            findings.append({"code": "rule_without_case", "severity": "warning", "rules": orphan_rules,
-                             "message": "Règles de gestion qu'aucun cas n'illustre : " + ", ".join(orphan_rules) + "."})
-        # « compare_with » vers un cas absent ou retiré : la comparaison ne peut pas s'afficher.
-        keys = {c["key"] for c in cases}
-        dangling = [f"{c['key']} → {other}" for c in cases for other in c["content"].get("compare_with", []) if other not in keys]
-        if dangling:
-            findings.append({"code": "compare_missing_case", "severity": "warning", "cases": [d.split(" → ")[0] for d in dangling][:50],
-                             "message": "Comparaisons vers un cas absent ou retiré : " + ", ".join(dangling[:20]) + "."})
-        if rules:
-            unlinked = [c["key"] for c in cases if not c["content"].get("rules")]
-            if unlinked:
-                findings.append({"code": "case_without_rule", "severity": "info", "cases": unlinked[:50],
-                                 "message": f"{len(unlinked)} cas ne sont rattachés à aucune règle de gestion."})
+        findings += _definition_findings(statuses, rules, cases, used_statuses, used_rules)
     return findings

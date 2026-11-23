@@ -6,6 +6,7 @@ jour en direct quand l'API modifie l'étude ouverte.
 
 Captures d'écran : définir DEMETRA_CAPTURES=<dossier> pour les enregistrer.
 """
+
 from __future__ import annotations
 
 import json
@@ -41,8 +42,13 @@ def site(tmp_path_factory):
     subprocess.run([*manage, "migrate", "-v0"], cwd=ROOT, env=env, check=True)
     subprocess.run([*manage, "seed_demo"], cwd=ROOT, env=env, check=True, capture_output=True)
     port = _free_port()
-    server = subprocess.Popen([*manage, "runserver", f"127.0.0.1:{port}", "--noreload"], cwd=ROOT, env=env,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    server = subprocess.Popen(
+        [*manage, "runserver", f"127.0.0.1:{port}", "--noreload"],
+        cwd=ROOT,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     base = f"http://127.0.0.1:{port}"
     try:
         for _ in range(100):
@@ -73,7 +79,7 @@ def browser():
 def shot(page, name: str, full_page: bool = False):
     if CAPTURES:
         Path(CAPTURES).mkdir(parents=True, exist_ok=True)
-        page.wait_for_timeout(350)                         # laisse les transitions d'état se terminer
+        page.wait_for_timeout(350)  # laisse les transitions d'état se terminer
         page.screenshot(path=str(Path(CAPTURES) / f"{name}.png"), full_page=full_page)
 
 
@@ -85,7 +91,8 @@ def login(page, base: str, username: str):
     page.wait_for_url("**/etudes/")
 
 
-# Une étude et un cas aux étapes volontairement inégales : note absente, courte ou très longue ; un ou plusieurs
+# Une étude et un cas aux étapes volontairement inégales : note absente, courte ou très longue ; un ou
+# plusieurs
 # changements ; libellés de statut très courts ou très longs. Sert à vérifier que l'affichage ne bouge pas.
 STABLE_STUDY = {
     "title": "Stabilité de l'affichage",
@@ -93,26 +100,52 @@ STABLE_STUDY = {
     "statuses": [
         {"key": "ATT", "label": "À venir", "role": "waiting", "default": True},
         {"key": "OK", "label": "Fait", "role": "success"},
-        {"key": "LONG", "label": "En cours de vérification approfondie par le service", "short": "Vérification", "role": "active"},
+        {
+            "key": "LONG",
+            "label": "En cours de vérification approfondie par le service",
+            "short": "Vérification",
+            "role": "active",
+        },
         {"key": "KO", "label": "Refusé après contrôle", "role": "error"},
     ],
 }
 STABLE_CASE = {
-    "key": "inegal", "number": 1, "family": "Affichage", "title": "Des étapes très inégales", "kind": "workflow",
+    "key": "inegal",
+    "number": 1,
+    "family": "Affichage",
+    "title": "Des étapes très inégales",
+    "kind": "workflow",
     "entities": [
         {"id": "a", "label": "Premier contrôle", "type": "task"},
-        {"id": "b", "label": "Second contrôle, au libellé nettement plus long que les autres", "type": "task"},
+        {
+            "id": "b",
+            "label": "Second contrôle, au libellé nettement plus long que les autres",
+            "type": "task",
+        },
         {"id": "c", "label": "Clôture", "type": "task"},
     ],
     "links": [{"from": "a", "to": "b", "type": "depends"}, {"from": "b", "to": "c", "type": "depends"}],
     "steps": [
         {"title": "Départ", "changes": {"a": "LONG"}, "at": 0},
-        {"title": "Une étape au titre long, qui occupe presque toute la largeur de la liste des étapes",
-         "note": "Cette note est volontairement longue. Elle décrit en plusieurs phrases ce qui se passe à cette étape, pour "
-                 "occuper plusieurs lignes dans le bloc du déroulé. Aucune autre étape du cas n'a une note de cette taille, "
-                 "et c'est justement ce qui faisait bouger le schéma.",
-         "changes": {"a": "OK", "b": {"status": "LONG", "note": "un motif assez long pour passer à la ligne dans une cellule étroite"}, "c": "KO"},
-         "annotations": {"a": "terminé sans réserve"}, "global": "LONG", "at": 5},
+        {
+            "title": "Une étape au titre long, qui occupe presque toute la largeur de la liste des étapes",
+            "note": "Cette note est volontairement longue. Elle décrit en plusieurs phrases ce qui se passe "
+            "à cette étape, pour "
+            "occuper plusieurs lignes dans le bloc du déroulé. Aucune autre étape du cas n'a une note de "
+            "cette taille, "
+            "et c'est justement ce qui faisait bouger le schéma.",
+            "changes": {
+                "a": "OK",
+                "b": {
+                    "status": "LONG",
+                    "note": "un motif assez long pour passer à la ligne dans une cellule étroite",
+                },
+                "c": "KO",
+            },
+            "annotations": {"a": "terminé sans réserve"},
+            "global": "LONG",
+            "at": 5,
+        },
         {"title": "Fin", "note": "Courte.", "changes": {"b": "OK"}, "global": "OK", "at": 30},
         {"title": "Rien ne change", "changes": {}, "at": 45},
     ],
@@ -121,7 +154,9 @@ STABLE_CASE = {
 
 
 def api_call(base: str, token: str, method: str, path: str, body=None):
-    request = urllib.request.Request(base + "/api/v1" + path, data=json.dumps(body).encode() if body is not None else None, method=method)
+    request = urllib.request.Request(
+        base + "/api/v1" + path, data=json.dumps(body).encode() if body is not None else None, method=method
+    )
     request.add_header("Authorization", f"Bearer {token}")
     request.add_header("Content-Type", "application/json")
     with urllib.request.urlopen(request, timeout=30) as response:
@@ -133,14 +168,23 @@ def test_parcours_complet(site, browser):
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on("console", lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None)
-    page.on("response", lambda response: problems.append(f"{response.status} {response.url}") if response.status >= 500 else None)
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    page.on(
+        "response",
+        lambda response: (
+            problems.append(f"{response.status} {response.url}") if response.status >= 500 else None
+        ),
+    )
 
     # ---- Accueil et connexion
     page.goto(site + "/")
     expect(page.get_by_role("heading", level=1)).to_contain_text("Demetra")
     expect(page.locator(".home-tagline")).to_contain_text("étape")
-    # La démonstration : un cas qui avance seul dans le diagramme d'états ; une flèche arrête la lecture ; le schéma ne bouge pas.
+    # La démonstration : un cas qui avance seul dans le diagramme d'états ; une flèche arrête la lecture ; le
+    # schéma ne bouge pas.
     demo = page.locator(".home-demo")
     expect(demo.locator(".rep-states")).to_have_count(1)
     canvas = demo.locator(".rep-canvas").bounding_box()
@@ -151,7 +195,9 @@ def test_parcours_complet(site, browser):
     held = demo.locator("[data-step-n]").inner_text()
     page.wait_for_timeout(2600)
     assert demo.locator("[data-step-n]").inner_text() == held, "après une flèche, la lecture s'arrête"
-    assert demo.locator(".rep-canvas").bounding_box() == canvas, "le schéma de l'accueil ne bouge pas d'une étape à l'autre"
+    assert demo.locator(".rep-canvas").bounding_box() == canvas, (
+        "le schéma de l'accueil ne bouge pas d'une étape à l'autre"
+    )
     shot(page, "01-accueil", full_page=True)
     page.get_by_role("link", name="Se connecter").first.click()
     page.fill("#id_login", "demo")
@@ -160,7 +206,9 @@ def test_parcours_complet(site, browser):
     page.click("button[type=submit]")
     page.wait_for_url("**/etudes/")
     expect(page.get_by_role("heading", level=1)).to_have_text("Études")
-    expect(page.locator("a.row-link")).to_have_count(12)   # le catalogue, deux exemples, et un exemple par représentation élargie
+    expect(page.locator("a.row-link")).to_have_count(
+        12
+    )  # le catalogue, deux exemples, et un exemple par représentation élargie
     shot(page, "03-etudes", full_page=True)
 
     # ---- Revue d'un cas, au clavier
@@ -171,18 +219,18 @@ def test_parcours_complet(site, browser):
     done_before = int(page.locator('[data-count="done"]').inner_text())
 
     shown = panel.get_attribute("data-key")
-    page.keyboard.press("n")                               # cas suivant à analyser
+    page.keyboard.press("n")  # cas suivant à analyser
     expect(panel).not_to_have_attribute("data-key", shown)
     expect(panel).to_have_attribute("data-decision", "to_analyze")
     key = panel.get_attribute("data-key")
     expect(page.locator("[data-step-n]")).to_have_text("1")
-    page.keyboard.press("ArrowRight")                      # étape suivante
+    page.keyboard.press("ArrowRight")  # étape suivante
     expect(page.locator("[data-step-n]")).to_have_text("2")
     expect(page.locator('.stop-btn[aria-current="step"] .stop-n')).to_have_text("Étape 2")
     page.keyboard.press("ArrowLeft")
     expect(page.locator("[data-step-n]")).to_have_text("1")
 
-    page.keyboard.press("v")                               # valider
+    page.keyboard.press("v")  # valider
     expect(page.locator(".vbtn-accepted")).to_have_attribute("aria-pressed", "true")
     expect(page.locator("[data-verdict-state]")).to_have_text("Enregistré")
     item = page.locator(f'.case-item[data-key="{key}"]')
@@ -191,11 +239,11 @@ def test_parcours_complet(site, browser):
     expect(page.locator('[data-count="done"]')).to_have_text(str(done_before + 1))
     expect(page.locator("[data-toast]")).to_be_visible()
 
-    page.keyboard.press("z")                               # annuler
+    page.keyboard.press("z")  # annuler
     expect(item).to_have_attribute("data-decision", "to_analyze")
     expect(page.locator('[data-count="done"]')).to_have_text(str(done_before))
 
-    page.keyboard.press("r")                               # refuser : le commentaire prend le focus
+    page.keyboard.press("r")  # refuser : le commentaire prend le focus
     expect(page.locator(".vbtn-rejected")).to_have_attribute("aria-pressed", "true")
     comment = page.locator("[data-comment]")
     expect(comment).to_be_focused()
@@ -208,7 +256,9 @@ def test_parcours_complet(site, browser):
     panel = page.locator("[data-panel]")
     expect(panel).to_have_attribute("data-key", key)
     expect(panel).to_have_attribute("data-decision", "rejected")
-    expect(page.locator("[data-comment]")).to_have_value("Le délai se compte à partir de la réception, pas de la livraison.")
+    expect(page.locator("[data-comment]")).to_have_value(
+        "Le délai se compte à partir de la réception, pas de la livraison."
+    )
 
     # ---- Filtres, recherche, mode focus, aide
     page.locator('[data-filter-decision="rejected"]').click()
@@ -220,16 +270,16 @@ def test_parcours_complet(site, browser):
     visible = page.locator(".case-item:visible").count()
     assert 0 < visible < 12
     expect(page.locator("[data-list-count]")).to_contain_text(f"{visible} cas affichés sur 12")
-    page.keyboard.press("Escape")                          # Échap vide la recherche et rend la main au clavier
+    page.keyboard.press("Escape")  # Échap vide la recherche et rend la main au clavier
     expect(page.locator(".case-item:visible")).to_have_count(12)
     expect(page.locator("[data-filter-q]")).not_to_be_focused()
-    page.locator("[data-sort]").select_option("todo")      # tri : ce qui reste à faire d'abord
+    page.locator("[data-sort]").select_option("todo")  # tri : ce qui reste à faire d'abord
     expect(page.locator(".case-item:visible").first).to_have_attribute("data-decision", "to_analyze")
     expect(page.locator(".fam:visible")).to_have_count(0)
     page.locator("[data-sort]").select_option("number")
     expect(page.locator(".case-item:visible").first).to_have_attribute("data-n", "0")
     page.locator("[data-detail]").click(position={"x": 400, "y": 40})
-    page.keyboard.press("f")                               # mode focus : le cas seul
+    page.keyboard.press("f")  # mode focus : le cas seul
     expect(page.locator(".ws-list")).to_be_hidden()
     shot(page, "05-mode-focus")
     page.keyboard.press("Escape")
@@ -249,14 +299,14 @@ def test_parcours_complet(site, browser):
     page.keyboard.press("Enter")
     expect(page.locator("#case-title")).to_be_focused()
     page.keyboard.press("Tab")
-    expect(panel).to_have_attribute("data-key", after)     # dans le cas, Tab ne change pas de cas
+    expect(panel).to_have_attribute("data-key", after)  # dans le cas, Tab ne change pas de cas
     page.locator('.case[aria-current="true"]').focus()
     page.keyboard.press("Shift+Tab")
     expect(panel).to_have_attribute("data-key", here)
 
     # ---- Panneaux repliables : menu réduit à ses icônes, liste masquée, état mémorisé
     page.locator('[data-dock="rail"]').click()
-    page.locator('.list-dock').click()
+    page.locator(".list-dock").click()
     expect(page.locator(".ws-list")).to_be_hidden()
     expect(page.locator("html")).to_have_attribute("data-rail-mini", "1")
     assert page.locator(".rail").bounding_box()["width"] < 80
@@ -299,8 +349,10 @@ def test_parcours_complet(site, browser):
     expect(marc.locator("a.row-link")).to_have_count(1)
     marc.get_by_role("link", name="Remboursement d'une commande").click()
     expect(marc.locator("[data-panel]")).to_be_visible()
-    expect(marc.locator(".vbtn")).to_have_count(0)          # lecteur : pas d'avis
-    expect(marc.locator(".cp-rep-head strong")).to_have_text("Table de décision")  # le choix de demo est personnel
+    expect(marc.locator(".vbtn")).to_have_count(0)  # lecteur : pas d'avis
+    expect(marc.locator(".cp-rep-head strong")).to_have_text(
+        "Table de décision"
+    )  # le choix de demo est personnel
     other.close()
 
     # ---- Jeton créé dans l'interface, puis mise à jour en direct par l'API
@@ -316,7 +368,9 @@ def test_parcours_complet(site, browser):
     expect(page.locator("[data-panel]")).to_be_visible()
     sid = page.locator("[data-workspace]").get_attribute("data-sid")
     expect(page.locator("[data-live]")).to_be_hidden()
-    new_case = api_call(site, token, "GET", f"/studies/{sid}/cases/{key}")["case"]   # un cas lu se redépose tel quel
+    new_case = api_call(site, token, "GET", f"/studies/{sid}/cases/{key}")[
+        "case"
+    ]  # un cas lu se redépose tel quel
     new_case.update(key="ajoute-par-l-ia", title="Cas ajouté par l'IA pendant la revue", number=None)
     report = api_call(site, token, "POST", f"/studies/{sid}/cases/batch", {"cases": [new_case]})
     assert report["counts"] == {"created": 1}, report
@@ -356,14 +410,19 @@ def test_parcours_complet(site, browser):
     expect(page.locator("[data-panel] svg.rep-timeline")).to_be_visible()
     shot(page, "15-revue-frise")
 
-    # ---- Le schéma ne bouge pas d'une étape à l'autre, quel que soit le cas : étude déposée par l'API avec des
-    #      étapes volontairement inégales (notes et libellés très courts ou très longs), dans chaque représentation.
+    # ---- Le schéma ne bouge pas d'une étape à l'autre, quel que soit le cas : étude déposée par l'API avec
+    # des
+    # étapes volontairement inégales (notes et libellés très courts ou très longs), dans chaque
+    # représentation.
     made = api_call(site, token, "POST", "/studies", STABLE_STUDY)
     report = api_call(site, token, "POST", f"/studies/{made['id']}/cases/batch", {"cases": [STABLE_CASE]})
     assert report["counts"] == {"created": 1}, report
     measure = """() => {
-      const rep = document.querySelector('.cp-rep'), steps = document.querySelector('.steps'), detail = document.querySelector('[data-detail]');
-      return [Math.round(rep.getBoundingClientRect().top + detail.scrollTop), Math.round(steps.getBoundingClientRect().height), Math.round(rep.getBoundingClientRect().height)];
+      const rep = document.querySelector('.cp-rep'), steps = document.querySelector('.steps');
+      const detail = document.querySelector('[data-detail]');
+      return [Math.round(rep.getBoundingClientRect().top + detail.scrollTop),
+              Math.round(steps.getBoundingClientRect().height),
+              Math.round(rep.getBoundingClientRect().height)];
     }"""
     checked = 0
     for name in ("Graphe en couches à statuts", "Table de décision", "Frise temporelle", "Table de trace"):
@@ -381,13 +440,21 @@ def test_parcours_complet(site, browser):
                 page.keyboard.press("ArrowRight")
                 page.wait_for_timeout(250)
                 seen.append(page.evaluate(measure))
-            assert all(item == seen[0] for item in seen), f"{name} à {width}px : le schéma bouge entre les étapes {seen}"
+            assert all(item == seen[0] for item in seen), (
+                f"{name} à {width}px : le schéma bouge entre les étapes {seen}"
+            )
             checked += 1
     assert checked == 8
     page.set_viewport_size({"width": 1440, "height": 900})
 
     # ---- Petit écran
-    phone = browser.new_context(viewport={"width": 390, "height": 844}, locale="fr-FR", storage_state=context.storage_state(), is_mobile=True, has_touch=True)
+    phone = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        locale="fr-FR",
+        storage_state=context.storage_state(),
+        is_mobile=True,
+        has_touch=True,
+    )
     small = phone.new_page()
     small.goto(site + "/etudes/")
     small.get_by_role("link", name="Catalogue des runs Lancelot").tap()
@@ -405,7 +472,8 @@ def test_parcours_complet(site, browser):
     assert not problems, problems
 
 
-# Une étude de démonstration par représentation du catalogue élargi : (nom affiché, titre de l'étude, capture, cas montré sur la capture, étape)
+# Une étude de démonstration par représentation du catalogue élargi : (nom affiché, titre de l'étude, capture,
+# cas montré sur la capture, étape)
 EXTENDED = [
     ("Matrice croisée", "Droits d'accès aux documents", "19-matrice-croisee", 4, 2),
     ("Calcul pas à pas", "Prix à payer d'une commande", "20-calcul-pas-a-pas", 2, 3),
@@ -418,25 +486,38 @@ EXTENDED = [
     ("Diagramme de séquence", "Paiement par carte d'une commande", "27-diagramme-de-sequence", 2, 3),
 ]
 
-# Place et taille du schéma, de ce qui le précède, et de son contenu défilant : rien de tout cela ne doit changer d'une étape à l'autre.
+# Place et taille du schéma, de ce qui le précède, et de son contenu défilant : rien de tout cela ne doit
+# changer d'une étape à l'autre.
 MEASURE = """() => {
-  const rep = document.querySelector('.cp-rep'), steps = document.querySelector('.steps'), detail = document.querySelector('[data-detail]');
-  const inner = rep.querySelector('.rep'), box = inner.getBoundingClientRect(), scroll = rep.querySelector('.rep-scroll');
-  return [Math.round(rep.getBoundingClientRect().top + detail.scrollTop), Math.round(steps.getBoundingClientRect().height),
+  const rep = document.querySelector('.cp-rep'), steps = document.querySelector('.steps');
+  const detail = document.querySelector('[data-detail]');
+  const inner = rep.querySelector('.rep'), box = inner.getBoundingClientRect();
+  const scroll = rep.querySelector('.rep-scroll');
+  return [Math.round(rep.getBoundingClientRect().top + detail.scrollTop),
+          Math.round(steps.getBoundingClientRect().height),
           Math.round(rep.getBoundingClientRect().height), Math.round(box.width), Math.round(box.height),
           scroll ? scroll.scrollWidth : 0, scroll ? scroll.scrollHeight : 0];
 }"""
 
 
 def test_representations_elargies(site, browser):
-    """Les neuf représentations du catalogue élargi, chacune sur son étude de démonstration : affichage stable d'une
+    """Les neuf représentations du catalogue élargi, chacune sur son étude de démonstration : affichage stable
+    d'une
     étape à l'autre, thèmes clair et sombre, largeur mobile, choix à trois niveaux dans l'interface."""
     context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on("console", lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None)
-    page.on("response", lambda response: problems.append(f"{response.status} {response.url}") if response.status >= 500 else None)
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    page.on(
+        "response",
+        lambda response: (
+            problems.append(f"{response.status} {response.url}") if response.status >= 500 else None
+        ),
+    )
     login(page, site, "demo")
 
     checked = 0
@@ -444,7 +525,9 @@ def test_representations_elargies(site, browser):
         page.set_viewport_size({"width": 1440, "height": 900})
         page.goto(site + "/etudes/")
         page.get_by_role("link", name=title).click()
-        expect(page.locator(".cp-rep-head strong")).to_have_text(name)       # l'étude porte la représentation qu'elle illustre
+        expect(page.locator(".cp-rep-head strong")).to_have_text(
+            name
+        )  # l'étude porte la représentation qu'elle illustre
         expect(page.locator(".study-head .chip").first).to_contain_text("Exemple")
         sid = page.locator("[data-workspace]").get_attribute("data-sid")
         keys = page.locator(".case-item").evaluate_all("items => items.map(item => item.dataset.key)")
@@ -462,7 +545,9 @@ def test_representations_elargies(site, browser):
                     page.wait_for_timeout(220)
                     seen.append(page.evaluate(MEASURE))
                 expect(page.locator("[data-step-n]")).to_have_text(str(steps))
-                assert all(item == seen[0] for item in seen), f"{name}, cas {key}, {width}px : le schéma bouge entre les étapes {seen}"
+                assert all(item == seen[0] for item in seen), (
+                    f"{name}, cas {key}, {width}px : le schéma bouge entre les étapes {seen}"
+                )
                 checked += 1
         # Capture : un cas parlant, à une étape du milieu, en clair ; puis le même en sombre.
         page.set_viewport_size({"width": 1440, "height": 900})
@@ -494,11 +579,11 @@ def test_representations_elargies(site, browser):
     expect(card.get_by_role("button", name="Utiliser pour moi")).to_be_visible()
     expect(card.get_by_role("button", name="Utiliser pour toute l'étude")).to_be_visible()
     shot(page, "28-choix-a-trois-niveaux", full_page=True)
-    card.get_by_role("button", name="seulement").click()                    # pour ce cas seulement
+    card.get_by_role("button", name="seulement").click()  # pour ce cas seulement
     page.wait_for_url(f"**/?cas={first}")
     expect(page.locator(".cp-rep-head strong")).to_have_text("Diagramme d'états")
     expect(page.locator(".cp-rep-head .chip")).to_have_text("pour ce cas")
-    page.keyboard.press("j")                                                # le cas suivant garde la représentation de l'étude
+    page.keyboard.press("j")  # le cas suivant garde la représentation de l'étude
     expect(page.locator("[data-panel]")).not_to_have_attribute("data-key", first)
     expect(page.locator(".cp-rep-head strong")).to_have_text("Table d'états")
     expect(page.locator(".cp-rep-head .chip")).to_have_count(0)
@@ -517,7 +602,13 @@ def test_representations_elargies(site, browser):
     shot(page, "29-briques-regles-et-processus", full_page=True)
 
     # ---- Petit écran : la page ne défile pas en largeur ; le schéma défile dans son cadre
-    phone = browser.new_context(viewport={"width": 390, "height": 844}, locale="fr-FR", storage_state=context.storage_state(), is_mobile=True, has_touch=True)
+    phone = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        locale="fr-FR",
+        storage_state=context.storage_state(),
+        is_mobile=True,
+        has_touch=True,
+    )
     small = phone.new_page()
     small.on("pageerror", lambda error: problems.append(f"erreur de script (mobile) : {error}"))
     for name, title, capture, shown_case, _ in EXTENDED:
@@ -529,7 +620,10 @@ def test_representations_elargies(site, browser):
         expect(small.locator(".vbtn-accepted")).to_be_visible()
         width = small.evaluate("[document.documentElement.scrollWidth, window.innerWidth]")
         assert width[0] <= width[1], f"{name} : défilement horizontal de la page sur petit écran : {width}"
-        box = small.evaluate("(() => { const r = document.querySelector('[data-panel] .rep').getBoundingClientRect(); return [r.width, r.height]; })()")
+        box = small.evaluate(
+            "(() => { const r = document.querySelector('[data-panel] .rep').getBoundingClientRect(); return "
+            "[r.width, r.height]; })()"
+        )
         assert box[0] > 200 and box[1] > 60, f"{name} : schéma illisible sur petit écran {box}"
     small.locator("[data-panel] .cp-rep").scroll_into_view_if_needed()
     shot(small, "30-mobile-diagramme-de-sequence")

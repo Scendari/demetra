@@ -33,19 +33,35 @@ from .render import (
 )
 
 RULE_ROLES = {"selected": "success", "discarded": "warning", "failed": "disabled", "none": "waiting"}
-OP_SIGNS = {"=": "", "+": "+", "-": "−", "×": "×", "÷": "÷", "%": "", "min": "plafond", "max": "plancher", "arrondi": "≈"}
+OP_SIGNS = {
+    "=": "",
+    "+": "+",
+    "-": "−",
+    "×": "×",
+    "÷": "÷",
+    "%": "",
+    "min": "plafond",
+    "max": "plancher",
+    "arrondi": "≈",
+}
 NBSP, THIN = " ", " "
 
 
 def pseudo_statuses() -> dict:
-    """Statuts internes (sort d'une ligne de règle) : ils passent par le même mécanisme que ceux de l'étude."""
-    return {f"~{k}": {"label": ext.RULE_RESULTS[k], "short": ext.RULE_RESULTS[k], "role": RULE_ROLES[k]} for k in RULE_ROLES}
+    """Statuts internes (sort d'une ligne de règle) : ils passent par le même mécanisme que ceux de
+    l'étude."""
+    return {
+        f"~{k}": {"label": ext.RULE_RESULTS[k], "short": ext.RULE_RESULTS[k], "role": RULE_ROLES[k]}
+        for k in RULE_ROLES
+    }
 
 
 def amount(value, unit: str = "") -> str:
     """Nombre écrit à la française : espace fine des milliers, virgule décimale, unité insécable."""
     if isinstance(value, float) and not value.is_integer():
-        text = f"{value:,.2f}" if abs(value * 100 - round(value * 100)) < 1e-6 else f"{value:,.4f}".rstrip("0")
+        text = (
+            f"{value:,.2f}" if abs(value * 100 - round(value * 100)) < 1e-6 else f"{value:,.4f}".rstrip("0")
+        )
     else:
         text = f"{int(value):,}"
     text = text.replace(",", THIN).replace(".", ",").replace("-", "−")
@@ -69,21 +85,32 @@ def dyn_cls(per_step: list[str], ctx: Context, fixed: int | None) -> tuple[str, 
 
 def pill(ctx: Context, key: str, mode: str = "full") -> str:
     role, label = ctx.role(key), ctx.label(key, "full")
-    return (f'<span class="st" data-role="{role}" title="{escape(label, quote=True)}"><svg class="st-ic" width="14" height="14" aria-hidden="true">'
-            f'<use href="#ic-{role}"/></svg><span class="st-tx">{escape(ctx.label(key, mode))}</span></span>')
+    return (
+        f'<span class="st" data-role="{role}" title="{escape(label, quote=True)}"><svg class="st-ic" '
+        'width="14" height="14" aria-hidden="true">'
+        f'<use href="#ic-{role}"/></svg><span class="st-tx">{escape(ctx.label(key, mode))}</span></span>'
+    )
 
 
 def pill_series(ctx: Context, keys: list[str], fixed: int | None) -> str:
-    """Pastille dont le statut change d'une étape à l'autre ; la case réserve la place du libellé le plus long."""
+    """Pastille dont le statut change d'une étape à l'autre ; la case réserve la place du libellé le plus
+    long."""
     step = ctx.step if fixed is None else fixed
     key = keys[min(step, len(keys) - 1)] if keys else ""
     if fixed is not None or len(set(keys)) <= 1:
         return pill(ctx, key)
     role, label = ctx.role(key), ctx.label(key, "full")
-    main = (f'<span class="st" data-role="{role}" data-status="{escape(key, quote=True)}" data-st="{escape("|".join(keys), quote=True)}" title="{escape(label, quote=True)}">'
-            f'<svg class="st-ic" width="14" height="14" aria-hidden="true"><use data-si="" href="#ic-{role}"/></svg><span class="st-tx" data-sl="full">{escape(label)}</span></span>')
-    sizers = "".join(f'<span class="st tx-size" aria-hidden="true"><svg class="st-ic" width="14" height="14"></svg><span class="st-tx">{escape(ctx.label(k, "full"))}</span></span>'
-                     for k in dict.fromkeys(keys))
+    main = (
+        f'<span class="st" data-role="{role}" data-status="{escape(key, quote=True)}" '
+        f'data-st="{escape("|".join(keys), quote=True)}" title="{escape(label, quote=True)}">'
+        '<svg class="st-ic" width="14" height="14" aria-hidden="true"><use data-si="" '
+        f'href="#ic-{role}"/></svg><span class="st-tx" data-sl="full">{escape(label)}</span></span>'
+    )
+    sizers = "".join(
+        '<span class="st tx-size" aria-hidden="true"><svg class="st-ic" width="14" height="14"></svg><span '
+        f'class="st-tx">{escape(ctx.label(k, "full"))}</span></span>'
+        for k in dict.fromkeys(keys)
+    )
     return f'<span class="tx-stack">{main}{sizers}</span>'
 
 
@@ -95,14 +122,22 @@ def _fixed_step(ctx: Context, time: dict) -> int | None:
 
 def _canvas(view: dict, svg: str, fallback: str) -> str:
     label = escape(view.get("title") or fallback, quote=True)
-    return f'<div class="rep-canvas rep-scroll" tabindex="0" role="region" aria-label="{label} — défilement possible">{svg}</div>'
+    return (
+        f'<div class="rep-canvas rep-scroll" tabindex="0" role="region" aria-label="{label} — défilement '
+        f'possible">{svg}</div>'
+    )
 
 
-def _svg(view: dict, width: float, height: float, body: str, cls: str, fallback: str, time: dict | None = None) -> str:
+def _svg(
+    view: dict, width: float, height: float, body: str, cls: str, fallback: str, time: dict | None = None
+) -> str:
     hl = " tm-highlight" if (time or {}).get("highlight_changes", True) else ""
     label = escape(view.get("title") or fallback, quote=True)
-    return (f'<svg class="rep-svg {cls}{hl}" style="--w:{width:.0f}" viewBox="0 0 {width:.0f} {height:.0f}" width="{width:.0f}" height="{height:.0f}" '
-            f'role="group" aria-label="{label}">{body}</svg>')
+    return (
+        f'<svg class="rep-svg {cls}{hl}" style="--w:{width:.0f}" viewBox="0 0 {width:.0f} {height:.0f}" '
+        f'width="{width:.0f}" height="{height:.0f}" '
+        f'role="group" aria-label="{label}">{body}</svg>'
+    )
 
 
 def _wrap2(text: str, max_width: float, size: float) -> list[str]:
@@ -158,7 +193,10 @@ def _state_series(ctx: Context, ent: dict) -> tuple[str, list[str], list[tuple[s
 # Grilles : calcul, champs, règles, états
 # ---------------------------------------------------------------------------
 
-def grid_rows(ctx: Context, view: dict, layout: dict, marks: list[dict], fixed: int | None, sv: dict, th, cell_class) -> dict:
+
+def grid_rows(
+    ctx: Context, view: dict, layout: dict, marks: list[dict], fixed: int | None, sv: dict, th, cell_class
+) -> dict:
     kind = layout["rows"]
     out = {"head": [], "body": [], "cls": f" grid-{kind}", "before": ""}
     if kind == "values":
@@ -186,13 +224,27 @@ def _grid_values(ctx, marks, fixed, sv, th, cell_class, out):
             out["head"].append(th(mark["header"], cls="al-end col-num"))
     for i, v in lines:
         unit = v.get("unit", "")
-        values = {"label": v["label"], "op": v["op"], "operation": ext.OP_LABELS[v["op"]], "note": v.get("note", ""), "unit": unit, "step": i + 1}
+        values = {
+            "label": v["label"],
+            "op": v["op"],
+            "operation": ext.OP_LABELS[v["op"]],
+            "note": v.get("note", ""),
+            "unit": unit,
+            "step": i + 1,
+        }
         cells = []
         for mark in marks:
             if mark["brick"] == "mark.cell":
-                tag = "th" if mark.get("weight") == "strong" and not any(c.startswith("<th") for c in cells) else "td"
+                tag = (
+                    "th"
+                    if mark.get("weight") == "strong" and not any(c.startswith("<th") for c in cells)
+                    else "td"
+                )
                 scope = ' scope="row"' if tag == "th" else ""
-                cells.append(f'<{tag}{scope} class="{cell_class(mark)}">{escape(fill_template(mark["text"], values))}</{tag}>')
+                cells.append(
+                    f"<{tag}{scope} "
+                    f'class="{cell_class(mark)}">{escape(fill_template(mark["text"], values))}</{tag}>'
+                )
             elif mark["brick"] == "mark.value":
                 if mark["show"] == "result":
                     number = v.get("result", v["value"] if v["op"] == "=" else None)
@@ -201,19 +253,36 @@ def _grid_values(ctx, marks, fixed, sv, th, cell_class, out):
                 else:
                     text = amount(v["value"], "%" if v["op"] == "%" else unit)
                     sign = OP_SIGNS[v["op"]] if mark["signed"] else ""
-                    sign_html = f'<span class="val-op" title="{escape(ext.OP_LABELS[v["op"]], quote=True)}">{escape(sign)}</span>{NBSP}' if sign else ""
+                    sign_html = (
+                        '<span class="val-op" '
+                        f'title="{escape(ext.OP_LABELS[v["op"]], quote=True)}">{escape(sign)}</span>{NBSP}'
+                        if sign
+                        else ""
+                    )
                     cells.append(f'<td class="al-end col-num">{sign_html}{escape(text)}</td>')
         per_step = ["is-future" if s < i else "" for s in range(ctx.n_steps)]
         now, dyn = dyn_cls(per_step, ctx, fixed)
         current = " is-current" if fixed is None and i == ctx.step else ""
         step_attr = f' data-step-is="{i}"' if fixed is None else ""
-        out["body"].append(f'<tr class="row-step row-val {now}{current}"{step_attr}{dyn}>{"".join(cells)}</tr>')
+        out["body"].append(
+            f'<tr class="row-step row-val {now}{current}"{step_attr}{dyn}>{"".join(cells)}</tr>'
+        )
     last = next((v for _, v in reversed(lines) if "result" in v or v["op"] == "="), None)
     if last:
-        sv["notes"].append(f"Résultat du calcul : {amount(last.get('result', last['value']), last.get('unit', ''))} (ligne « {last['label']} »).")
-    sv["notes"].append("Lignes : " + " ; ".join(
-        f"{i + 1}. {v['label']} {OP_SIGNS[v['op']]} {amount(v['value'], '%' if v['op'] == '%' else v.get('unit', ''))}"
-        + (f" → {amount(v['result'], v.get('unit', ''))}" if "result" in v else "") for i, v in lines[:24]) + ".")
+        sv["notes"].append(
+            f"Résultat du calcul : {amount(last.get('result', last['value']), last.get('unit', ''))} (ligne "
+            f"« {last['label']} »)."
+        )
+    sv["notes"].append(
+        "Lignes : "
+        + " ; ".join(
+            f"{i + 1}. {v['label']} {OP_SIGNS[v['op']]} "
+            f"{amount(v['value'], '%' if v['op'] == '%' else v.get('unit', ''))}"
+            + (f" → {amount(v['result'], v.get('unit', ''))}" if "result" in v else "")
+            for i, v in lines[:24]
+        )
+        + "."
+    )
 
 
 def _fmt_field(value) -> str:
@@ -235,41 +304,66 @@ def _grid_fields(ctx, layout, marks, fixed, sv, th, cell_class, out):
         sv["warnings"].append("Ce cas ne porte aucun champ (entities[].fields, steps[].fields).")
         return
     for mark in marks:
-        out["head"].append(th(mark["header"], cls=cell_class(mark) if mark["brick"] == "mark.cell" else "col-field"))
+        out["head"].append(
+            th(mark["header"], cls=cell_class(mark) if mark["brick"] == "mark.cell" else "col-field")
+        )
     changed_names = []
     for ent, name in rows:
         initial = (ent.get("fields") or {}).get(name)
         series = [(frame.get("fields") or {}).get(ent["id"], {}).get(name) for frame in ctx.frames]
-        changed = "".join("1" if [ent["id"], name] in (frame.get("fields_changed") or []) else "0" for frame in ctx.frames)
+        changed = "".join(
+            "1" if [ent["id"], name] in (frame.get("fields_changed") or []) else "0" for frame in ctx.frames
+        )
         if series and series[-1] != initial:
-            changed_names.append(f"{ent['label'] or ent['id']}.{name} : {_fmt_field(initial)} → {_fmt_field(series[-1])}")
+            changed_names.append(
+                f"{ent['label'] or ent['id']}.{name} : {_fmt_field(initial)} → {_fmt_field(series[-1])}"
+            )
         values = {"entity": ent["id"], "entity_label": ent["label"] or ent["id"], "field": name}
         cells = []
         for mark in marks:
             if mark["brick"] == "mark.cell":
                 tag = "th" if mark.get("weight") == "strong" else "td"
                 scope = ' scope="row"' if tag == "th" else ""
-                cells.append(f'<{tag}{scope} class="{cell_class(mark)}">{escape(fill_template(mark["text"], values))}</{tag}>')
+                cells.append(
+                    f"<{tag}{scope} "
+                    f'class="{cell_class(mark)}">{escape(fill_template(mark["text"], values))}</{tag}>'
+                )
                 continue
             at = mark["at"]
-            tag_html = '<span class="fd-tag">modifié</span>' if mark["mark_changes"] and at != "initial" else ""
+            tag_html = (
+                '<span class="fd-tag">modifié</span>' if mark["mark_changes"] and at != "initial" else ""
+            )
             if at == "initial":
                 cells.append(f'<td class="col-field">{escape(_fmt_field(initial))}</td>')
             elif at == "final" or fixed is not None:
                 value = series[-1 if at == "final" else fixed] if series else initial
                 diff = " is-diff" if mark["mark_changes"] and value != initial else ""
-                cells.append(f'<td class="col-field{diff}"><span class="fd-val">{escape(_fmt_field(value))}</span>{tag_html}</td>')
+                cells.append(
+                    f'<td class="col-field{diff}"><span '
+                    f'class="fd-val">{escape(_fmt_field(value))}</span>{tag_html}</td>'
+                )
             else:
                 texts = [_fmt_field(v) for v in series]
                 per_step = ["is-diff" if mark["mark_changes"] and v != initial else "" for v in series]
                 now, dyn = dyn_cls(per_step, ctx, None)
                 current = texts[ctx.step] if texts else ""
-                sizers = "".join(f'<span class="tx-size" aria-hidden="true">{escape(t)}</span>' for t in dict.fromkeys(texts))
-                cells.append(f'<td class="col-field {now}"{dyn}><span class="tx-stack fd-val"><span data-tx=\'{_attr_json(texts)}\' data-tx-target="">{escape(current)}</span>{sizers}</span>{tag_html}</td>')
+                sizers = "".join(
+                    f'<span class="tx-size" aria-hidden="true">{escape(t)}</span>'
+                    for t in dict.fromkeys(texts)
+                )
+                cells.append(
+                    f'<td class="col-field {now}"{dyn}><span class="tx-stack fd-val">'
+                    f"<span data-tx='{_attr_json(texts)}' data-tx-target=\"\">{escape(current)}</span>"
+                    f"{sizers}</span>{tag_html}</td>"
+                )
         is_changed = " is-changed" if fixed is None and changed and changed[ctx.step] == "1" else ""
         dyn_row = f' data-ch="{changed}"' if fixed is None else ""
         out["body"].append(f'<tr class="row-field{is_changed}"{dyn_row}>{"".join(cells)}</tr>')
-    sv["notes"].append(("Champs modifiés à la fin du cas : " + " ; ".join(changed_names[:16]) + ".") if changed_names else "Aucun champ n'est modifié par ce cas.")
+    sv["notes"].append(
+        ("Champs modifiés à la fin du cas : " + " ; ".join(changed_names[:16]) + ".")
+        if changed_names
+        else "Aucun champ n'est modifié par ce cas."
+    )
 
 
 def case_value(ctx: Context, key: str) -> str | None:
@@ -296,6 +390,64 @@ def case_candidates(ctx: Context, key: str) -> set[str]:
     return out
 
 
+def _rules_head(ctx, marks, conditions, th, cell_class) -> list[str]:
+    head = []
+    for mark in marks:
+        if mark["brick"] == "mark.cell":
+            head.append(th(mark["header"], cls=cell_class(mark)))
+        elif mark["brick"] == "mark.rule_result":
+            head.append(th(mark["header"], cls="col-result"))
+        else:
+            for cond in conditions:
+                value = case_value(ctx, cond["key"]) if mark["case_values"] else None
+                chip = (
+                    f'<span class="cond-case"><span class="cond-case-k">Ce cas</span> {escape(value)}</span>'
+                    if value is not None
+                    else ""
+                )
+                head.append(f'<th scope="col" class="col-cond">{escape(cond["label"])}{chip}</th>')
+    return head
+
+
+def _rule_row_cells(ctx, row, n, series, marks, conditions, fixed, cell_class) -> list[str]:
+    """Les cellules d'une ligne du jeu de règles : texte, résultat, et une case par condition."""
+    frames = ctx.frames
+    cells = []
+    for mark in marks:
+        if mark["brick"] == "mark.cell":
+            tag = "th" if mark is marks[0] else "td"
+            scope = ' scope="row"' if tag == "th" else ""
+            text = fill_template(mark["text"], {"key": row["key"], "then": row["then"], "n": n + 1})
+            cells.append(f'<{tag}{scope} class="{cell_class(mark)}">{escape(text)}</{tag}>')
+        elif mark["brick"] == "mark.rule_result":
+            cells.append(f'<td class="col-result">{pill_series(ctx, [f"~{r}" for r in series], fixed)}</td>')
+        else:
+            for cond in conditions:
+                expected = row["when"].get(cond["key"])
+                miss = [
+                    "is-miss" if (f.get("rules") or {}).get(row["key"], {}).get("on") == cond["key"] else ""
+                    for f in frames
+                ]
+                now, dyn = dyn_cls(miss, ctx, fixed)
+                marker = (
+                    (
+                        '<span class="rl-miss"><svg class="st-ic" width="14" height="14" aria-hidden="true">'
+                        '<use href="#ic-error"/></svg><span class="rl-miss-tx">diffère</span></span>'
+                    )
+                    if any(miss)
+                    else ""
+                )
+                text = (
+                    escape(expected)
+                    if expected is not None
+                    else '<span aria-hidden="true">—</span><span class="sr-only">indifférent</span>'
+                )
+                cells.append(
+                    f'<td class="col-cond {now}"{dyn}><span class="rl-exp">{text}</span>{marker}</td>'
+                )
+    return cells
+
+
 def _grid_rules(ctx, marks, fixed, sv, th, cell_class, out):
     ruleset = ctx.ruleset or {}
     rows, conditions = ruleset.get("rows", []), ruleset.get("conditions", [])
@@ -303,46 +455,30 @@ def _grid_rules(ctx, marks, fixed, sv, th, cell_class, out):
         sv["warnings"].append("L'étude ne déclare pas de jeu de règles (champ « ruleset » de l'étude).")
         return
     frames = ctx.frames
-    for mark in marks:
-        if mark["brick"] == "mark.cell":
-            out["head"].append(th(mark["header"], cls=cell_class(mark)))
-        elif mark["brick"] == "mark.rule_result":
-            out["head"].append(th(mark["header"], cls="col-result"))
-        else:
-            for cond in conditions:
-                value = case_value(ctx, cond["key"]) if mark["case_values"] else None
-                chip = f'<span class="cond-case"><span class="cond-case-k">Ce cas</span> {escape(value)}</span>' if value is not None else ""
-                out["head"].append(f'<th scope="col" class="col-cond">{escape(cond["label"])}{chip}</th>')
+    out["head"] += _rules_head(ctx, marks, conditions, th, cell_class)
     final = {}
     for n, row in enumerate(rows):
         series = [(f.get("rules") or {}).get(row["key"], {}).get("result", "none") for f in frames]
         final[row["key"]] = series[-1] if series else "none"
-        cells = []
-        for mark in marks:
-            if mark["brick"] == "mark.cell":
-                tag = "th" if mark is marks[0] else "td"
-                scope = ' scope="row"' if tag == "th" else ""
-                cells.append(f'<{tag}{scope} class="{cell_class(mark)}">{escape(fill_template(mark["text"], {"key": row["key"], "then": row["then"], "n": n + 1}))}</{tag}>')
-            elif mark["brick"] == "mark.rule_result":
-                cells.append(f'<td class="col-result">{pill_series(ctx, [f"~{r}" for r in series], fixed)}</td>')
-            else:
-                for cond in conditions:
-                    expected = row["when"].get(cond["key"])
-                    miss = ["is-miss" if (f.get("rules") or {}).get(row["key"], {}).get("on") == cond["key"] else "" for f in frames]
-                    now, dyn = dyn_cls(miss, ctx, fixed)
-                    marker = ('<span class="rl-miss"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-error"/></svg>'
-                              '<span class="rl-miss-tx">diffère</span></span>') if any(miss) else ""
-                    text = escape(expected) if expected is not None else '<span aria-hidden="true">—</span><span class="sr-only">indifférent</span>'
-                    cells.append(f'<td class="col-cond {now}"{dyn}><span class="rl-exp">{text}</span>{marker}</td>')
-        examined = [("is-" + s) + (" is-now" if row["key"] in (f.get("rules_examined") or []) else "") for s, f in zip(series, frames, strict=True)]
+        cells = _rule_row_cells(ctx, row, n, series, marks, conditions, fixed, cell_class)
+        examined = [
+            ("is-" + s) + (" is-now" if row["key"] in (f.get("rules_examined") or []) else "")
+            for s, f in zip(series, frames, strict=True)
+        ]
         now, dyn = dyn_cls(examined, ctx, fixed)
         out["body"].append(f'<tr class="row-rule {now}"{dyn}>{"".join(cells)}</tr>')
     policy = ruleset.get("policy", "unique")
-    out["before"] = f'<p class="rep-note"><span class="rep-note-k">Résolution</span> {escape(ext.POLICIES[policy])}.</p>'
+    out["before"] = (
+        f'<p class="rep-note"><span class="rep-note-k">Résolution</span> {escape(ext.POLICIES[policy])}.</p>'
+    )
     names = {"selected": "retenue", "discarded": "écartée", "failed": "ne correspond pas"}
     listed = [f"{key} {names[result]}" for key, result in final.items() if result != "none"]
     sv["notes"].append(f"Politique de résolution : {ext.POLICIES[policy]}.")
-    sv["notes"].append(("Sort des lignes pour ce cas : " + ", ".join(listed) + ".") if listed else "Ce cas ne dit le sort d'aucune ligne (steps[].rows).")
+    sv["notes"].append(
+        ("Sort des lignes pour ce cas : " + ", ".join(listed) + ".")
+        if listed
+        else "Ce cas ne dit le sort d'aucune ligne (steps[].rows)."
+    )
     untouched = [key for key, result in final.items() if result == "none"]
     if untouched and listed:
         sv["notes"].append("Lignes non examinées : " + ", ".join(untouched) + ".")
@@ -351,7 +487,10 @@ def _grid_rules(ctx, marks, fixed, sv, th, cell_class, out):
 def _grid_states(ctx, layout, marks, fixed, sv, th, cell_class, out):
     cycle, ent = lifecycle_for(ctx, layout.get("entity", "auto"))
     if not cycle:
-        sv["warnings"].append("Aucune entité de ce cas n'a de cycle de vie déclaré (champ « lifecycles » de l'étude, par type d'entité).")
+        sv["warnings"].append(
+            "Aucune entité de ce cas n'a de cycle de vie déclaré (champ « lifecycles » de l'étude, par type "
+            "d'entité)."
+        )
         return
     events = list(dict.fromkeys(t["label"] for t in cycle["transitions"]))
     _, series, taken = _state_series(ctx, ent)
@@ -367,22 +506,50 @@ def _grid_states(ctx, layout, marks, fixed, sv, th, cell_class, out):
             if mark["brick"] == "mark.cell":
                 if mark["content"] == "status":
                     start = '<span class="sd-start">départ</span>' if state == cycle["initial"] else ""
-                    cells.append(f'<th scope="row" class="{cell_class(mark)} col-state">{pill(ctx, state)}{start}</th>')
+                    cells.append(
+                        f'<th scope="row" class="{cell_class(mark)} col-state">{pill(ctx, state)}{start}</th>'
+                    )
                 else:
-                    cells.append(f'<td class="{cell_class(mark)}">{escape(fill_template(mark["text"], {"state": ctx.label(state), "key": state}))}</td>')
+                    text = fill_template(mark["text"], {"state": ctx.label(state), "key": state})
+                    cells.append(f'<td class="{cell_class(mark)}">{escape(text)}</td>')
                 continue
             for event in events:
-                target = next((t for t in cycle["transitions"] if t["from"] == state and t["label"] == event), None)
+                target = next(
+                    (t for t in cycle["transitions"] if t["from"] == state and t["label"] == event), None
+                )
                 per_step = ["is-taken" if target and move == (state, target["to"]) else "" for move in taken]
                 now, dyn = dyn_cls(per_step, ctx, fixed)
-                inner = pill(ctx, target["to"]) if target else f'<span aria-hidden="true">{escape(mark["empty"])}</span><span class="sr-only">non permis</span>'
-                guard = f'<span class="ev-guard">si {escape(target["guard"])}</span>' if target and target.get("guard") else ""
-                cells.append(f'<td class="col-event{"" if target else " is-none"} {now}"{dyn}>{inner}{guard}</td>')
+                inner = (
+                    pill(ctx, target["to"])
+                    if target
+                    else f'<span aria-hidden="true">{escape(mark["empty"])}</span><span class="sr-only">non '
+                    "permis</span>"
+                )
+                guard = (
+                    f'<span class="ev-guard">si {escape(target["guard"])}</span>'
+                    if target and target.get("guard")
+                    else ""
+                )
+                cells.append(
+                    f'<td class="col-event{"" if target else " is-none"} {now}"{dyn}>{inner}{guard}</td>'
+                )
         now, dyn = dyn_cls(["is-here" if s == state else "" for s in series], ctx, fixed)
         out["body"].append(f'<tr class="row-state {now}"{dyn}>{"".join(cells)}</tr>')
-    sv["notes"].append(f"Entité suivie : {ent['label'] or ent['id']} ; parcours : " + " → ".join(ctx.label(s) for s in _path(ctx, ent)) + ".")
-    holes = sum(1 for s in cycle["states"] for e in events if not any(t["from"] == s and t["label"] == e for t in cycle["transitions"]))
-    sv["notes"].append(f"{len(cycle['states'])} états, {len(events)} évènements ; {holes} case(s) vide(s) : évènement non permis depuis cet état.")
+    sv["notes"].append(
+        f"Entité suivie : {ent['label'] or ent['id']} ; parcours : "
+        + " → ".join(ctx.label(s) for s in _path(ctx, ent))
+        + "."
+    )
+    holes = sum(
+        1
+        for s in cycle["states"]
+        for e in events
+        if not any(t["from"] == s and t["label"] == e for t in cycle["transitions"])
+    )
+    sv["notes"].append(
+        f"{len(cycle['states'])} états, {len(events)} évènements ; {holes} case(s) vide(s) : évènement non "
+        "permis depuis cet état."
+    )
 
 
 def _path(ctx: Context, ent: dict) -> list[str]:
@@ -398,16 +565,73 @@ def _path(ctx: Context, ent: dict) -> list[str]:
 # Matrice croisée
 # ---------------------------------------------------------------------------
 
+
+def _matrix_cell(ctx: Context, group: list[dict], is_this: bool, mark: dict) -> str:
+    """Une case de la matrice : nombre de cas, ou résultats des cas qu'elle regroupe."""
+    mixed = False
+    if mark["show"] == "count":
+        inner = f'<span class="mx-count">{len(group)}</span> cas'
+        inner += _numbers(ctx, group) if mark["list_cases"] else ""
+    else:
+        by_outcome: dict[tuple, list[dict]] = {}
+        for sib in group:
+            by_outcome.setdefault((sib.get("outcome") or "", sib.get("outcome_status") or ""), []).append(sib)
+        parts = []
+        for (label, status), members in by_outcome.items():
+            shown = (
+                pill(ctx, status)
+                if status
+                else f'<b class="mx-text">{escape(label or "Sans résultat déclaré")}</b>'
+            )
+            if status and label and label != ctx.label(status):
+                shown += f'<span class="mx-label">{escape(label)}</span>'
+            parts.append(
+                f'<div class="mx-out">{shown}{_numbers(ctx, members) if mark["list_cases"] else ""}</div>'
+            )
+        inner = "".join(parts)
+        mixed = mark["show"] == "outcome" and len(by_outcome) > 1
+    current = ' aria-current="true"' if is_this else ""
+    tag = '<span class="mx-here">Cas affiché</span>' if is_this else ""
+    cls = f"mx-cell{' is-this-case' if is_this else ''}{' is-mixed' if mixed else ''}"
+    return f'<td class="{cls}"{current}>{tag}{inner}</td>'
+
+
+def _matrix_notes(sv: dict, rows: dict, cols: dict, this: tuple, dims: dict, empty: int):
+    sv["drawn"] = {"rows": len(rows["values"]), "columns": len(cols["values"])}
+    if this[0] is not None and this[1] is not None:
+        sv["notes"].append(
+            f"Cas affiché : ligne « {_dim_label(rows, this[0])} », colonne « {_dim_label(cols, this[1])} »."
+        )
+    else:
+        sv["warnings"].append(
+            "Le cas affiché ne porte pas les deux dimensions croisées : aucune case n'est mise en avant."
+        )
+    total = len(rows["values"]) * len(cols["values"])
+    sv["notes"].append(f"{total - empty} combinaison(s) couvertes sur {total} ; {empty} sans cas.")
+    if len(dims) > 2:
+        sv["warnings"].append(
+            f"L'étude déclare {len(dims)} dimensions : une case peut regrouper des cas qui diffèrent sur les "
+            "autres."
+        )
+
+
 def render_matrix(ctx: Context, view: dict, sv: dict) -> str:
     layout = with_defaults(view["layout"])
     mark = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.tally"))
     dims = {d["key"]: d for d in ctx.dimensions}
     keys = list(dims)
     row_key = layout["rows"] if layout["rows"] != "auto" else (keys[0] if keys else None)
-    col_key = layout["columns"] if layout["columns"] != "auto" else next((k for k in keys if k != row_key), None)
+    col_key = (
+        layout["columns"] if layout["columns"] != "auto" else next((k for k in keys if k != row_key), None)
+    )
     if row_key not in dims or col_key not in dims:
-        return _empty(sv, "La matrice croise deux dimensions de l'étude : il en manque au moins une.",
-                      f"La matrice demande deux dimensions déclarées dans l'étude ; reçu lignes = {row_key}, colonnes = {col_key} ; dimensions de l'étude : {', '.join(keys) or 'aucune'}.")
+        return _empty(
+            sv,
+            "La matrice croise deux dimensions de l'étude : il en manque au moins une.",
+            "La matrice demande deux dimensions déclarées dans l'étude ; "
+            f"reçu lignes = {row_key}, colonnes = {col_key} ; dimensions de l'étude : "
+            f"{', '.join(keys) or 'aucune'}.",
+        )
     rows, cols = dims[row_key], dims[col_key]
     scope = layout["cases_scope"]
     siblings = [s for s in ctx.siblings if scope == "study" or s["family"] == ctx.case.get("family")]
@@ -416,56 +640,48 @@ def render_matrix(ctx: Context, view: dict, sv: dict) -> str:
         cells.setdefault((sib["dimensions"].get(row_key), sib["dimensions"].get(col_key)), []).append(sib)
     mine = ctx.case.get("dimensions") or {}
     this = (mine.get(row_key), mine.get(col_key))
-    head = (f'<tr><th scope="col" rowspan="2" class="mx-corner">{escape(rows["label"])}</th>'
-            f'<th scope="colgroup" colspan="{len(cols["values"])}" class="mx-coldim">{escape(cols["label"])}</th></tr><tr>'
-            + "".join(f'<th scope="col" class="mx-col{" is-this-col" if v["value"] == this[1] else ""}">{escape(v["label"])}</th>' for v in cols["values"]) + "</tr>")
+    head = (
+        f'<tr><th scope="col" rowspan="2" class="mx-corner">{escape(rows["label"])}</th>'
+        f'<th scope="colgroup" colspan="{len(cols["values"])}" '
+        f'class="mx-coldim">{escape(cols["label"])}</th></tr><tr>'
+        + "".join(
+            '<th scope="col" '
+            f'class="mx-col{" is-this-col" if v["value"] == this[1] else ""}">{escape(v["label"])}</th>'
+            for v in cols["values"]
+        )
+        + "</tr>"
+    )
     body, empty = [], 0
     for rv in rows["values"]:
         tds = []
         for cv in cols["values"]:
             group = cells.get((rv["value"], cv["value"]), [])
-            is_this = (rv["value"], cv["value"]) == this
             if not group:
                 empty += 1
                 tds.append('<td class="mx-cell is-none"><span class="mx-none">Aucun cas</span></td>')
                 continue
-            if mark["show"] == "count":
-                inner = f'<span class="mx-count">{len(group)}</span> cas'
-                numbers = group
-                inner += _numbers(ctx, numbers) if mark["list_cases"] else ""
-            else:
-                by_outcome: dict[tuple, list[dict]] = {}
-                for sib in group:
-                    by_outcome.setdefault((sib.get("outcome") or "", sib.get("outcome_status") or ""), []).append(sib)
-                parts = []
-                for (label, status), members in by_outcome.items():
-                    shown = pill(ctx, status) if status else f'<b class="mx-text">{escape(label or "Sans résultat déclaré")}</b>'
-                    if status and label and label != ctx.label(status):
-                        shown += f'<span class="mx-label">{escape(label)}</span>'
-                    parts.append(f'<div class="mx-out">{shown}{_numbers(ctx, members) if mark["list_cases"] else ""}</div>')
-                inner = "".join(parts)
-            current = ' aria-current="true"' if is_this else ""
-            tag = '<span class="mx-here">Cas affiché</span>' if is_this else ""
-            tds.append(f'<td class="mx-cell{" is-this-case" if is_this else ""}{" is-mixed" if mark["show"] == "outcome" and len(by_outcome) > 1 else ""}"{current}>{tag}{inner}</td>')
+            tds.append(_matrix_cell(ctx, group, (rv["value"], cv["value"]) == this, mark))
         row_cls = ' class="is-this-row"' if rv["value"] == this[0] else ""
-        body.append(f'<tr{row_cls}><th scope="row" class="mx-row">{escape(rv["label"])}</th>{"".join(tds)}</tr>')
-    sv["drawn"] = {"rows": len(rows["values"]), "columns": len(cols["values"])}
-    if this[0] is not None and this[1] is not None:
-        sv["notes"].append(f"Cas affiché : ligne « {_dim_label(rows, this[0])} », colonne « {_dim_label(cols, this[1])} ».")
-    else:
-        sv["warnings"].append("Le cas affiché ne porte pas les deux dimensions croisées : aucune case n'est mise en avant.")
-    sv["notes"].append(f"{len(rows['values']) * len(cols['values']) - empty} combinaison(s) couvertes sur {len(rows['values']) * len(cols['values'])} ; {empty} sans cas.")
-    if len(dims) > 2:
-        sv["warnings"].append(f"L'étude déclare {len(dims)} dimensions : une case peut regrouper des cas qui diffèrent sur les autres.")
+        body.append(
+            f'<tr{row_cls}><th scope="row" class="mx-row">{escape(rv["label"])}</th>{"".join(tds)}</tr>'
+        )
+    _matrix_notes(sv, rows, cols, this, dims, empty)
     caption = escape(view.get("title") or "Matrice croisée")
-    return (f'<div class="rep-scroll" tabindex="0" role="region" aria-label="{escape(view.get("title") or "Matrice croisée", quote=True)} — défilement possible">'
-            f'<table class="rep-grid rep-matrix"><caption class="sr-only">{caption} : {escape(rows["label"])} en lignes, {escape(cols["label"])} en colonnes</caption>'
-            f'<thead>{head}</thead><tbody>{"".join(body)}</tbody></table></div>')
+    return (
+        '<div class="rep-scroll" tabindex="0" role="region" '
+        f'aria-label="{escape(view.get("title") or "Matrice croisée", quote=True)} — défilement possible">'
+        f'<table class="rep-grid rep-matrix"><caption class="sr-only">{caption} : {escape(rows["label"])} en '
+        f"lignes, {escape(cols['label'])} en colonnes</caption>"
+        f"<thead>{head}</thead><tbody>{''.join(body)}</tbody></table></div>"
+    )
 
 
 def _numbers(ctx: Context, members: list[dict]) -> str:
     key = ctx.case.get("key")
-    items = ", ".join(f'<b class="mx-me">{escape(_case_number(s))}</b>' if s["key"] == key else escape(_case_number(s)) for s in members[:12])
+    items = ", ".join(
+        f'<b class="mx-me">{escape(_case_number(s))}</b>' if s["key"] == key else escape(_case_number(s))
+        for s in members[:12]
+    )
     more = f" +{len(members) - 12}" if len(members) > 12 else ""
     return f'<span class="mx-cases"><span class="mx-cases-k">n°</span> {items}{more}</span>'
 
@@ -474,17 +690,11 @@ def _numbers(ctx: Context, members: list[dict]) -> str:
 # Axe à bandes
 # ---------------------------------------------------------------------------
 
-def render_scale(ctx: Context, view: dict, sv: dict) -> str:
-    layout = with_defaults(view["layout"])
-    band_mark = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.band"))
-    point_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.point"), None)
-    banded = [d for d in ctx.dimensions if d.get("bands")]
-    dim = next((d for d in banded if layout["dimension"] in ("auto", d["key"])), None)
-    if not dim:
-        return _empty(sv, "Aucune dimension de cette étude ne déclare de tranches.",
-                      "L'axe à bandes demande une dimension avec « bands » (PATCH /studies/{id}) ; dimensions à tranches : " + (", ".join(d["key"] for d in banded) or "aucune") + ".")
-    bands, unit = dim["bands"], dim.get("unit", "")
-    n = len(bands)
+
+def _scale_points(
+    ctx: Context, dim: dict, point_mark: dict | None
+) -> tuple[dict[float, list[dict]], float | None]:
+    """Mesures à placer sur l'axe : celle du cas (marquée « me »), puis celles des autres cas."""
     key = ctx.case.get("key")
     measure = (ctx.case.get("measures") or {}).get(dim["key"])
     points: dict[float, list[dict]] = {}
@@ -496,8 +706,11 @@ def render_scale(ctx: Context, view: dict, sv: dict) -> str:
                     points.setdefault(x, []).append(sib)
         if measure is not None:
             points.setdefault(measure, []).insert(0, {"key": key, "me": True})
+    return points, measure
 
-    # Échelle : chaque tranche a la même largeur ; à l'intérieur, les positions sont proportionnelles puis écartées pour rester lisibles.
+
+def _scale_edges(bands: list[dict], points: dict) -> list[float]:
+    """Bornes dessinées : les bornes ouvertes des extrémités sont prolongées d'une tranche typique."""
     finite = sorted({b[k] for b in bands for k in ("from", "to") if k in b})
     spans = sorted(b["to"] - b["from"] for b in bands if "from" in b and "to" in b)
     typical = spans[len(spans) // 2] if spans else (abs(finite[0]) or 1)
@@ -507,15 +720,13 @@ def render_scale(ctx: Context, view: dict, sv: dict) -> str:
     high = bands[-1].get("to")
     if high is None:
         high = max([finite[-1] + typical] + [p + typical * 0.2 for p in points if p > finite[-1]])
-    edges = [low] + [b["to"] for b in bands[:-1]] + [high]
-    bw = max(150.0, min(236.0, 780 / n))
-    pad, gutter = 26.0, 26.0
-    width = pad * 2 + n * bw
+    return [low] + [b["to"] for b in bands[:-1]] + [high]
 
-    def band_of(x: float) -> int:
-        index = ext.band_index(dim, x)
-        return index if index is not None else (0 if x < edges[0] else n - 1)
 
+def _scale_place(
+    points: dict, edges: list[float], band_of, n: int, pad: float, bw: float
+) -> dict[float, float]:
+    """Abscisse de chaque mesure : proportionnelle dans sa tranche, puis écartée pour rester lisible."""
     placed: dict[float, float] = {}
     gap = 46.0
     for i in range(n):
@@ -534,23 +745,33 @@ def render_scale(ctx: Context, view: dict, sv: dict) -> str:
     for p in points:
         if p not in placed:
             placed[p] = pad + next((i for i, e in enumerate(edges) if e == p), 0) * bw
+    return placed
 
-    # Étiquettes des points : étagées pour ne pas se recouvrir
+
+def _scale_labels(points: dict, placed: dict, unit: str, width: float) -> tuple[list[dict], list[float]]:
+    """Étiquettes des points, étagées pour ne pas se recouvrir."""
     labels, levels = [], []
     for p in sorted(points):
         members = points[p]
         mine = any(m.get("me") for m in members)
         others = [m for m in members if not m.get("me")]
         text = amount(p, unit)
-        sub = ("Ce cas" + (f" · n° {', '.join(_case_number(m) for m in others[:4])}" if others else "")) if mine else "n° " + ", ".join(_case_number(m) for m in others[:5])
+        sub = (
+            ("Ce cas" + (f" · n° {', '.join(_case_number(m) for m in others[:4])}" if others else ""))
+            if mine
+            else "n° " + ", ".join(_case_number(m) for m in others[:5])
+        )
         w = max(_text_width(text, 12, True), _text_width(sub, 10.5, mine)) + 12
         x0 = max(4.0, min(width - w - 4, placed[p] - w / 2))
         level = next((lv for lv, end in enumerate(levels) if x0 >= end + 6), len(levels))
         if level == len(levels):
             levels.append(0.0)
         levels[level] = x0 + w
-        labels.append({"p": p, "x": placed[p], "x0": x0, "w": w, "level": level, "text": text, "sub": sub, "mine": mine})
-    # La tige d'une étiquette placée plus haut ne doit pas traverser une étiquette placée plus bas : celle-ci se décale.
+        labels.append(
+            {"p": p, "x": placed[p], "x0": x0, "w": w, "level": level, "text": text, "sub": sub, "mine": mine}
+        )
+    # La tige d'une étiquette placée plus haut ne doit pas traverser une étiquette placée plus bas : celle-ci
+    # se décale.
     for low in labels:
         for other in labels:
             if other["level"] > low["level"] and low["x0"] - 3 < other["x"] < low["x0"] + low["w"] + 3:
@@ -558,12 +779,11 @@ def render_scale(ctx: Context, view: dict, sv: dict) -> str:
                     low["x0"] = min(low["x0"], max(low["x"] - low["w"] + 8, other["x"] - 4 - low["w"]))
                 else:
                     low["x0"] = max(low["x0"], min(low["x"] - 8, other["x"] + 4))
-    label_h = 34.0
-    top = 12.0 + max(1, len(levels)) * label_h if points else 14.0
-    lines_in = 1 + int(band_mark["show_range"]) + int(band_mark["show_result"] and any(b.get("result") for b in bands))
-    band_h = 20.0 + lines_in * 18
-    my_band = band_of(measure) if measure is not None else next((i for i, b in enumerate(bands) if b["value"] == (ctx.case.get("dimensions") or {}).get(dim["key"])), None)
+    return labels, levels
 
+
+def _scale_bands_svg(dim, bands, band_mark, my_band, geo: dict, sv: dict) -> list[str]:
+    pad, bw, top, band_h = geo["pad"], geo["bw"], geo["top"], geo["band_h"]
     parts = []
     for i, band in enumerate(bands):
         x = pad + i * bw
@@ -571,59 +791,188 @@ def render_scale(ctx: Context, view: dict, sv: dict) -> str:
         y = top + 18
         inner = f'<rect class="sc-rect" x="{x:.1f}" y="{top:.1f}" width="{bw:.1f}" height="{band_h:.1f}"/>'
         label = _fit(_dim_label(dim, band["value"]), bw - 16, 12.5, True, sv)
-        inner += f'<text class="sc-name" x="{x + bw / 2:.1f}" y="{y:.1f}" text-anchor="middle">{escape(label)}</text>'
+        inner += (
+            f'<text class="sc-name" x="{x + bw / 2:.1f}" y="{y:.1f}" '
+            f'text-anchor="middle">{escape(label)}</text>'
+        )
         if band_mark["show_range"]:
             y += 18
-            inner += f'<text class="sc-range" x="{x + bw / 2:.1f}" y="{y:.1f}" text-anchor="middle">{escape(_fit(ext.band_text(dim, band), bw - 12, 10.5, False, sv))}</text>'
+            text = _fit(ext.band_text(dim, band), bw - 12, 10.5, False, sv)
+            inner += (
+                f'<text class="sc-range" x="{x + bw / 2:.1f}" y="{y:.1f}" '
+                f'text-anchor="middle">{escape(text)}</text>'
+            )
         if band_mark["show_result"] and band.get("result"):
             y += 18
-            inner += f'<text class="sc-result" x="{x + bw / 2:.1f}" y="{y:.1f}" text-anchor="middle">{escape(_fit("→ " + band["result"], bw - 12, 12, True, sv))}</text>'
+            text = _fit("→ " + band["result"], bw - 12, 12, True, sv)
+            inner += (
+                f'<text class="sc-result" x="{x + bw / 2:.1f}" y="{y:.1f}" '
+                f'text-anchor="middle">{escape(text)}</text>'
+            )
         if this:
-            inner += f'<rect class="sc-ring" x="{x + 1.5:.1f}" y="{top + 1.5:.1f}" width="{bw - 3:.1f}" height="{band_h - 3:.1f}"/>'
+            inner += (
+                f'<rect class="sc-ring" x="{x + 1.5:.1f}" y="{top + 1.5:.1f}" '
+                f'width="{bw - 3:.1f}" height="{band_h - 3:.1f}"/>'
+            )
         parts.append(f'<g class="sc-band sc-b{i % 2}{this}">{inner}</g>')
+    return parts
+
+
+def _scale_edges_svg(dim, bands, edges, unit: str, geo: dict) -> list[str]:
+    pad, bw, top, base, n = geo["pad"], geo["bw"], geo["top"], geo["base"], len(bands)
     upper = dim.get("inclusive") == "to"
-    base = top + band_h
+    parts = []
     for i in range(1, n):
         x = pad + i * bw
         hint = "← inclus" if upper else "inclus →"
-        parts.append(f'<g class="sc-edge"><line x1="{x:.1f}" y1="{top - 4:.1f}" x2="{x:.1f}" y2="{base + 6:.1f}"/>'
-                     f'<text class="sc-tick" x="{x:.1f}" y="{base + 20:.1f}" text-anchor="middle">{escape(amount(edges[i], unit))}</text>'
-                     f'<text class="sc-incl" x="{x:.1f}" y="{base + 34:.1f}" text-anchor="middle">{hint}</text></g>')
+        parts.append(
+            f'<g class="sc-edge"><line x1="{x:.1f}" y1="{top - 4:.1f}" x2="{x:.1f}" y2="{base + 6:.1f}"/>'
+            f'<text class="sc-tick" x="{x:.1f}" y="{base + 20:.1f}" '
+            f'text-anchor="middle">{escape(amount(edges[i], unit))}</text>'
+            f'<text class="sc-incl" x="{x:.1f}" y="{base + 34:.1f}" text-anchor="middle">{hint}</text></g>'
+        )
     for name, x, anchor in (("from", pad, "start"), ("to", pad + n * bw, "end")):
         bound = bands[0 if name == "from" else -1].get(name)
         text = amount(bound, unit) if bound is not None else ("au-delà →" if name == "to" else "← en deçà")
-        parts.append(f'<text class="sc-tick{" sc-open" if bound is None else ""}" x="{x:.1f}" y="{base + 20:.1f}" text-anchor="{anchor}">{escape(text)}</text>')
+        parts.append(
+            f'<text class="sc-tick{" sc-open" if bound is None else ""}" x="{x:.1f}" y="{base + 20:.1f}" '
+            f'text-anchor="{anchor}">{escape(text)}</text>'
+        )
+    return parts
+
+
+def _scale_labels_svg(labels: list[dict], levels: list, geo: dict) -> list[str]:
+    top, base, label_h = geo["top"], geo["base"], geo["label_h"]
+    parts = []
     for item in labels:
         y0 = 10.0 + (max(1, len(levels)) - 1 - item["level"]) * label_h
         cls = "sc-pt is-me" if item["mine"] else "sc-pt"
-        marker = (f'<path class="sc-mark" d="M{item["x"]:.1f} {top - 1:.1f}l-6 -9h12z"/>' if item["mine"]
-                  else f'<circle class="sc-mark" cx="{item["x"]:.1f}" cy="{top - 4:.1f}" r="3"/>')
-        through = f'<line class="sc-through" x1="{item["x"]:.1f}" y1="{top:.1f}" x2="{item["x"]:.1f}" y2="{base:.1f}"/>' if item["mine"] else ""
-        parts.append(f'<g class="{cls}"><line class="sc-stem" x1="{item["x"]:.1f}" y1="{y0 + 26:.1f}" x2="{item["x"]:.1f}" y2="{top - 8:.1f}"/>{through}{marker}'
-                     f'<text class="sc-val" x="{item["x0"] + item["w"] / 2:.1f}" y="{y0 + 10:.1f}" text-anchor="middle">{escape(item["text"])}</text>'
-                     f'<text class="sc-who" x="{item["x0"] + item["w"] / 2:.1f}" y="{y0 + 23:.1f}" text-anchor="middle">{escape(item["sub"])}</text></g>')
-    height = base + 34 + gutter * 0.5
-    sv["canvas"] = {"width": round(width), "height": round(height)}
-    sv["drawn"] = {"bands": n, "points": len(points)}
-    sv["notes"].append("Tranches : " + " ; ".join(f"« {_dim_label(dim, b['value'])} » {ext.band_text(dim, b)}" + (f" → {b['result']}" if b.get("result") else "") for b in bands) + ".")
+        marker = (
+            f'<path class="sc-mark" d="M{item["x"]:.1f} {top - 1:.1f}l-6 -9h12z"/>'
+            if item["mine"]
+            else f'<circle class="sc-mark" cx="{item["x"]:.1f}" cy="{top - 4:.1f}" r="3"/>'
+        )
+        through = (
+            f'<line class="sc-through" x1="{item["x"]:.1f}" y1="{top:.1f}" x2="{item["x"]:.1f}" '
+            f'y2="{base:.1f}"/>'
+            if item["mine"]
+            else ""
+        )
+        parts.append(
+            f'<g class="{cls}"><line class="sc-stem" x1="{item["x"]:.1f}" y1="{y0 + 26:.1f}" '
+            f'x2="{item["x"]:.1f}" y2="{top - 8:.1f}"/>{through}{marker}'
+            f'<text class="sc-val" x="{item["x0"] + item["w"] / 2:.1f}" y="{y0 + 10:.1f}" '
+            f'text-anchor="middle">{escape(item["text"])}</text>'
+            f'<text class="sc-who" x="{item["x0"] + item["w"] / 2:.1f}" y="{y0 + 23:.1f}" '
+            f'text-anchor="middle">{escape(item["sub"])}</text></g>'
+        )
+    return parts
+
+
+def _scale_notes(sv: dict, dim: dict, bands: list[dict], measure, unit: str, points: dict, band_of):
+    sv["notes"].append(
+        "Tranches : "
+        + " ; ".join(
+            f"« {_dim_label(dim, b['value'])} » {ext.band_text(dim, b)}"
+            + (f" → {b['result']}" if b.get("result") else "")
+            for b in bands
+        )
+        + "."
+    )
     if measure is not None:
         band = bands[band_of(measure)]
-        sv["notes"].append(f"Ce cas : {amount(measure, unit)}, dans la tranche « {_dim_label(dim, band['value'])} »" + (f" → {band['result']}" if band.get("result") else "") + ".")
+        sv["notes"].append(
+            f"Ce cas : {amount(measure, unit)}, dans la tranche « {_dim_label(dim, band['value'])} »"
+            + (f" → {band['result']}" if band.get("result") else "")
+            + "."
+        )
     else:
-        sv["warnings"].append(f"Ce cas ne porte pas de mesure pour « {dim['key']} » (champ « measures ») : seul le découpage est montré.")
+        sv["warnings"].append(
+            f"Ce cas ne porte pas de mesure pour « {dim['key']} » (champ « measures ») : seul le découpage "
+            "est montré."
+        )
     others = sorted(p for p, members in points.items() if any(not m.get("me") for m in members))
     if others:
-        sv["notes"].append("Mesures des autres cas : " + ", ".join(amount(p, unit) for p in others[:20]) + ".")
-    sv["notes"].append("Échelle schématique : chaque tranche a la même largeur, l'ordre des valeurs est respecté, pas les distances.")
-    return _canvas(view, _svg(view, width, height, "".join(parts), "rep-scale", "Axe à bandes"), "Axe à bandes")
+        sv["notes"].append(
+            "Mesures des autres cas : " + ", ".join(amount(p, unit) for p in others[:20]) + "."
+        )
+    sv["notes"].append(
+        "Échelle schématique : chaque tranche a la même largeur, l'ordre des valeurs est respecté, pas les "
+        "distances."
+    )
+
+
+def render_scale(ctx: Context, view: dict, sv: dict) -> str:
+    layout = with_defaults(view["layout"])
+    band_mark = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.band"))
+    point_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.point"), None)
+    banded = [d for d in ctx.dimensions if d.get("bands")]
+    dim = next((d for d in banded if layout["dimension"] in ("auto", d["key"])), None)
+    if not dim:
+        return _empty(
+            sv,
+            "Aucune dimension de cette étude ne déclare de tranches.",
+            "L'axe à bandes demande une dimension avec « bands » (PATCH /studies/{id}) ; dimensions à "
+            "tranches : " + (", ".join(d["key"] for d in banded) or "aucune") + ".",
+        )
+    bands, unit = dim["bands"], dim.get("unit", "")
+    n = len(bands)
+    points, measure = _scale_points(ctx, dim, point_mark)
+
+    # Échelle : chaque tranche a la même largeur ; à l'intérieur, les positions sont proportionnelles puis
+    # écartées pour rester lisibles.
+    edges = _scale_edges(bands, points)
+    bw = max(150.0, min(236.0, 780 / n))
+    pad, gutter = 26.0, 26.0
+    width = pad * 2 + n * bw
+
+    def band_of(x: float) -> int:
+        index = ext.band_index(dim, x)
+        return index if index is not None else (0 if x < edges[0] else n - 1)
+
+    placed = _scale_place(points, edges, band_of, n, pad, bw)
+    labels, levels = _scale_labels(points, placed, unit, width)
+    label_h = 34.0
+    top = 12.0 + max(1, len(levels)) * label_h if points else 14.0
+    lines_in = (
+        1
+        + int(band_mark["show_range"])
+        + int(band_mark["show_result"] and any(b.get("result") for b in bands))
+    )
+    band_h = 20.0 + lines_in * 18
+    my_band = (
+        band_of(measure)
+        if measure is not None
+        else next(
+            (
+                i
+                for i, b in enumerate(bands)
+                if b["value"] == (ctx.case.get("dimensions") or {}).get(dim["key"])
+            ),
+            None,
+        )
+    )
+    geo = {"pad": pad, "bw": bw, "top": top, "band_h": band_h, "base": top + band_h, "label_h": label_h}
+    parts = _scale_bands_svg(dim, bands, band_mark, my_band, geo, sv)
+    parts += _scale_edges_svg(dim, bands, edges, unit, geo)
+    parts += _scale_labels_svg(labels, levels, geo)
+    height = geo["base"] + 34 + gutter * 0.5
+    sv["canvas"] = {"width": round(width), "height": round(height)}
+    sv["drawn"] = {"bands": n, "points": len(points)}
+    _scale_notes(sv, dim, bands, measure, unit, points, band_of)
+    return _canvas(
+        view, _svg(view, width, height, "".join(parts), "rep-scale", "Axe à bandes"), "Axe à bandes"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Arbre de décision
 # ---------------------------------------------------------------------------
 
+
 def decision_tree(ruleset: dict, dimensions: list[dict]) -> dict:
-    """Déplie le jeu de règles en arbre, en lisant les lignes dans l'ordre (la première qui correspond l'emporte)."""
+    """Déplie le jeu de règles en arbre, en lisant les lignes dans l'ordre (la première qui correspond
+    l'emporte)."""
     domains = {d["key"]: [(v["value"], v["label"]) for v in d["values"]] for d in dimensions}
     labels = {c["key"]: c["label"] for c in ruleset.get("conditions", [])}
 
@@ -642,7 +991,8 @@ def decision_tree(ruleset: dict, dimensions: list[dict]) -> dict:
         node = {"cond": cond, "label": labels.get(cond, cond), "branches": branches}
         if rest or not domain or others:
             branches.append((None, build(rest, conds[1:])))
-            # Quand l'étude déclare les valeurs possibles, la branche restante porte leur nom plutôt que « autre ».
+            # Quand l'étude déclare les valeurs possibles, la branche restante porte leur nom plutôt que «
+            # autre ».
             node["else"] = " ou ".join(others) if domain and 0 < len(others) <= 2 else "autre"
         return node
 
@@ -659,21 +1009,12 @@ def _has_row(node: dict, key: str) -> bool:
     return any(_has_row(child, key) for _, child in node["branches"])
 
 
-def render_tree(ctx: Context, view: dict, sv: dict) -> str:
-    layout = with_defaults(view["layout"])
-    decision = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.decision"), with_defaults({"brick": "mark.decision"}))
-    conclusion = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.conclusion"))
-    ruleset = ctx.ruleset or {}
-    if not ruleset.get("rows"):
-        return _empty(sv, "Cette étude ne déclare pas de jeu de règles : il n'y a pas d'arbre à dessiner.", "L'arbre de décision demande un jeu de règles sur l'étude (champ « ruleset »).")
-    tree = decision_tree(ruleset, ctx.dimensions)
-    count = _leaves(tree)
-    if count > layout["max_leaves"]:
-        return _empty(sv, f"Ce jeu de règles se déplie en {count} conclusions : l'arbre serait illisible. La table de règles le montre en entier.",
-                      f"Arbre non dessiné : {count} feuilles pour un maximum de {layout['max_leaves']} (max_leaves). Proposez la table de règles.")
-    selected = next((k for k, v in ((ctx.frames[-1].get("rules") or {}) if ctx.frames else {}).items() if v.get("result") == "selected"), None)
-
-    # Chemin du cas : la valeur du cas pour chaque condition ; à défaut, la branche qui mène à la ligne retenue.
+def _tree_path(
+    ctx: Context, tree: dict, selected: str | None
+) -> tuple[set[int], list[str], dict | None, dict | None]:
+    """Chemin du cas dans l'arbre : la valeur du cas pour chaque condition ; à défaut, la branche qui mène
+    à la ligne retenue. Rend (identités des nœuds et branches du chemin, étapes en texte, dernier nœud,
+    feuille)."""
     on_path: set[int] = set()
     steps_text: list[str] = []
     node, reached = tree, None
@@ -690,13 +1031,21 @@ def render_tree(ctx: Context, view: dict, sv: dict) -> str:
         if choice is None:
             choice = next((b for b in node["branches"] if b[0] is None), None)
         if choice is None:
-            steps_text.append(f"{node['label']} : aucune branche pour la valeur du cas ({value if value is not None else 'inconnue'})")
+            steps_text.append(
+                f"{node['label']} : aucune branche pour la valeur du cas "
+                f"({value if value is not None else 'inconnue'})"
+            )
             break
-        steps_text.append(f"{node['label']} = {choice[0] if choice[0] is not None else node.get('else', 'autre')}")
+        steps_text.append(
+            f"{node['label']} = {choice[0] if choice[0] is not None else node.get('else', 'autre')}"
+        )
         on_path.add(id(choice))
         node = choice[1]
+    return on_path, steps_text, node, reached
 
-    right = layout["direction"] == "right"
+
+def _tree_layout(tree: dict, right: bool, conclusion: dict) -> dict:
+    """Place les nœuds (profondeur `_d`, centre `_c` sur l'axe transversal) et rend la géométrie."""
     dw, dh = 150.0, 38.0
     all_branches, all_leaves = [], []
 
@@ -707,15 +1056,15 @@ def render_tree(ctx: Context, view: dict, sv: dict) -> str:
                 walk(b[1])
         else:
             all_leaves.append(n["leaf"]["then"] if n["leaf"] else "Aucune ligne ne correspond")
+
     walk(tree)
     lw = max(170.0, min(270.0, max(_text_width(t, 13, True) for t in all_leaves) + 46))
     lh = 46.0 if conclusion["show_key"] else 32.0
     widest = max((_text_width(b, 11, True) for b in all_branches), default=40)
     gap = max(64.0, min(150.0, widest + 30)) if right else 62.0
-    tag_w = 56.0
     slot = (lh + 14) if right else (lw + 18)
     cursor = [0.0]
-    placed = []   # (node, depth, centre sur l'axe transversal)
+    placed = []  # (node, depth, centre sur l'axe transversal)
 
     def place(n, depth) -> float:
         if "leaf" in n:
@@ -738,56 +1087,144 @@ def render_tree(ctx: Context, view: dict, sv: dict) -> str:
             return along, pad + n["_c"] - h / 2, w, h
         return pad + n["_c"] - w / 2, along, w, h
 
+    return {
+        "placed": placed,
+        "box": box,
+        "slot": slot,
+        "lw": lw,
+        "lh": lh,
+        "dw": dw,
+        "dh": dh,
+        "gap": gap,
+        "pad": pad,
+        "extent": cursor[0],
+        "tag_w": 56.0,
+    }
+
+
+def _tree_leaf(ctx, n, box, radius, conclusion, path_cls, right, sv) -> str:
+    x, y, w, h = box
+    row = n["leaf"]
+    role = ctx.role(row["status"]) if row and row.get("status") else "neutral"
+    text = row["then"] if row else "Aucune règle"
+    body = f'<path class="n-shape" d="{_node_shape_path("rect", w, h, radius)}"/>'
+    tx = 12.0
+    if row and row.get("status"):
+        icon_y = (16 if conclusion["show_key"] else h / 2) - 7
+        body += f'<use class="st-ic" href="#ic-{role}" x="10" y="{icon_y:.1f}" width="14" height="14"/>'
+        tx = 30.0
+    label_y = 20 if conclusion["show_key"] else h / 2 + 4.5
+    body += (
+        f'<text class="n-label" x="{tx:.1f}" '
+        f'y="{label_y:.1f}">{escape(_fit(text, w - tx - 10, 13, True, sv))}</text>'
+    )
+    if conclusion["show_key"]:
+        sub = ("Ligne " + row["key"]) if row else "Aucune ligne ne correspond"
+        body += f'<text class="n-sub" x="{tx:.1f}" y="37">{escape(sub)}</text>'
+    if path_cls:
+        tag_x, tag_y, anchor = (w + 8, h / 2 + 4, "start") if right else (w / 2, h + 15, "middle")
+        body += f'<text class="tr-here" x="{tag_x:.1f}" y="{tag_y:.1f}" text-anchor="{anchor}">ce cas</text>'
+    void = "" if row else " tr-void"
+    return (
+        f'<g class="n tr-leaf{path_cls}{void}" data-role="{role}" transform="translate({x:.1f} {y:.1f})">'
+        f"<title>{escape(text)}</title>{body}</g>"
+    )
+
+
+def _tree_edge(n, branch, box, child_box, on_path, right, slot, sv) -> str:
+    x, y, w, h = box
+    cx, cy, cw, ch = child_box
+    text = branch[0] if branch[0] is not None else n.get("else", "autre")
+    cls = (
+        "tr-edge" + (" is-path" if id(branch) in on_path else "") + (" tr-else" if branch[0] is None else "")
+    )
+    if right:
+        sx, sy, ex, ey = x + w, y + h / 2, cx, cy + ch / 2
+        mx = sx + 14
+        d = f"M{sx:.1f} {sy:.1f}H{mx:.1f}V{ey:.1f}H{ex - 6:.1f}"
+        tip = f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f})"/>'
+        shown = _fit(text, ex - mx - 14, 11, True, sv)
+        label = f'<text class="tr-val" x="{mx + 7:.1f}" y="{ey - 5:.1f}">{escape(shown)}</text>'
+    else:
+        sx, sy, ex, ey = x + w / 2, y + h, cx + cw / 2, cy
+        my = sy + 16
+        d = f"M{sx:.1f} {sy:.1f}V{my:.1f}H{ex:.1f}V{ey - 6:.1f}"
+        tip = (
+            f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f}) '
+            'rotate(90)"/>'
+        )
+        shown = _fit(text, slot - 10, 11, True, sv)
+        label = (
+            f'<text class="tr-val" x="{ex:.1f}" y="{ey - 12:.1f}" text-anchor="middle">{escape(shown)}</text>'
+        )
+    return f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>'
+
+
+def _tree_svg(ctx, geo, on_path, decision, conclusion, right, sv) -> tuple[list[str], list[str]]:
+    """Nœuds (tests et conclusions) et arêtes de l'arbre, dans l'ordre de placement."""
     radius = RADIUS[ctx.tokens.get("corners", "soft")]
+    box = geo["box"]
     edges, nodes = [], []
-    for n in placed:
-        x, y, w, h = box(n)
+    for n in geo["placed"]:
         path_cls = " is-path" if id(n) in on_path else ""
         if "leaf" in n:
-            row = n["leaf"]
-            role = ctx.role(row["status"]) if row and row.get("status") else "neutral"
-            text = row["then"] if row else "Aucune règle"
-            body = f'<path class="n-shape" d="{_node_shape_path("rect", w, h, radius)}"/>'
-            tx = 12.0
-            if row and row.get("status"):
-                body += f'<use class="st-ic" href="#ic-{role}" x="10" y="{(16 if conclusion["show_key"] else h / 2) - 7:.1f}" width="14" height="14"/>'
-                tx = 30.0
-            body += f'<text class="n-label" x="{tx:.1f}" y="{20 if conclusion["show_key"] else h / 2 + 4.5:.1f}">{escape(_fit(text, w - tx - 10, 13, True, sv))}</text>'
-            if conclusion["show_key"]:
-                body += f'<text class="n-sub" x="{tx:.1f}" y="37">{escape(("Ligne " + row["key"]) if row else "Aucune ligne ne correspond")}</text>'
-            if path_cls:
-                tag_x, tag_y, anchor = (w + 8, h / 2 + 4, "start") if right else (w / 2, h + 15, "middle")
-                body += f'<text class="tr-here" x="{tag_x:.1f}" y="{tag_y:.1f}" text-anchor="{anchor}">ce cas</text>'
-            nodes.append(f'<g class="n tr-leaf{path_cls}{"" if row else " tr-void"}" data-role="{role}" transform="translate({x:.1f} {y:.1f})"><title>{escape(text)}</title>{body}</g>')
+            nodes.append(_tree_leaf(ctx, n, box(n), radius, conclusion, path_cls, right, sv))
             continue
+        x, y, w, h = box(n)
         body = f'<path class="n-shape" d="{_node_shape_path(decision["shape"], w, h, radius)}"/>'
         inset = 22 if decision["shape"] == "hexagon" else 14
-        body += f'<text class="n-label" x="{w / 2:.1f}" y="{h / 2 + 4.5:.1f}" text-anchor="middle">{escape(_fit(n["label"] + " ?", w - 2 * inset, 13, True, sv))}</text>'
-        nodes.append(f'<g class="n tr-test{path_cls}" transform="translate({x:.1f} {y:.1f})"><title>{escape(n["label"])}</title>{body}</g>')
+        shown = _fit(n["label"] + " ?", w - 2 * inset, 13, True, sv)
+        body += (
+            f'<text class="n-label" x="{w / 2:.1f}" y="{h / 2 + 4.5:.1f}" '
+            f'text-anchor="middle">{escape(shown)}</text>'
+        )
+        nodes.append(
+            f'<g class="n tr-test{path_cls}" transform="translate({x:.1f} '
+            f'{y:.1f})"><title>{escape(n["label"])}</title>{body}</g>'
+        )
         for branch in n["branches"]:
-            cx, cy, cw, ch = box(branch[1])
-            text = branch[0] if branch[0] is not None else n.get("else", "autre")
-            cls = "tr-edge" + (" is-path" if id(branch) in on_path else "") + (" tr-else" if branch[0] is None else "")
-            if right:
-                sx, sy, ex, ey = x + w, y + h / 2, cx, cy + ch / 2
-                mx = sx + 14
-                d = f"M{sx:.1f} {sy:.1f}H{mx:.1f}V{ey:.1f}H{ex - 6:.1f}"
-                tip = f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f})"/>'
-                label = f'<text class="tr-val" x="{mx + 7:.1f}" y="{ey - 5:.1f}">{escape(_fit(text, ex - mx - 14, 11, True, sv))}</text>'
-            else:
-                sx, sy, ex, ey = x + w / 2, y + h, cx + cw / 2, cy
-                my = sy + 16
-                d = f"M{sx:.1f} {sy:.1f}V{my:.1f}H{ex:.1f}V{ey - 6:.1f}"
-                tip = f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f}) rotate(90)"/>'
-                label = f'<text class="tr-val" x="{ex:.1f}" y="{ey - 12:.1f}" text-anchor="middle">{escape(_fit(text, slot - 10, 11, True, sv))}</text>'
-            edges.append(f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>')
+            edges.append(_tree_edge(n, branch, box(n), box(branch[1]), on_path, right, geo["slot"], sv))
+    return edges, nodes
+
+
+def render_tree(ctx: Context, view: dict, sv: dict) -> str:
+    layout = with_defaults(view["layout"])
+    decision = next(
+        (with_defaults(m) for m in view["marks"] if m["brick"] == "mark.decision"),
+        with_defaults({"brick": "mark.decision"}),
+    )
+    conclusion = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.conclusion"))
+    ruleset = ctx.ruleset or {}
+    if not ruleset.get("rows"):
+        return _empty(
+            sv,
+            "Cette étude ne déclare pas de jeu de règles : il n'y a pas d'arbre à dessiner.",
+            "L'arbre de décision demande un jeu de règles sur l'étude (champ « ruleset »).",
+        )
+    tree = decision_tree(ruleset, ctx.dimensions)
+    count = _leaves(tree)
+    if count > layout["max_leaves"]:
+        return _empty(
+            sv,
+            f"Ce jeu de règles se déplie en {count} conclusions : l'arbre serait illisible. La table de "
+            "règles le montre en entier.",
+            f"Arbre non dessiné : {count} feuilles pour un maximum de {layout['max_leaves']} (max_leaves). "
+            "Proposez la table de règles.",
+        )
+    last_rules = (ctx.frames[-1].get("rules") or {}) if ctx.frames else {}
+    selected = next((k for k, v in last_rules.items() if v.get("result") == "selected"), None)
+    on_path, steps_text, node, reached = _tree_path(ctx, tree, selected)
+    right = layout["direction"] == "right"
+    geo = _tree_layout(tree, right, conclusion)
+    edges, nodes = _tree_svg(ctx, geo, on_path, decision, conclusion, right, sv)
+    placed, pad = geo["placed"], geo["pad"]
     depth = max(n["_d"] for n in placed)
     if right:
-        width = pad * 2 + depth * (dw + gap) + lw + tag_w
-        height = pad * 2 + cursor[0]
+        width = pad * 2 + depth * (geo["dw"] + geo["gap"]) + geo["lw"] + geo["tag_w"]
+        height = pad * 2 + geo["extent"]
     else:
-        width = pad * 2 + max(cursor[0], lw)
-        height = pad * 2 + depth * (dh + gap) + lh + 22
+        width = pad * 2 + max(geo["extent"], geo["lw"])
+        height = pad * 2 + depth * (geo["dh"] + geo["gap"]) + geo["lh"] + 22
     sv["canvas"] = {"width": round(width), "height": round(height)}
     sv["drawn"] = {"tests": sum(1 for n in placed if "branches" in n), "conclusions": count}
     if reached:
@@ -796,150 +1233,189 @@ def render_tree(ctx: Context, view: dict, sv: dict) -> str:
         steps_text.append("aucune règle ne correspond")
     sv["notes"].append("Chemin du cas : " + " → ".join(steps_text) + ".")
     if selected and reached and reached["key"] != selected:
-        sv["warnings"].append(f"Le chemin de l'arbre aboutit à la ligne {reached['key']}, alors que le cas déclare la ligne {selected} retenue : vérifiez les valeurs du cas ou l'ordre des règles.")
+        sv["warnings"].append(
+            f"Le chemin de l'arbre aboutit à la ligne {reached['key']}, alors que le cas déclare la ligne "
+            f"{selected} retenue : vérifiez les valeurs du cas ou l'ordre des règles."
+        )
     if ruleset.get("policy") in ("collect", "any"):
-        sv["warnings"].append("L'arbre lit les règles dans l'ordre (première qui correspond) ; avec la politique déclarée, plusieurs lignes peuvent s'appliquer : la table de règles est plus fidèle.")
+        sv["warnings"].append(
+            "L'arbre lit les règles dans l'ordre (première qui correspond) ; avec la politique déclarée, "
+            "plusieurs lignes peuvent s'appliquer : la table de règles est plus fidèle."
+        )
     for n in placed:
         n.pop("_d", None)
         n.pop("_c", None)
-    return _canvas(view, _svg(view, width, height, f'<g class="links">{"".join(edges)}</g>{"".join(nodes)}', "rep-tree", "Arbre de décision"), "Arbre de décision")
+    body = f'<g class="links">{"".join(edges)}</g>{"".join(nodes)}'
+    return _canvas(
+        view, _svg(view, width, height, body, "rep-tree", "Arbre de décision"), "Arbre de décision"
+    )
 
 
 # ---------------------------------------------------------------------------
 # Diagramme d'états
 # ---------------------------------------------------------------------------
 
-def render_states(ctx: Context, view: dict, sv: dict) -> str:
-    layout = with_defaults(view["layout"])
-    time = with_defaults(view.get("time") or {"brick": "time.stepper"})
-    state_mark = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.state"))
-    trans_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.transition"), None)
-    cycle, ent = lifecycle_for(ctx, layout["entity"])
-    if not cycle:
-        return _empty(sv, "Aucune entité de ce cas n'a de cycle de vie déclaré.", "Le diagramme d'états demande un cycle de vie sur l'étude (champ « lifecycles », par type d'entité) et une entité de ce type dans le cas.")
-    fixed = _fixed_step(ctx, time)
-    start, series, taken = _state_series(ctx, ent)
-    right = layout["direction"] == "right"
-    states = cycle["states"]
-    transitions = cycle["transitions"]
-    nh = 34.0
-    nodes = [{"id": s, "w": max(96.0, _text_width(ctx.label(s), 12.5, True) + 48), "h": nh} for s in states]
-    by_id = {n["id"]: n for n in nodes}
-    plain = [{"from": t["from"], "to": t["to"], "type": "transition"} for t in transitions if t["from"] != t["to"]]
-    rank = _ranks(nodes, plain)
-    layers = _order_ranks(nodes, plain, rank)
 
-    # Coordonnées (u : sens de lecture, v : travers). P les ramène en x, y selon la direction.
-    def size_u(n):
-        return n["w"] if right else n["h"]
+class _Axes:
+    """Coordonnées d'un diagramme d'états : u dans le sens de lecture, v en travers ; `xy` les ramène en x, y
+    selon la direction, et chaque point dessiné est noté pour calculer l'étendue."""
 
-    def size_v(n):
-        return n["h"] if right else n["w"]
+    def __init__(self, right: bool):
+        self.right = right
+        self.xs: list[float] = []
+        self.ys: list[float] = []
 
-    def P(u, v):
-        return (u, v) if right else (v, u)
+    def size_u(self, n: dict) -> float:
+        return n["w"] if self.right else n["h"]
 
-    def text_of(t):
-        return t["label"] + (f" [{t['guard']}]" if trans_mark and trans_mark["show_guard"] and t.get("guard") else "")
+    def size_v(self, n: dict) -> float:
+        return n["h"] if self.right else n["w"]
 
+    def xy(self, u, v):
+        return (u, v) if self.right else (v, u)
+
+    def centre(self, n: dict):
+        return n["u"] + self.size_u(n) / 2, n["v"] + self.size_v(n) / 2
+
+    def see(self, x, y):
+        self.xs.append(x)
+        self.ys.append(y)
+
+    def pt(self, u_, v_) -> str:
+        x, y = self.xy(u_, v_)
+        self.see(x, y)
+        return f"{x:.1f} {y:.1f}"
+
+
+def _transition_text(t: dict, trans_mark: dict | None) -> str:
+    return t["label"] + (
+        f" [{t['guard']}]" if trans_mark and trans_mark["show_guard"] and t.get("guard") else ""
+    )
+
+
+def _states_place(layers, rank, transitions, layout, ax: _Axes, trans_mark):
+    """Pose u et v sur chaque nœud, rang par rang ; l'intervalle entre rangs laisse la place aux
+    évènements."""
     u = 0.0
-    tallest = max(sum(size_v(n) for n in layer) + layout["node_gap"] * (len(layer) - 1) for layer in layers)
+    tallest = max(
+        sum(ax.size_v(n) for n in layer) + layout["node_gap"] * (len(layer) - 1) for layer in layers
+    )
     for index, layer in enumerate(layers):
-        thick = max(size_u(n) for n in layer)
-        total = sum(size_v(n) for n in layer) + layout["node_gap"] * (len(layer) - 1)
+        thick = max(ax.size_u(n) for n in layer)
+        total = sum(ax.size_v(n) for n in layer) + layout["node_gap"] * (len(layer) - 1)
         v = (tallest - total) / 2
         for n in layer:
-            n["u"], n["v"] = u + (thick - size_u(n)) / 2, v
-            v += size_v(n) + layout["node_gap"]
+            n["u"], n["v"] = u + (thick - ax.size_u(n)) / 2, v
+            v += ax.size_v(n) + layout["node_gap"]
         gap = float(layout["rank_gap"])
-        if right:   # de gauche à droite, le nom de l'évènement s'écrit dans l'intervalle : il doit y tenir
-            crossing = [text_of(t) for t in transitions if rank[t["from"]] == index and rank[t["to"]] == index + 1]
+        if ax.right:  # de gauche à droite, le nom de l'évènement s'écrit dans l'intervalle : il doit y tenir
+            crossing = [
+                _transition_text(t, trans_mark)
+                for t in transitions
+                if rank[t["from"]] == index and rank[t["to"]] == index + 1
+            ]
             gap = max(gap, max((_text_width(text, 11, True) for text in crossing), default=0) + 22)
         u += thick + gap
 
-    def centre(n):
-        return n["u"] + size_u(n) / 2, n["v"] + size_v(n) / 2
 
-    xs, ys = [], []
+def _edge_geometry(t, src, dst, rank, ax: _Axes, lanes: dict, pair_count: dict, v_min, v_max):
+    """Tracé d'une transition : boucle sur soi, saut au rang suivant, ou détour par-dessus ou par-dessous.
+    Rend (chemin, point de la pointe, angle de la pointe, u et v du libellé, ancrage du libellé)."""
+    right, pt = ax.right, ax.pt
+    su, sv_ = ax.centre(src)
+    du, dv = ax.centre(dst)
+    anchor = "middle"
+    if src is dst:
+        a, b = su - 12, su + 12
+        top = src["v"]
+        d = f"M{pt(a, top)}C{pt(a - 16, top - 30)} {pt(b + 16, top - 30)} {pt(b + 1.5, top - 6)}"
+        tip_at, tip_angle = (b - 2.6, top + 0.5), 121 if right else -31
+        lu, lv = su, top - 27
+        if not right:
+            lu, lv, anchor = su + 4, top - 30, "end"
+    elif rank[t["to"]] == rank[t["from"]] + 1:
+        index = pair_count.get((t["from"], t["to"]), 0)
+        pair_count[(t["from"], t["to"])] = index + 1
+        a, b = src["u"] + ax.size_u(src), dst["u"]
+        bend = (b - a) * 0.45
+        d = f"M{pt(a, sv_)}C{pt(a + bend, sv_)} {pt(b - bend, dv)} {pt(b - 7, dv)}"
+        tip_at, tip_angle = (b, dv), 0 if right else 90
+        lu, lv = (a + b) / 2, (sv_ + dv) / 2 - 6 - index * 13
+        if not right:
+            lu, lv, anchor = (a + b) / 2 + 3, (sv_ + dv) / 2 + 6 + index * 60, "start"
+    else:
+        side = "over" if rank[t["to"]] > rank[t["from"]] else "under"
+        lane = lanes[side]
+        lanes[side] += 1
+        reach = 26 + 20 * lane
+        if side == "over":
+            a_v, b_v, apex = src["v"], dst["v"], v_min - reach
+            tip_angle = 90 if right else 0
+        else:
+            a_v, b_v, apex = src["v"] + ax.size_v(src), dst["v"] + ax.size_v(dst), v_max + reach
+            tip_angle = -90 if right else 180
+        toward = 1 if du >= su else -1
+        a_u = su + toward * ax.size_u(src) * 0.22
+        b_u = du - toward * ax.size_u(dst) * 0.22
+        end_v = b_v - 7 if side == "over" else b_v + 7
+        d = f"M{pt(a_u, a_v)}C{pt(a_u, apex)} {pt(b_u, apex)} {pt(b_u, end_v)}"
+        tip_at = (b_u, b_v)
+        lu, lv = (
+            (a_u + b_u) / 2,
+            apex + (reach * 0.25 if side == "over" else -reach * 0.25) + (-4 if side == "over" else 12),
+        )
+        if not right:
+            lu, lv, anchor = (
+                (a_u + b_u) / 2 + 4,
+                apex + (reach * 0.25 - 6 if side == "over" else -reach * 0.25 + 6),
+                "end" if side == "over" else "start",
+            )
+    return d, tip_at, tip_angle, lu, lv, anchor
 
-    def see(x, y):
-        xs.append(x)
-        ys.append(y)
 
-    def pt(u_, v_):
-        x, y = P(u_, v_)
-        see(x, y)
-        return f"{x:.1f} {y:.1f}"
-
+def _states_edges(ctx, transitions, by_id, rank, ax: _Axes, taken, fixed, trans_mark) -> list[str]:
+    nodes = list(by_id.values())
     v_min = min(n["v"] for n in nodes)
-    v_max = max(n["v"] + size_v(n) for n in nodes)
+    v_max = max(n["v"] + ax.size_v(n) for n in nodes)
     lanes = {"over": 0, "under": 0}
-    edge_svg = []
     pair_count: dict[tuple, int] = {}
+    edge_svg = []
     for t in transitions:
         src, dst = by_id[t["from"]], by_id[t["to"]]
-        text = text_of(t)
-        # Transition empruntée à cette étape, ou déjà empruntée plus tôt (la trace du parcours reste dessinée).
-        per_step = ["is-taken" if move == (t["from"], t["to"]) else ("is-trail" if (t["from"], t["to"]) in taken[:i] else "")
-                    for i, move in enumerate(taken)]
+        text = _transition_text(t, trans_mark)
+        # Transition empruntée à cette étape, ou déjà empruntée plus tôt (la trace du parcours reste
+        # dessinée).
+        per_step = [
+            "is-taken"
+            if move == (t["from"], t["to"])
+            else ("is-trail" if (t["from"], t["to"]) in taken[:i] else "")
+            for i, move in enumerate(taken)
+        ]
         now, dyn = dyn_cls(per_step, ctx, fixed)
-        su, sv_ = centre(src)
-        du, dv = centre(dst)
-        anchor = "middle"
-        if src is dst:
-            a, b = su - 12, su + 12
-            top = src["v"]
-            d = f"M{pt(a, top)}C{pt(a - 16, top - 30)} {pt(b + 16, top - 30)} {pt(b + 1.5, top - 6)}"
-            tip_at, tip_angle = (b - 2.6, top + 0.5), 121 if right else -31
-            lu, lv = su, top - 27
-            if not right:
-                lu, lv, anchor = su + 4, top - 30, "end"
-        elif rank[t["to"]] == rank[t["from"]] + 1:
-            index = pair_count.get((t["from"], t["to"]), 0)
-            pair_count[(t["from"], t["to"])] = index + 1
-            a, b = src["u"] + size_u(src), dst["u"]
-            bend = (b - a) * 0.45
-            d = f"M{pt(a, sv_)}C{pt(a + bend, sv_)} {pt(b - bend, dv)} {pt(b - 7, dv)}"
-            tip_at, tip_angle = (b, dv), 0 if right else 90
-            lu, lv = (a + b) / 2, (sv_ + dv) / 2 - 6 - index * 13
-            if not right:
-                lu, lv, anchor = (a + b) / 2 + 3, (sv_ + dv) / 2 + 6 + index * 60, "start"
-        else:
-            side = "over" if rank[t["to"]] > rank[t["from"]] else "under"
-            lane = lanes[side]
-            lanes[side] += 1
-            reach = 26 + 20 * lane
-            if side == "over":
-                a_v, b_v, apex = src["v"], dst["v"], v_min - reach
-                tip_angle = 90 if right else 0
-            else:
-                a_v, b_v, apex = src["v"] + size_v(src), dst["v"] + size_v(dst), v_max + reach
-                tip_angle = -90 if right else 180
-            toward = 1 if du >= su else -1
-            a_u = su + toward * size_u(src) * 0.22
-            b_u = du - toward * size_u(dst) * 0.22
-            end_v = b_v - 7 if side == "over" else b_v + 7
-            d = f"M{pt(a_u, a_v)}C{pt(a_u, apex)} {pt(b_u, apex)} {pt(b_u, end_v)}"
-            tip_at = (b_u, b_v)
-            lu, lv = (a_u + b_u) / 2, apex + (reach * 0.25 if side == "over" else -reach * 0.25) + (-4 if side == "over" else 12)
-            if not right:
-                lu, lv, anchor = (a_u + b_u) / 2 + 4, apex + (reach * 0.25 - 6 if side == "over" else -reach * 0.25 + 6), "end" if side == "over" else "start"
-        tx, ty = P(*tip_at)
-        lx, ly = P(lu, lv)
+        d, tip_at, tip_angle, lu, lv, anchor = _edge_geometry(
+            t, src, dst, rank, ax, lanes, pair_count, v_min, v_max
+        )
+        tx, ty = ax.xy(*tip_at)
+        lx, ly = ax.xy(lu, lv)
         half = _text_width(text, 11, True) / 2
-        see(lx - half if anchor == "middle" else (lx - half * 2 if anchor == "end" else lx), ly - 12)
-        see(lx + half if anchor == "middle" else (lx if anchor == "end" else lx + half * 2), ly + 4)
-        edge_svg.append(f'<g class="sd-edge {now}"{dyn}><path class="lk-path" d="{d}"/>'
-                        f'<path class="lk-tip" d="M0 0L-8 -4.2L-8 4.2Z" transform="translate({tx:.1f} {ty:.1f}) rotate({tip_angle})"/>'
-                        f'<text class="sd-ev" x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}">{escape(text)}</text></g>')
+        ax.see(lx - half if anchor == "middle" else (lx - half * 2 if anchor == "end" else lx), ly - 12)
+        ax.see(lx + half if anchor == "middle" else (lx if anchor == "end" else lx + half * 2), ly + 4)
+        edge_svg.append(
+            f'<g class="sd-edge {now}"{dyn}><path class="lk-path" d="{d}"/>'
+            f'<path class="lk-tip" d="M0 0L-8 -4.2L-8 4.2Z" transform="translate({tx:.1f} {ty:.1f}) '
+            f'rotate({tip_angle})"/>'
+            f'<text class="sd-ev" x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}">{escape(text)}</text></g>'
+        )
+    return edge_svg
 
-    finals = {s for s in states if not any(t["from"] == s and t["to"] != s for t in transitions)}
+
+def _states_nodes(ctx, nodes, ax: _Axes, start, series, state_mark, finals, fixed) -> list[str]:
     node_svg = []
     for n in nodes:
-        x, y = P(n["u"], n["v"])
+        x, y = ax.xy(n["u"], n["v"])
         w, h = n["w"], n["h"]
-        see(x - 5, y - 5)
-        see(x + w + 5, y + h + 5)
+        ax.see(x - 5, y - 5)
+        ax.see(x + w + 5, y + h + 5)
         role = ctx.role(n["id"])
         label = ctx.label(n["id"])
         per_step = []
@@ -951,70 +1427,148 @@ def render_states(ctx: Context, view: dict, sv: dict) -> str:
             seen.add(status)
         now, dyn = dyn_cls(per_step, ctx, fixed)
         shape = state_mark["shape"]
-        body = f'<title>{escape(label)}</title><path class="sd-ring" d="{_node_shape_path(shape, w + 10, h + 10, 10)}" transform="translate(-5 -5)"/>'
+        body = (
+            f"<title>{escape(label)}</title>"
+            f'<path class="sd-ring" d="{_node_shape_path(shape, w + 10, h + 10, 10)}" '
+            'transform="translate(-5 -5)"/>'
+        )
         body += f'<path class="n-shape" d="{_node_shape_path(shape, w, h, 6)}"/>'
         if n["id"] in finals:
-            body += f'<path class="sd-final" d="{_node_shape_path(shape, w - 7, h - 7, 4)}" transform="translate(3.5 3.5)"/>'
+            body += (
+                f'<path class="sd-final" d="{_node_shape_path(shape, w - 7, h - 7, 4)}" '
+                'transform="translate(3.5 3.5)"/>'
+            )
         body += f'<use class="st-ic" href="#ic-{role}" x="14" y="{h / 2 - 7:.1f}" width="14" height="14"/>'
         body += f'<text class="n-label" x="34" y="{h / 2 + 4.5:.1f}">{escape(label)}</text>'
-        node_svg.append(f'<g class="n sd-node {now}"{dyn} data-role="{role}" transform="translate({x:.1f} {y:.1f})">{body}</g>')
-    first = by_id.get(cycle["initial"] or states[0])
-    fu, fv = centre(first)
-    dot_u = first["u"] - 26
-    dx, dy = P(dot_u, fv)
-    ex, ey = P(first["u"] - 2, fv)
-    see(dx - 7, dy - 7)
-    marker = (f'<g class="sd-init"><circle cx="{dx:.1f}" cy="{dy:.1f}" r="5"/><path class="lk-path" d="M{dx:.1f} {dy:.1f}L{ex - (6 if right else 0):.1f} {ey - (0 if right else 6):.1f}"/>'
-              f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f}) rotate({0 if right else 90})"/><title>État de départ</title></g>')
-    pad = 16.0
-    ox, oy = pad - min(xs), pad - min(ys)
-    width, height = max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad
-    sv["canvas"] = {"width": round(width), "height": round(height)}
-    sv["drawn"] = {"states": len(states), "transitions": len(transitions)}
+        node_svg.append(
+            f'<g class="n sd-node {now}"{dyn} data-role="{role}" transform="translate({x:.1f} '
+            f'{y:.1f})">{body}</g>'
+        )
+    return node_svg
+
+
+def _states_init_marker(first: dict, ax: _Axes) -> str:
+    """Le point de départ et sa flèche vers l'état initial."""
+    right = ax.right
+    fu, fv = ax.centre(first)
+    dx, dy = ax.xy(first["u"] - 26, fv)
+    ex, ey = ax.xy(first["u"] - 2, fv)
+    ax.see(dx - 7, dy - 7)
+    return (
+        f'<g class="sd-init"><circle cx="{dx:.1f}" cy="{dy:.1f}" r="5"/>'
+        f'<path class="lk-path" d="M{dx:.1f} {dy:.1f}L{ex - (6 if right else 0):.1f} '
+        f'{ey - (0 if right else 6):.1f}"/>'
+        f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({ex:.1f} {ey:.1f}) '
+        f'rotate({0 if right else 90})"/>'
+        "<title>État de départ</title></g>"
+    )
+
+
+def _states_notes(sv: dict, ctx: Context, ent: dict, states: list, transitions: list, rank: dict):
     loops = [t["label"] for t in transitions if t["from"] == t["to"]]
     backs = [t["label"] for t in transitions if rank[t["to"]] < rank[t["from"]]]
-    sv["notes"].append(f"Entité suivie : {ent['label'] or ent['id']} ; parcours : " + " → ".join(ctx.label(s) for s in _path(ctx, ent)) + ".")
-    sv["notes"].append("Transitions : " + " ; ".join(f"{ctx.label(t['from'])} —{t['label']}→ {ctx.label(t['to'])}" for t in transitions[:30]) + ".")
+    sv["notes"].append(
+        f"Entité suivie : {ent['label'] or ent['id']} ; parcours : "
+        + " → ".join(ctx.label(s) for s in _path(ctx, ent))
+        + "."
+    )
+    sv["notes"].append(
+        "Transitions : "
+        + " ; ".join(f"{ctx.label(t['from'])} —{t['label']}→ {ctx.label(t['to'])}" for t in transitions[:30])
+        + "."
+    )
     if loops or backs:
-        sv["notes"].append(f"{len(loops)} boucle(s) sur soi ({', '.join(loops) or 'aucune'}) ; {len(backs)} retour(s) en arrière ({', '.join(backs) or 'aucun'}).")
+        sv["notes"].append(
+            f"{len(loops)} boucle(s) sur soi ({', '.join(loops) or 'aucune'}) ; "
+            f"{len(backs)} retour(s) en arrière ({', '.join(backs) or 'aucun'})."
+        )
     if len(states) > 10:
         sv["warnings"].append(f"{len(states)} états : au-delà d'une dizaine, la table d'états se lit mieux.")
-    body = f'<g transform="translate({ox:.1f} {oy:.1f})">{marker}<g class="links">{"".join(edge_svg)}</g>{"".join(node_svg)}</g>'
-    # L'état actuel est aussi écrit sous le schéma : l'anneau ne repose pas sur la couleur seule, et la ligne garde sa place.
+
+
+def _states_caption(ctx: Context, taken: list, transitions: list, series: list, fixed, trans_mark) -> str:
+    """L'état actuel, écrit sous le schéma : l'anneau ne repose pas sur la couleur seule, et la ligne garde sa
+    place."""
     arrivals = []
     for move in taken:
-        names = [text_of(t) for t in transitions if move and (t["from"], t["to"]) == move]
-        arrivals.append(f"arrivé par « {' / '.join(names)} »" if names else ("état de départ" if not arrivals and move is None else "inchangé à cette étape"))
+        names = [
+            _transition_text(t, trans_mark) for t in transitions if move and (t["from"], t["to"]) == move
+        ]
+        arrivals.append(
+            f"arrivé par « {' / '.join(names)} »"
+            if names
+            else ("état de départ" if not arrivals and move is None else "inchangé à cette étape")
+        )
     shown = ctx.step if fixed is None else fixed
     dyn = f" data-tx='{_attr_json(arrivals)}'" if fixed is None else ""
-    sizers = "".join(f'<span class="tx-size" aria-hidden="true">{escape(t)}</span>' for t in dict.fromkeys(arrivals)) if fixed is None else ""
-    caption = (f'<p class="rep-note sd-now"><span class="rep-note-k">État actuel</span>{pill_series(ctx, series, fixed)}'
-               f'<span class="tx-stack sd-how"><span{dyn} data-tx-target="">{escape(arrivals[shown] if arrivals else "")}</span>{sizers}</span></p>')
-    return _canvas(view, _svg(view, width, height, body, "rep-states", "Diagramme d'états", time), "Diagramme d'états") + caption
+    sizers = (
+        "".join(
+            f'<span class="tx-size" aria-hidden="true">{escape(t)}</span>' for t in dict.fromkeys(arrivals)
+        )
+        if fixed is None
+        else ""
+    )
+    return (
+        '<p class="rep-note sd-now"><span class="rep-note-k">État '
+        f"actuel</span>{pill_series(ctx, series, fixed)}"
+        f'<span class="tx-stack sd-how"><span{dyn} '
+        f'data-tx-target="">{escape(arrivals[shown] if arrivals else "")}</span>{sizers}</span></p>'
+    )
+
+
+def render_states(ctx: Context, view: dict, sv: dict) -> str:
+    layout = with_defaults(view["layout"])
+    time = with_defaults(view.get("time") or {"brick": "time.stepper"})
+    state_mark = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.state"))
+    trans_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.transition"), None)
+    cycle, ent = lifecycle_for(ctx, layout["entity"])
+    if not cycle:
+        return _empty(
+            sv,
+            "Aucune entité de ce cas n'a de cycle de vie déclaré.",
+            "Le diagramme d'états demande un cycle de vie sur l'étude (champ « lifecycles », par type "
+            "d'entité) et une entité de ce type dans le cas.",
+        )
+    fixed = _fixed_step(ctx, time)
+    start, series, taken = _state_series(ctx, ent)
+    ax = _Axes(layout["direction"] == "right")
+    states = cycle["states"]
+    transitions = cycle["transitions"]
+    nh = 34.0
+    nodes = [{"id": s, "w": max(96.0, _text_width(ctx.label(s), 12.5, True) + 48), "h": nh} for s in states]
+    by_id = {n["id"]: n for n in nodes}
+    plain = [
+        {"from": t["from"], "to": t["to"], "type": "transition"} for t in transitions if t["from"] != t["to"]
+    ]
+    rank = _ranks(nodes, plain)
+    layers = _order_ranks(nodes, plain, rank)
+    _states_place(layers, rank, transitions, layout, ax, trans_mark)
+    edge_svg = _states_edges(ctx, transitions, by_id, rank, ax, taken, fixed, trans_mark)
+    finals = {s for s in states if not any(t["from"] == s and t["to"] != s for t in transitions)}
+    node_svg = _states_nodes(ctx, nodes, ax, start, series, state_mark, finals, fixed)
+    marker = _states_init_marker(by_id.get(cycle["initial"] or states[0]), ax)
+    pad = 16.0
+    ox, oy = pad - min(ax.xs), pad - min(ax.ys)
+    width, height = max(ax.xs) - min(ax.xs) + 2 * pad, max(ax.ys) - min(ax.ys) + 2 * pad
+    sv["canvas"] = {"width": round(width), "height": round(height)}
+    sv["drawn"] = {"states": len(states), "transitions": len(transitions)}
+    _states_notes(sv, ctx, ent, states, transitions, rank)
+    body = (
+        f'<g transform="translate({ox:.1f} {oy:.1f})">{marker}<g '
+        f'class="links">{"".join(edge_svg)}</g>{"".join(node_svg)}</g>'
+    )
+    caption = _states_caption(ctx, taken, transitions, series, fixed, trans_mark)
+    svg = _svg(view, width, height, body, "rep-states", "Diagramme d'états", time)
+    return _canvas(view, svg, "Diagramme d'états") + caption
 
 
 # ---------------------------------------------------------------------------
 # Diagramme de séquence
 # ---------------------------------------------------------------------------
 
-def render_lifelines(ctx: Context, view: dict, sv: dict) -> str:
-    layout = with_defaults(view["layout"])
-    time = with_defaults(view.get("time") or {"brick": "time.stepper"})
-    life = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.lifeline"))
-    msg_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.message"), None)
-    fixed = _fixed_step(ctx, time)
-    actors = [e for e in ctx.case.get("entities", []) if _matches(layout.get("where"), e)]
-    sv["not_drawn"] = [e["id"] for e in ctx.case.get("entities", []) if e not in actors]
-    if not actors:
-        return _empty(sv, "Aucune entité à placer en colonne.", "Le diagramme de séquence demande au moins une entité (les acteurs) ; vérifiez le filtre « where ».")
-    cw, rh = float(layout["column_width"]), float(layout["row_height"])
-    gutter, pad = 38.0, 10.0
-    titles = {e["id"]: _wrap2(fill_template(life["label"], e) or e["id"], cw - 42, 13) for e in actors}
-    flags = {e["id"]: entity_flag_items(ctx.case, e["id"], ctx.attributes) for e in actors}   # options mises en avant, sous le nom de l'acteur
-    extra = max(len(titles[i]) - 1 + len(flags[i]) for i in titles)
-    head_h = (52.0 if life["show_status"] else 32.0) + 16.0 * extra
-    col = {e["id"]: gutter + i * cw + cw / 2 for i, e in enumerate(actors)}
-    width = gutter + len(actors) * cw + pad
+
+def _lifeline_rows(ctx: Context, col: dict, msg_mark: dict | None) -> tuple[list, int, int]:
+    """Par étape, les messages numérotés dont les deux acteurs sont dessinés ; (lignes, total, écartés)."""
     rows, number, skipped = [], 0, 0
     for i, frame in enumerate(ctx.frames):
         messages = []
@@ -1025,86 +1579,185 @@ def render_lifelines(ctx: Context, view: dict, sv: dict) -> str:
             else:
                 skipped += 1
         rows.append((i, messages or [None]))
-    top = pad + head_h + 14
-    parts, bands, y = [], [], top
-    spoken: list[str] = []
+    return rows, number, skipped
+
+
+def _lifeline_message(ctx, n, m, my, col, geo, msg_mark, sv) -> str:
+    """Une flèche de message entre deux lignes de vie (ou sur soi), avec son libellé."""
+    width, gutter, cw = geo["width"], geo["gutter"], geo["cw"]
+    sx, dx = col[m["from"]], col[m["to"]]
+    lost = m["status"] == "lost"
+    base = (
+        fill_template(msg_mark["label"], {"label": m["label"], "from": m["from"], "to": m["to"], "n": n})
+        or m["label"]
+    )
+    text = (f"{n}. " if msg_mark["numbered"] else "") + base + (" — perdu" if lost else "")
+    cls = "sq-msg is-lost" if lost else "sq-msg"
+    if sx == dx:
+        d = f"M{sx:.1f} {my - 9:.1f}h30v15h-23"
+        tip = (
+            f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({sx + 1:.1f} {my + 6:.1f}) '
+            'rotate(180)"/>'
+        )
+        shown = _fit(text, width - sx - 46, 11.5, True, sv)
+        label = f'<text class="sq-tx" x="{sx + 38:.1f}" y="{my + 2:.1f}">{escape(shown)}</text>'
+        return f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>'
+    direction = 1 if dx > sx else -1
+    end = sx + (dx - sx) * 0.6 if lost else dx - direction * 1.5
+    line_end = end if lost else end - direction * 6
+    d = f"M{sx:.1f} {my:.1f}H{line_end:.1f}"
+    if lost:
+        tip = f'<path class="sq-x" d="M{end - 4:.1f} {my - 4:.1f}l8 8m0 -8l-8 8"/>'
+    else:
+        tip = (
+            f'<path class="lk-tip" d="M0 0L-8 -4.2L-8 4.2Z" transform="translate({end:.1f} {my:.1f}) '
+            f'rotate({0 if direction > 0 else 180})"/>'
+        )
+    # Le libellé peut déborder de la flèche (son liseré couvre les lignes de vie), tant qu'il reste dans le
+    # schéma.
+    span = abs(dx - sx)
+    room = min(span + cw * 0.9, width - gutter - 8)
+    shown = _fit(text, room, 11.5, True, sv)
+    half = _text_width(shown, 11.5, True) / 2
+    lx = max(gutter + half, min(width - 6 - half, (sx + dx) / 2))
+    label = (
+        f'<text class="sq-tx" x="{lx:.1f}" y="{my - (12 if lost else 9):.1f}" '
+        f'text-anchor="middle">{escape(shown)}</text>'
+    )
+    return f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>'
+
+
+def _lifeline_steps(
+    ctx, rows, col, geo, msg_mark, actors, fixed, sv
+) -> tuple[list[str], list[str], list[str], float]:
+    """Bandes d'étape et messages ; rend (bandes, groupes d'étape, messages en texte, y du bas)."""
+    rh, gutter, width = geo["rh"], geo["gutter"], geo["width"]
+    names = {e["id"]: e["label"] or e["id"] for e in actors}
+    parts, bands, spoken = [], [], []
+    y = geo["top"]
     for i, messages in rows:
         band_h = rh * len(messages)
         per_step = ["is-future" if s < i else "" for s in range(ctx.n_steps)]
         now, dyn = dyn_cls(per_step, ctx, fixed)
         current = " is-current" if fixed is None and i == ctx.step else ""
         step_attr = f' data-step-is="{i}"' if fixed is None else ""
-        bands.append(f'<rect class="sq-band{current}"{step_attr} x="0" y="{y:.1f}" width="{width:.1f}" height="{band_h:.1f}"/>')
-        inner = f'<text class="sq-n" x="{gutter / 2:.1f}" y="{y + band_h / 2 + 4.5:.1f}" text-anchor="middle">{i + 1}</text>'
+        bands.append(
+            f'<rect class="sq-band{current}"{step_attr} x="0" y="{y:.1f}" width="{width:.1f}" '
+            f'height="{band_h:.1f}"/>'
+        )
+        inner = (
+            f'<text class="sq-n" x="{gutter / 2:.1f}" y="{y + band_h / 2 + 4.5:.1f}" '
+            f'text-anchor="middle">{i + 1}</text>'
+        )
         for k, item in enumerate(messages):
             if item is None:
                 continue
             n, m = item
-            my = y + k * rh + rh * 0.7
-            sx, dx = col[m["from"]], col[m["to"]]
             lost = m["status"] == "lost"
-            base = fill_template(msg_mark["label"], {"label": m["label"], "from": m["from"], "to": m["to"], "n": n}) or m["label"]
-            text = (f"{n}. " if msg_mark["numbered"] else "") + base + (" — perdu" if lost else "")
-            names = {e["id"]: e["label"] or e["id"] for e in actors}
-            spoken.append(f"{n}. {names[m['from']]} → {names[m['to']]} : {m['label']}" + (" (perdu)" if lost else "") + f" [étape {i + 1}]")
-            cls = "sq-msg is-lost" if lost else "sq-msg"
-            if sx == dx:
-                d = f"M{sx:.1f} {my - 9:.1f}h30v15h-23"
-                tip = f'<path class="lk-tip" d="M0 0L-7 -3.8L-7 3.8Z" transform="translate({sx + 1:.1f} {my + 6:.1f}) rotate(180)"/>'
-                label = f'<text class="sq-tx" x="{sx + 38:.1f}" y="{my + 2:.1f}">{escape(_fit(text, width - sx - 46, 11.5, True, sv))}</text>'
-                inner += f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>'
-                continue
-            direction = 1 if dx > sx else -1
-            end = sx + (dx - sx) * 0.6 if lost else dx - direction * 1.5
-            line_end = end if lost else end - direction * 6
-            d = f"M{sx:.1f} {my:.1f}H{line_end:.1f}"
-            if lost:
-                tip = f'<path class="sq-x" d="M{end - 4:.1f} {my - 4:.1f}l8 8m0 -8l-8 8"/>'
-            else:
-                tip = f'<path class="lk-tip" d="M0 0L-8 -4.2L-8 4.2Z" transform="translate({end:.1f} {my:.1f}) rotate({0 if direction > 0 else 180})"/>'
-            # Le libellé peut déborder de la flèche (son liseré couvre les lignes de vie), tant qu'il reste dans le schéma.
-            span = abs(dx - sx)
-            room = min(span + cw * 0.9, width - gutter - 8)
-            shown = _fit(text, room, 11.5, True, sv)
-            half = _text_width(shown, 11.5, True) / 2
-            lx = max(gutter + half, min(width - 6 - half, (sx + dx) / 2))
-            label = f'<text class="sq-tx" x="{lx:.1f}" y="{my - (12 if lost else 9):.1f}" text-anchor="middle">{escape(shown)}</text>'
-            inner += f'<g class="{cls}"><path class="lk-path" d="{d}"/>{tip}{label}</g>'
+            spoken.append(
+                f"{n}. {names[m['from']]} → {names[m['to']]} : {m['label']}"
+                + (" (perdu)" if lost else "")
+                + f" [étape {i + 1}]"
+            )
+            inner += _lifeline_message(ctx, n, m, y + k * rh + rh * 0.7, col, geo, msg_mark, sv)
         parts.append(f'<g class="sq-step {now}{current}"{step_attr}{dyn}>{inner}</g>')
         y += band_h
-    bottom = y + 8
-    lines = "".join(f'<line class="sq-life" x1="{x:.1f}" y1="{pad + head_h:.1f}" x2="{x:.1f}" y2="{bottom:.1f}"/>' for x in col.values())
-    heads = []
+    return bands, parts, spoken, y + 8
+
+
+def _lifeline_heads(ctx, actors, col, geo, life, titles, flags, fixed, sv) -> list[str]:
+    """L'en-tête de chaque ligne de vie : nom, options mises en avant, statut."""
+    cw, head_h, pad = geo["cw"], geo["head_h"], geo["pad"]
     radius = RADIUS[ctx.tokens.get("corners", "soft")]
+    heads = []
     for ent in actors:
         w = cw - 18
         x = col[ent["id"]] - w / 2
         label = fill_template(life["label"], ent) or ent["id"]
         attrs, classes = _state_attrs(ctx, ent["id"], None, fixed) if life["show_status"] else ("", [])
-        body = f'<title>{escape(label)}</title><path class="n-shape" d="{_node_shape_path("rect", w, head_h, radius)}"/>'
+        body = (
+            f'<title>{escape(label)}</title><path class="n-shape" '
+            f'd="{_node_shape_path("rect", w, head_h, radius)}"/>'
+        )
         lines_ = titles[ent["id"]]
         for li, line in enumerate(lines_):
-            body += f'<text class="n-label" x="12" y="{20 + li * 16}">{escape(_fit(line, w - 24, 13, True, sv))}</text>'
+            body += (
+                '<text class="n-label" x="12" '
+                f'y="{20 + li * 16}">{escape(_fit(line, w - 24, 13, True, sv))}</text>'
+            )
         for fi, (flag, style, _definition) in enumerate(flags[ent["id"]]):
-            body += (f'<text class="n-flag {flag_classes(style)}" x="12" y="{20 + (len(lines_) + fi) * 16}">'
-                     f'{escape(_fit(flag, w - 24, 11.5, style.get("weight") != "normal", sv))}</text>')
+            body += (
+                f'<text class="n-flag {flag_classes(style)}" x="12" y="{20 + (len(lines_) + fi) * 16}">'
+                f"{escape(_fit(flag, w - 24, 11.5, style.get('weight') != 'normal', sv))}</text>"
+            )
         if life["show_status"]:
             body += f'<g class="n-status">{_status_svg(ctx, ent["id"], 12, head_h - 11, fixed)}</g>'
-        heads.append(f'<g class="{" ".join(["n", "sq-head", *[c for c in classes if c != "is-changed"]])}"{attrs} transform="translate({x:.1f} {pad:.1f})">{body}</g>')
+        cls = " ".join(["n", "sq-head", *[c for c in classes if c != "is-changed"]])
+        heads.append(f'<g class="{cls}"{attrs} transform="translate({x:.1f} {pad:.1f})">{body}</g>')
+    return heads
+
+
+def render_lifelines(ctx: Context, view: dict, sv: dict) -> str:
+    layout = with_defaults(view["layout"])
+    time = with_defaults(view.get("time") or {"brick": "time.stepper"})
+    life = with_defaults(next(m for m in view["marks"] if m["brick"] == "mark.lifeline"))
+    msg_mark = next((with_defaults(m) for m in view["marks"] if m["brick"] == "mark.message"), None)
+    fixed = _fixed_step(ctx, time)
+    actors = [e for e in ctx.case.get("entities", []) if _matches(layout.get("where"), e)]
+    sv["not_drawn"] = [e["id"] for e in ctx.case.get("entities", []) if e not in actors]
+    if not actors:
+        return _empty(
+            sv,
+            "Aucune entité à placer en colonne.",
+            "Le diagramme de séquence demande au moins une entité (les acteurs) ; vérifiez le filtre « where "
+            "».",
+        )
+    cw, rh = float(layout["column_width"]), float(layout["row_height"])
+    gutter, pad = 38.0, 10.0
+    titles = {e["id"]: _wrap2(fill_template(life["label"], e) or e["id"], cw - 42, 13) for e in actors}
+    # Options mises en avant, sous le nom de l'acteur.
+    flags = {e["id"]: entity_flag_items(ctx.case, e["id"], ctx.attributes) for e in actors}
+    extra = max(len(titles[i]) - 1 + len(flags[i]) for i in titles)
+    head_h = (52.0 if life["show_status"] else 32.0) + 16.0 * extra
+    col = {e["id"]: gutter + i * cw + cw / 2 for i, e in enumerate(actors)}
+    width = gutter + len(actors) * cw + pad
+    geo = {
+        "cw": cw,
+        "rh": rh,
+        "gutter": gutter,
+        "pad": pad,
+        "head_h": head_h,
+        "width": width,
+        "top": pad + head_h + 14,
+    }
+    rows, number, skipped = _lifeline_rows(ctx, col, msg_mark)
+    bands, parts, spoken, bottom = _lifeline_steps(ctx, rows, col, geo, msg_mark, actors, fixed, sv)
+    lines = "".join(
+        f'<line class="sq-life" x1="{x:.1f}" y1="{pad + head_h:.1f}" x2="{x:.1f}" y2="{bottom:.1f}"/>'
+        for x in col.values()
+    )
+    heads = _lifeline_heads(ctx, actors, col, geo, life, titles, flags, fixed, sv)
     height = bottom + pad
     sv["canvas"] = {"width": round(width), "height": round(height)}
     sv["drawn"] = {"lifelines": len(actors), "messages": number}
     if spoken:
         sv["notes"].append("Messages, dans l'ordre : " + " ; ".join(spoken[:40]) + ".")
     else:
-        sv["warnings"].append("Ce cas ne porte aucun message (steps[].messages) : seules les lignes de vie sont dessinées.")
+        sv["warnings"].append(
+            "Ce cas ne porte aucun message (steps[].messages) : seules les lignes de vie sont dessinées."
+        )
     if skipped:
-        sv["warnings"].append(f"{skipped} message(s) non dessiné(s) : leur émetteur ou leur destinataire est filtré par « where ».")
+        sv["warnings"].append(
+            f"{skipped} message(s) non dessiné(s) : leur émetteur ou leur destinataire est filtré par « "
+            "where »."
+        )
     if len(actors) > 8:
         sv["warnings"].append(f"{len(actors)} acteurs : au-delà de huit, le schéma défile horizontalement.")
-    # Calques : bandes d'étape, lignes de vie, messages, en-têtes — un libellé n'est jamais barré par une ligne de vie.
-    body = f'{"".join(bands)}{lines}{"".join(parts)}{"".join(heads)}'
-    return _canvas(view, _svg(view, width, height, body, "rep-seq", "Diagramme de séquence", time), "Diagramme de séquence")
+    # Calques : bandes d'étape, lignes de vie, messages, en-têtes — un libellé n'est jamais barré par une
+    # ligne de vie.
+    body = f"{''.join(bands)}{lines}{''.join(parts)}{''.join(heads)}"
+    svg = _svg(view, width, height, body, "rep-seq", "Diagramme de séquence", time)
+    return _canvas(view, svg, "Diagramme de séquence")
 
 
 LAYOUTS = {

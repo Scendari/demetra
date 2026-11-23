@@ -1,4 +1,5 @@
 """Administration du site (/admin/) : exploitation, sans toucher au contenu des études."""
+
 from __future__ import annotations
 
 import pytest
@@ -23,11 +24,22 @@ def admin_client(boss):
 
 
 def test_every_admin_page_opens(admin_client, study, users):
-    pages = ["/admin/", "/admin/auth/user/", f"/admin/auth/user/{users['ana'].pk}/change/", "/admin/core/study/",
-             f"/admin/core/study/{Study.objects.get(public_id=study).pk}/change/", "/admin/core/apitoken/",
-             "/admin/core/case/", "/admin/core/verdict/", "/admin/core/representation/", "/admin/core/auditevent/",
-             "/admin/core/brickrequest/", "/admin/core/sharerequest/", "/admin/core/externalidentity/",
-             "/admin/core/representationproposal/"]
+    pages = [
+        "/admin/",
+        "/admin/auth/user/",
+        f"/admin/auth/user/{users['ana'].pk}/change/",
+        "/admin/core/study/",
+        f"/admin/core/study/{Study.objects.get(public_id=study).pk}/change/",
+        "/admin/core/apitoken/",
+        "/admin/core/case/",
+        "/admin/core/verdict/",
+        "/admin/core/representation/",
+        "/admin/core/auditevent/",
+        "/admin/core/brickrequest/",
+        "/admin/core/sharerequest/",
+        "/admin/core/externalidentity/",
+        "/admin/core/representationproposal/",
+    ]
     for url in pages:
         response = admin_client.get(url)
         assert response.status_code == 200, url
@@ -54,10 +66,17 @@ def test_rail_link_only_for_staff(admin_client, web):
 
 def test_transfer_ownership_is_traced(admin_client, study, users):
     s = Study.objects.get(public_id=study)
-    response = admin_client.post(f"/admin/core/study/{s.pk}/change/", {
-        "title": s.title, "owner": users["ben"].pk,
-        "memberships-TOTAL_FORMS": "0", "memberships-INITIAL_FORMS": "0",
-        "memberships-MIN_NUM_FORMS": "0", "memberships-MAX_NUM_FORMS": "1000"})
+    response = admin_client.post(
+        f"/admin/core/study/{s.pk}/change/",
+        {
+            "title": s.title,
+            "owner": users["ben"].pk,
+            "memberships-TOTAL_FORMS": "0",
+            "memberships-INITIAL_FORMS": "0",
+            "memberships-MIN_NUM_FORMS": "0",
+            "memberships-MAX_NUM_FORMS": "1000",
+        },
+    )
     assert response.status_code == 302, response.content.decode()[:2000]
     s.refresh_from_db()
     assert s.owner == users["ben"]
@@ -74,18 +93,29 @@ def test_transfer_ownership_is_traced(admin_client, study, users):
 
 def test_grant_access_from_admin(admin_client, study, users):
     s = Study.objects.get(public_id=study)
-    admin_client.post(f"/admin/core/study/{s.pk}/change/", {
-        "title": s.title, "owner": users["ana"].pk,
-        "memberships-TOTAL_FORMS": "1", "memberships-INITIAL_FORMS": "0",
-        "memberships-MIN_NUM_FORMS": "0", "memberships-MAX_NUM_FORMS": "1000",
-        "memberships-0-user": users["cleo"].pk, "memberships-0-role": "commenter", "memberships-0-study": s.pk})
+    admin_client.post(
+        f"/admin/core/study/{s.pk}/change/",
+        {
+            "title": s.title,
+            "owner": users["ana"].pk,
+            "memberships-TOTAL_FORMS": "1",
+            "memberships-INITIAL_FORMS": "0",
+            "memberships-MIN_NUM_FORMS": "0",
+            "memberships-MAX_NUM_FORMS": "1000",
+            "memberships-0-user": users["cleo"].pk,
+            "memberships-0-role": "commenter",
+            "memberships-0-study": s.pk,
+        },
+    )
     assert Membership.objects.get(study=s, user=users["cleo"]).role == Role.COMMENTER
     assert AuditEvent.objects.filter(study=s, action="share.grant", channel="admin", target="cleo").exists()
 
 
 def test_deactivate_users_revokes_their_tokens(admin_client, users, token_for):
     token_for("ben")
-    response = admin_client.post("/admin/auth/user/", {"action": "deactivate", "_selected_action": [users["ben"].pk]})
+    response = admin_client.post(
+        "/admin/auth/user/", {"action": "deactivate", "_selected_action": [users["ben"].pk]}
+    )
     assert response.status_code == 302
     users["ben"].refresh_from_db()
     assert not users["ben"].is_active

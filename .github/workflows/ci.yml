@@ -1,0 +1,53 @@
+# Intégration continue : analyse du code et toute la suite de tests, à chaque push et chaque pull request.
+# Le test navigateur (tests/e2e) tourne aussi : Chromium est installé par Playwright (environ une minute).
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DEMETRA_DB: /tmp/demetra-ci.sqlite3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Bibliothèques système pour python-ldap (option ldap)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libldap2-dev libsasl2-dev
+
+      - name: Installer les dépendances (verrouillées)
+        run: uv sync --frozen --extra ldap
+
+      - name: Analyse du code
+        run: uv run ruff check .
+
+      - name: Chromium pour le test navigateur
+        run: uv run playwright install --with-deps chromium
+
+      - name: Tests
+        run: uv run pytest
+
+      - name: Empreinte de rendu sur les études de démonstration
+        run: |
+          uv run python manage.py migrate -v0
+          uv run python manage.py seed_demo --no-verdicts -v0
+          uv run python scripts/empreinte_rendu.py ecrire test-results/empreinte.json
+          uv run python scripts/empreinte_rendu.py comparer test-results/empreinte.json
+
+      - name: Vérifications de déploiement de Django
+        run: uv run python manage.py check --deploy
+        env:
+          DEMETRA_DEBUG: "0"
+          DEMETRA_SECRET_KEY: ci-only-not-a-real-secret-key-0123456789abcdefghijklmnopqrstuvwxyz
+          DEMETRA_BEHIND_PROXY: "1"
+          DEMETRA_SMTP_HOST: smtp.invalid
+          DEMETRA_HSTS_SUBDOMAINS: "1"
+          DEMETRA_HSTS_PRELOAD: "1"

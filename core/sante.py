@@ -23,7 +23,9 @@ class HealthMiddleware:
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
         except Exception:
-            response = HttpResponse("base indisponible\n", status=503, content_type="text/plain; charset=utf-8")
+            response = HttpResponse(
+                "base indisponible\n", status=503, content_type="text/plain; charset=utf-8"
+            )
         else:
             response = HttpResponse("ok\n", content_type="text/plain; charset=utf-8")
         response["Cache-Control"] = "no-store"

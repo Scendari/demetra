@@ -45,16 +45,31 @@ class Study(models.Model):
     dimensions = models.JSONField(default=list, blank=True)
     exclusions = models.JSONField(default=list, blank=True)
     rules = models.JSONField(default=list, blank=True)
-    ruleset = models.JSONField(default=dict, blank=True, help_text="Jeu de règles partagé par les cas : conditions, lignes, politique de résolution.")
-    lifecycles = models.JSONField(default=list, blank=True, help_text="Cycles de vie déclarés par type d'entité : transitions permises.")
-    attributes = models.JSONField(default=list, blank=True, help_text="Options portées par les entités : libellé lisible et définition.")
+    ruleset = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Jeu de règles partagé par les cas : conditions, lignes, politique de résolution.",
+    )
+    lifecycles = models.JSONField(
+        default=list, blank=True, help_text="Cycles de vie déclarés par type d'entité : transitions permises."
+    )
+    attributes = models.JSONField(
+        default=list, blank=True, help_text="Options portées par les entités : libellé lisible et définition."
+    )
     representation = models.ForeignKey(
         "Representation", null=True, blank=True, on_delete=models.SET_NULL, related_name="default_for"
     )
-    representation_by = models.CharField(max_length=8, blank=True, default="",
-                                         help_text="Qui a fixé la représentation de l'étude : « ai » (par jeton) ou « human » (dans l'interface).")
+    representation_by = models.CharField(
+        max_length=8,
+        blank=True,
+        default="",
+        help_text="Qui a fixé la représentation de l'étude : « ai » (par jeton) ou « human » (dans "
+        "l'interface).",
+    )
     revision = models.PositiveIntegerField(default=0)
-    is_example = models.BooleanField(default=False, help_text="Étude d'exemple aux données fictives : affichée comme telle.")
+    is_example = models.BooleanField(
+        default=False, help_text="Étude d'exemple aux données fictives : affichée comme telle."
+    )
     archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -117,7 +132,8 @@ class ApiToken(models.Model):
 
 
 class ShareRequest(models.Model):
-    """Partage demandé par un jeton : reste en attente tant qu'un humain ne l'a pas confirmé dans l'interface."""
+    """Partage demandé par un jeton : reste en attente tant qu'un humain ne l'a pas confirmé dans
+    l'interface."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "En attente"
@@ -126,7 +142,9 @@ class ShareRequest(models.Model):
 
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="share_requests")
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
-    via_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    via_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     invitee = models.ForeignKey(User, on_delete=models.CASCADE, related_name="share_requests")
     role = models.CharField(max_length=12, choices=Role.choices)
     message = models.TextField(blank=True)
@@ -179,7 +197,9 @@ class CaseRevision(models.Model):
     semantic_change = models.BooleanField(default=True)
     summary = models.CharField(max_length=300, blank=True)
     actor_user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
-    actor_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    actor_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     channel = models.CharField(max_length=8, default="web")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -231,15 +251,21 @@ class Representation(models.Model):
 
     public_id = models.CharField(max_length=16, unique=True, default=short_id, editable=False)
     slug = models.SlugField(max_length=60, blank=True)
-    owner = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="representations")
+    owner = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.CASCADE, related_name="representations"
+    )
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
     scope = models.CharField(max_length=12, choices=Scope.choices, default=Scope.THEME)
-    parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.PROTECT, related_name="children")
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="children"
+    )
     spec = models.JSONField(default=dict)
     manifest = models.JSONField(default=dict, blank=True)
     version = models.PositiveIntegerField(default=1)
-    via_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    via_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -259,7 +285,9 @@ class RepresentationVersion(models.Model):
     spec = models.JSONField()
     note = models.CharField(max_length=300, blank=True)
     actor_user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
-    actor_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    actor_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -267,12 +295,15 @@ class RepresentationVersion(models.Model):
 
 
 class RepresentationProposal(models.Model):
-    """Représentation proposée (en général par l'IA) pour une étude ; l'utilisateur choisit dans l'interface."""
+    """Représentation proposée (en général par l'IA) pour une étude ; l'utilisateur choisit dans
+    l'interface."""
 
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="proposals")
     representation = models.ForeignKey(Representation, on_delete=models.CASCADE, related_name="proposals")
     proposed_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
-    via_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    via_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     reason = models.TextField(blank=True)
     dismissed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -287,7 +318,9 @@ class RepresentationProposal(models.Model):
 class StudyPreference(models.Model):
     study = models.ForeignKey(Study, on_delete=models.CASCADE, related_name="preferences")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="study_preferences")
-    representation = models.ForeignKey(Representation, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    representation = models.ForeignKey(
+        Representation, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -310,8 +343,12 @@ class BrickRequest(models.Model):
     """Brique manquante signalée par une IA ou un utilisateur : alimente la liste des évolutions du site."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="brick_requests")
-    via_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
-    study = models.ForeignKey(Study, null=True, blank=True, on_delete=models.SET_NULL, related_name="brick_requests")
+    via_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    study = models.ForeignKey(
+        Study, null=True, blank=True, on_delete=models.SET_NULL, related_name="brick_requests"
+    )
     title = models.CharField(max_length=160)
     need = models.TextField()
     family = models.CharField(max_length=24, blank=True)
@@ -326,9 +363,13 @@ class BrickRequest(models.Model):
 
 
 class AuditEvent(models.Model):
-    study = models.ForeignKey(Study, null=True, blank=True, on_delete=models.CASCADE, related_name="audit_events")
+    study = models.ForeignKey(
+        Study, null=True, blank=True, on_delete=models.CASCADE, related_name="audit_events"
+    )
     actor_user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="+")
-    actor_token = models.ForeignKey(ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    actor_token = models.ForeignKey(
+        ApiToken, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     channel = models.CharField(max_length=8, default="web")  # web | api | system
     action = models.CharField(max_length=60)
     target = models.CharField(max_length=200, blank=True)
@@ -348,7 +389,8 @@ class AuditEvent(models.Model):
 class ExternalIdentity(models.Model):
     """Lien entre un compte Demetra et une identité de l'annuaire d'entreprise (SSO OpenID Connect).
 
-    Le compte est retrouvé par l'émetteur et l'identifiant stable (« sub ») du fournisseur, jamais par l'e-mail :
+    Le compte est retrouvé par l'émetteur et l'identifiant stable (« sub ») du fournisseur, jamais par
+    l'e-mail :
     une adresse modifiable chez le fournisseur ne doit pas ouvrir le compte de quelqu'un d'autre.
     """
 
@@ -370,8 +412,10 @@ class ExternalIdentity(models.Model):
 class ConnectRequest(models.Model):
     """Demande d'accès d'une IA par lien d'autorisation (même principe que « gh auth login »).
 
-    L'IA demande un lien ; l'utilisateur l'ouvre, connecté, et autorise ; l'IA récupère alors un jeton, une seule
-    fois, avec le code secret reçu au départ. Le site ne garde que le condensé de ce code, jamais de jeton en clair :
+    L'IA demande un lien ; l'utilisateur l'ouvre, connecté, et autorise ; l'IA récupère alors un jeton, une
+    seule
+    fois, avec le code secret reçu au départ. Le site ne garde que le condensé de ce code, jamais de jeton en
+    clair :
     le jeton est créé au moment où l'IA vient le chercher.
     """
 
@@ -420,25 +464,118 @@ def _labels(model, **labels):
 
 
 _COMMON = {"created_at": "créé le", "updated_at": "modifié le"}
-_labels(Study, title="titre", owner="propriétaire", kind="nature", public_id="identifiant", revision="révision",
-        representation="représentation", is_example="exemple", archived_at="archivée le", **_COMMON)
+_labels(
+    Study,
+    title="titre",
+    owner="propriétaire",
+    kind="nature",
+    public_id="identifiant",
+    revision="révision",
+    representation="représentation",
+    is_example="exemple",
+    archived_at="archivée le",
+    **_COMMON,
+)
 _labels(Membership, study="étude", user="compte", role="rôle", created_at="depuis le")
-_labels(ApiToken, user="compte", name="nom", scopes="portées", studies="études autorisées", expires_at="expire le",
-        last_used_at="dernier usage", revoked_at="révoqué le", created_at="créé le", token_id="identifiant")
-_labels(ShareRequest, study="étude", requested_by="demandé par", via_token="par le jeton", invitee="invité",
-        role="rôle", status="état", decided_by="décidé par", decided_at="décidé le", created_at="demandé le")
-_labels(Case, study="étude", key="clé", number="numéro", family="famille", title="titre", summary="résumé",
-        content_hash="empreinte", revision_no="révision", retired_at="retiré le", content_changed_at="contenu modifié le",
-        **_COMMON)
-_labels(Verdict, case="cas", reviewer="relecteur", decision="avis", comment="commentaire", content_hash="empreinte",
-        stale_from="ancien avis", updated_at="rendu le")
-_labels(Representation, slug="nom court", owner="propriétaire", name="nom", scope="portée", parent="dérivée de",
-        version="version", via_token="par le jeton", archived_at="supprimée le", public_id="identifiant", **_COMMON)
-_labels(RepresentationProposal, study="étude", representation="représentation", proposed_by="proposée par",
-        via_token="par le jeton", reason="raison", dismissed_at="écartée le", created_at="proposée le")
-_labels(BrickRequest, user="compte", via_token="par le jeton", study="étude", title="titre", need="besoin",
-        family="famille", example="exemple", status="état", created_at="signalé le")
-_labels(AuditEvent, study="étude", actor_user="compte", actor_token="jeton", channel="canal", action="action",
-        target="objet", detail="détail", created_at="le")
-_labels(ExternalIdentity, user="compte", issuer="émetteur", subject="identifiant chez le fournisseur",
-        created_at="lié le", last_login_at="dernière connexion")
+_labels(
+    ApiToken,
+    user="compte",
+    name="nom",
+    scopes="portées",
+    studies="études autorisées",
+    expires_at="expire le",
+    last_used_at="dernier usage",
+    revoked_at="révoqué le",
+    created_at="créé le",
+    token_id="identifiant",
+)
+_labels(
+    ShareRequest,
+    study="étude",
+    requested_by="demandé par",
+    via_token="par le jeton",
+    invitee="invité",
+    role="rôle",
+    status="état",
+    decided_by="décidé par",
+    decided_at="décidé le",
+    created_at="demandé le",
+)
+_labels(
+    Case,
+    study="étude",
+    key="clé",
+    number="numéro",
+    family="famille",
+    title="titre",
+    summary="résumé",
+    content_hash="empreinte",
+    revision_no="révision",
+    retired_at="retiré le",
+    content_changed_at="contenu modifié le",
+    **_COMMON,
+)
+_labels(
+    Verdict,
+    case="cas",
+    reviewer="relecteur",
+    decision="avis",
+    comment="commentaire",
+    content_hash="empreinte",
+    stale_from="ancien avis",
+    updated_at="rendu le",
+)
+_labels(
+    Representation,
+    slug="nom court",
+    owner="propriétaire",
+    name="nom",
+    scope="portée",
+    parent="dérivée de",
+    version="version",
+    via_token="par le jeton",
+    archived_at="supprimée le",
+    public_id="identifiant",
+    **_COMMON,
+)
+_labels(
+    RepresentationProposal,
+    study="étude",
+    representation="représentation",
+    proposed_by="proposée par",
+    via_token="par le jeton",
+    reason="raison",
+    dismissed_at="écartée le",
+    created_at="proposée le",
+)
+_labels(
+    BrickRequest,
+    user="compte",
+    via_token="par le jeton",
+    study="étude",
+    title="titre",
+    need="besoin",
+    family="famille",
+    example="exemple",
+    status="état",
+    created_at="signalé le",
+)
+_labels(
+    AuditEvent,
+    study="étude",
+    actor_user="compte",
+    actor_token="jeton",
+    channel="canal",
+    action="action",
+    target="objet",
+    detail="détail",
+    created_at="le",
+)
+_labels(
+    ExternalIdentity,
+    user="compte",
+    issuer="émetteur",
+    subject="identifiant chez le fournisseur",
+    created_at="lié le",
+    last_login_at="dernière connexion",
+)

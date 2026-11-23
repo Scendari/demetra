@@ -43,22 +43,30 @@ def https_settings(env, debug: bool) -> dict:
 
 
 def mail_settings(env) -> dict:
-    """Envoi des e-mails (mot de passe oublié) : serveur SMTP si `DEMETRA_SMTP_HOST` est renseigné, console sinon."""
+    """Envoi des e-mails (mot de passe oublié) : serveur SMTP si `DEMETRA_SMTP_HOST` est renseigné, console
+    sinon."""
     host = env.get("DEMETRA_SMTP_HOST", "").strip()
     if not host:
         return {"MAILERS": {"default": {"BACKEND": "django.core.mail.backends.console.EmailBackend"}}}
-    options = {"host": host, "port": int(env.get("DEMETRA_SMTP_PORT", "587")),
-               "use_tls": _flag(env, "DEMETRA_SMTP_STARTTLS", True), "timeout": 20}
+    options = {
+        "host": host,
+        "port": int(env.get("DEMETRA_SMTP_PORT", "587")),
+        "use_tls": _flag(env, "DEMETRA_SMTP_STARTTLS", True),
+        "timeout": 20,
+    }
     if env.get("DEMETRA_SMTP_USER"):
         options |= {"username": env["DEMETRA_SMTP_USER"], "password": env.get("DEMETRA_SMTP_PASSWORD", "")}
-    out = {"MAILERS": {"default": {"BACKEND": "django.core.mail.backends.smtp.EmailBackend", "OPTIONS": options}}}
+    out = {
+        "MAILERS": {"default": {"BACKEND": "django.core.mail.backends.smtp.EmailBackend", "OPTIONS": options}}
+    }
     if env.get("DEMETRA_MAIL_FROM"):
         out["DEFAULT_FROM_EMAIL"] = env["DEMETRA_MAIL_FROM"]
     return out
 
 
 def oidc_settings(env) -> dict | None:
-    """SSO OpenID Connect (Entra ID / Azure AD, Okta, Keycloak, Google Workspace, ADFS…). None s'il n'est pas réglé."""
+    """SSO OpenID Connect (Entra ID / Azure AD, Okta, Keycloak, Google Workspace, ADFS…). None s'il n'est pas
+    réglé."""
     issuer = env.get("DEMETRA_OIDC_ISSUER", "").strip().rstrip("/")
     client_id = env.get("DEMETRA_OIDC_CLIENT_ID", "").strip()
     if not issuer or not client_id:
@@ -83,7 +91,8 @@ def oidc_settings(env) -> dict | None:
 def ldap_settings(env) -> dict:
     """Annuaire LDAP ou Active Directory (django-auth-ldap). Dictionnaire vide s'il n'est pas réglé.
 
-    Le paquet est facultatif : `uv sync --extra ldap`. Il n'est importé que si `DEMETRA_LDAP_URI` est renseigné.
+    Le paquet est facultatif : `uv sync --extra ldap`. Il n'est importé que si `DEMETRA_LDAP_URI` est
+    renseigné.
     """
     uri = env.get("DEMETRA_LDAP_URI", "").strip()
     if not uri:
@@ -98,8 +107,10 @@ def ldap_settings(env) -> dict:
         )
     except ImportError as exc:  # pragma: no cover - dépend de l'installation
         from django.core.exceptions import ImproperlyConfigured
+
         raise ImproperlyConfigured(
-            "DEMETRA_LDAP_URI est renseigné mais le module LDAP n'est pas installé : lancez « uv sync --extra ldap »."
+            "DEMETRA_LDAP_URI est renseigné mais le module LDAP n'est pas installé : lancez « uv sync "
+            "--extra ldap »."
         ) from exc
 
     out: dict = {
@@ -118,8 +129,10 @@ def ldap_settings(env) -> dict:
     }
     ca_file = env.get("DEMETRA_LDAP_CA_FILE", "")
     if ca_file:
-        out["AUTH_LDAP_GLOBAL_OPTIONS"] = {ldap.OPT_X_TLS_CACERTFILE: ca_file,
-                                           ldap.OPT_X_TLS_REQUIRE_CERT: ldap.OPT_X_TLS_DEMAND}
+        out["AUTH_LDAP_GLOBAL_OPTIONS"] = {
+            ldap.OPT_X_TLS_CACERTFILE: ca_file,
+            ldap.OPT_X_TLS_REQUIRE_CERT: ldap.OPT_X_TLS_DEMAND,
+        }
 
     template = env.get("DEMETRA_LDAP_USER_DN_TEMPLATE", "")
     if template:
@@ -128,7 +141,10 @@ def ldap_settings(env) -> dict:
         base = env.get("DEMETRA_LDAP_USER_BASE", "")
         if not base:
             from django.core.exceptions import ImproperlyConfigured
-            raise ImproperlyConfigured("LDAP : renseignez DEMETRA_LDAP_USER_BASE ou DEMETRA_LDAP_USER_DN_TEMPLATE.")
+
+            raise ImproperlyConfigured(
+                "LDAP : renseignez DEMETRA_LDAP_USER_BASE ou DEMETRA_LDAP_USER_DN_TEMPLATE."
+            )
         user_filter = env.get("DEMETRA_LDAP_USER_FILTER", "(uid=%(user)s)")
         out["AUTH_LDAP_USER_SEARCH"] = LDAPSearch(base, ldap.SCOPE_SUBTREE, user_filter)
 

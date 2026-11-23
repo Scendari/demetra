@@ -35,15 +35,22 @@ admin.site.empty_value_display = "—"
 # reste possible une par une, après l'écran de confirmation qui liste tout ce qui partira avec.
 admin.site.disable_action("delete_selected")
 
-# Ni groupes Django (les droits viennent des rôles d'étude), ni adresses allauth (pas de vérification d'e-mail).
+# Ni groupes Django (les droits viennent des rôles d'étude), ni adresses allauth (pas de vérification
+# d'e-mail).
 for model in (Group, EmailAddress, User):
     if admin.site.is_registered(model):
         admin.site.unregister(model)
 
 
 def _audit(request, study, action, target="", **detail):
-    AuditEvent.objects.create(study=study, actor_user=request.user, channel="admin", action=action,
-                              target=str(target)[:200], detail=detail)
+    AuditEvent.objects.create(
+        study=study,
+        actor_user=request.user,
+        channel="admin",
+        action=action,
+        target=str(target)[:200],
+        detail=detail,
+    )
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
@@ -62,7 +69,9 @@ class ReadOnlyAdmin(admin.ModelAdmin):
 def _study_link(study):
     if not study:
         return "—"
-    return format_html('<a href="{}">{}</a>', reverse("admin:core_study_change", args=[study.pk]), study.title)
+    return format_html(
+        '<a href="{}">{}</a>', reverse("admin:core_study_change", args=[study.pk]), study.title
+    )
 
 
 def _token_state(token) -> str:
@@ -74,6 +83,7 @@ def _token_state(token) -> str:
 
 
 # ----- Comptes -----
+
 
 class ExternalIdentityInline(admin.TabularInline):
     model = models.ExternalIdentity
@@ -125,8 +135,18 @@ class SSOFilter(admin.SimpleListFilter):
 
 @admin.register(User)
 class DemetraUserAdmin(UserAdmin):
-    list_display = ("username", "email", "full_name", "is_active", "is_staff", "owned", "active_tokens", "sso",
-                    "last_login", "date_joined")
+    list_display = (
+        "username",
+        "email",
+        "full_name",
+        "is_active",
+        "is_staff",
+        "owned",
+        "active_tokens",
+        "sso",
+        "last_login",
+        "date_joined",
+    )
     list_filter = ("is_active", "is_staff", "is_superuser", SSOFilter)
     search_fields = ("username", "email", "first_name", "last_name", "external_identities__subject")
     ordering = ("-date_joined",)
@@ -135,20 +155,37 @@ class DemetraUserAdmin(UserAdmin):
     fieldsets = (
         (None, {"fields": ("username", "password")}),
         ("Identité", {"fields": ("first_name", "last_name", "email")}),
-        ("Droits", {"fields": ("is_active", "is_staff", "is_superuser"),
-                    "description": "« Équipe » ouvre cette administration ; « superutilisateur » y donne tous les "
-                                   "droits. Avec le SSO ou le LDAP, ces deux cases suivent le groupe d'administration "
-                                   "à chaque connexion."}),
+        (
+            "Droits",
+            {
+                "fields": ("is_active", "is_staff", "is_superuser"),
+                "description": "« Équipe » ouvre cette administration ; « superutilisateur » y donne tous "
+                "les "
+                "droits. Avec le SSO ou le LDAP, ces deux cases suivent le groupe d'administration "
+                "à chaque connexion.",
+            },
+        ),
         ("Dates", {"fields": ("last_login", "date_joined")}),
     )
 
     def get_queryset(self, request):
         now = timezone.now()
-        return super().get_queryset(request).annotate(
-            n_owned=Count("owned_studies", filter=Q(owned_studies__archived_at__isnull=True), distinct=True),
-            n_tokens=Count("api_tokens", filter=Q(api_tokens__revoked_at__isnull=True)
-                           & (Q(api_tokens__expires_at__isnull=True) | Q(api_tokens__expires_at__gt=now)), distinct=True),
-            n_sso=Count("external_identities", distinct=True))
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                n_owned=Count(
+                    "owned_studies", filter=Q(owned_studies__archived_at__isnull=True), distinct=True
+                ),
+                n_tokens=Count(
+                    "api_tokens",
+                    filter=Q(api_tokens__revoked_at__isnull=True)
+                    & (Q(api_tokens__expires_at__isnull=True) | Q(api_tokens__expires_at__gt=now)),
+                    distinct=True,
+                ),
+                n_sso=Count("external_identities", distinct=True),
+            )
+        )
 
     @admin.display(description="nom")
     def full_name(self, obj):
@@ -174,11 +211,16 @@ class DemetraUserAdmin(UserAdmin):
             tokens = models.ApiToken.objects.filter(user__in=queryset, revoked_at__isnull=True)
             n_tokens = tokens.update(revoked_at=now)
             n_users = queryset.update(is_active=False)
-        self.message_user(request, f"{n_users} compte(s) désactivé(s), {n_tokens} jeton(s) révoqué(s). Leurs études "
-                                   "restent en place : transférez-les depuis la liste des études.", messages.SUCCESS)
+        self.message_user(
+            request,
+            f"{n_users} compte(s) désactivé(s), {n_tokens} jeton(s) révoqué(s). Leurs études "
+            "restent en place : transférez-les depuis la liste des études.",
+            messages.SUCCESS,
+        )
 
 
 # ----- Études et accès -----
+
 
 class MembershipInline(admin.TabularInline):
     model = models.Membership
@@ -215,8 +257,18 @@ class ArchivedFilter(admin.SimpleListFilter):
 
 @admin.register(models.Study)
 class StudyAdmin(admin.ModelAdmin):
-    list_display = ("title", "public_id", "owner", "kind", "n_cases", "n_members", "is_example", "archived",
-                    "updated_at", "open_link")
+    list_display = (
+        "title",
+        "public_id",
+        "owner",
+        "kind",
+        "n_cases",
+        "n_members",
+        "is_example",
+        "archived",
+        "updated_at",
+        "open_link",
+    )
     list_filter = (ArchivedFilter, "kind", "is_example")
     search_fields = ("title", "public_id", "owner__username", "owner__email")
     list_select_related = ("owner",)
@@ -225,16 +277,42 @@ class StudyAdmin(admin.ModelAdmin):
     actions = ("archive", "unarchive")
     fieldsets = (
         (None, {"fields": ("title", "public_id", "owner", "open_link")}),
-        ("Repères", {"fields": ("kind", "is_example", "revision", "representation", "archived_at", "created_at",
-                                "updated_at")}),
+        (
+            "Repères",
+            {
+                "fields": (
+                    "kind",
+                    "is_example",
+                    "revision",
+                    "representation",
+                    "archived_at",
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
     )
-    readonly_fields = ("public_id", "open_link", "kind", "is_example", "revision", "representation", "archived_at",
-                       "created_at", "updated_at")
+    readonly_fields = (
+        "public_id",
+        "open_link",
+        "kind",
+        "is_example",
+        "revision",
+        "representation",
+        "archived_at",
+        "created_at",
+        "updated_at",
+    )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            cases_n=Count("cases", filter=Q(cases__retired_at__isnull=True), distinct=True),
-            members_n=Count("memberships", distinct=True))
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                cases_n=Count("cases", filter=Q(cases__retired_at__isnull=True), distinct=True),
+                members_n=Count("memberships", distinct=True),
+            )
+        )
 
     def has_add_permission(self, request):
         return False  # une étude se crée dans l'interface ou par l'API
@@ -262,12 +340,26 @@ class StudyAdmin(admin.ModelAdmin):
             previous = models.Study.objects.get(pk=obj.pk).owner
             with transaction.atomic():
                 super().save_model(request, obj, form, change)
-                models.Membership.objects.filter(study=obj, user=previous, role=Role.OWNER).update(role=Role.EDITOR)
-                models.Membership.objects.update_or_create(study=obj, user=obj.owner, defaults={"role": Role.OWNER})
-                _audit(request, obj, "admin.transfer", obj.owner.username, previous=previous.username,
-                       owner=obj.owner.username)
-            self.message_user(request, f"Étude transférée à {obj.owner.username} ; {previous.username} en reste "
-                                       "éditeur (retirez son accès plus bas si besoin).", messages.SUCCESS)
+                models.Membership.objects.filter(study=obj, user=previous, role=Role.OWNER).update(
+                    role=Role.EDITOR
+                )
+                models.Membership.objects.update_or_create(
+                    study=obj, user=obj.owner, defaults={"role": Role.OWNER}
+                )
+                _audit(
+                    request,
+                    obj,
+                    "admin.transfer",
+                    obj.owner.username,
+                    previous=previous.username,
+                    owner=obj.owner.username,
+                )
+            self.message_user(
+                request,
+                f"Étude transférée à {obj.owner.username} ; {previous.username} en reste "
+                "éditeur (retirez son accès plus bas si besoin).",
+                messages.SUCCESS,
+            )
             return
         if "title" in form.changed_data:
             _audit(request, obj, "study.update", obj.title, fields=["title"])
@@ -283,10 +375,21 @@ class StudyAdmin(admin.ModelAdmin):
                 if member.pk:
                     _audit(request, study, "share.revoke", member.user.username)
             elif member.pk is None:
-                _audit(request, study, "share.grant", inline_form.cleaned_data["user"].username,
-                       role=inline_form.cleaned_data["role"])
+                _audit(
+                    request,
+                    study,
+                    "share.grant",
+                    inline_form.cleaned_data["user"].username,
+                    role=inline_form.cleaned_data["role"],
+                )
             elif "role" in inline_form.changed_data:
-                _audit(request, study, "share.change", member.user.username, role=inline_form.cleaned_data["role"])
+                _audit(
+                    request,
+                    study,
+                    "share.change",
+                    member.user.username,
+                    role=inline_form.cleaned_data["role"],
+                )
         super().save_formset(request, form, formset, change)
 
     @admin.action(description="Archiver les études choisies")
@@ -306,6 +409,7 @@ class StudyAdmin(admin.ModelAdmin):
 
 # ----- Jetons -----
 
+
 class TokenStateFilter(admin.SimpleListFilter):
     title = "état"
     parameter_name = "etat"
@@ -316,7 +420,9 @@ class TokenStateFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         now = timezone.now()
         if self.value() == "active":
-            return queryset.filter(revoked_at__isnull=True).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+            return queryset.filter(revoked_at__isnull=True).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+            )
         if self.value() == "revoked":
             return queryset.filter(revoked_at__isnull=False)
         if self.value() == "expired":
@@ -326,7 +432,16 @@ class TokenStateFilter(admin.SimpleListFilter):
 
 @admin.register(models.ApiToken)
 class ApiTokenAdmin(ReadOnlyAdmin):
-    list_display = ("name", "token_display", "user", "scopes", "state", "last_used_at", "expires_at", "created_at")
+    list_display = (
+        "name",
+        "token_display",
+        "user",
+        "scopes",
+        "state",
+        "last_used_at",
+        "expires_at",
+        "created_at",
+    )
     list_filter = (TokenStateFilter,)
     search_fields = ("name", "token_id", "user__username")
     list_select_related = ("user",)
@@ -349,11 +464,15 @@ class ApiTokenAdmin(ReadOnlyAdmin):
             token.save(update_fields=["revoked_at"])
             _audit(request, None, "token.revoke", token.name, token=token.display, owner=token.user.username)
             n += 1
-        self.message_user(request, f"{n} jeton(s) révoqué(s). Les IA qui les utilisaient reçoivent désormais 401.",
-                          messages.SUCCESS)
+        self.message_user(
+            request,
+            f"{n} jeton(s) révoqué(s). Les IA qui les utilisaient reçoivent désormais 401.",
+            messages.SUCCESS,
+        )
 
 
 # ----- Signalements -----
+
 
 @admin.register(models.BrickRequest)
 class BrickRequestAdmin(admin.ModelAdmin):
@@ -371,8 +490,16 @@ class BrickRequestAdmin(admin.ModelAdmin):
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name == "status":
             from django import forms
-            return forms.ChoiceField(choices=[("open", "À traiter"), ("planned", "Prévu"), ("done", "Fait"),
-                                              ("declined", "Écarté")], label="état")
+
+            return forms.ChoiceField(
+                choices=[
+                    ("open", "À traiter"),
+                    ("planned", "Prévu"),
+                    ("done", "Fait"),
+                    ("declined", "Écarté"),
+                ],
+                label="état",
+            )
         return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     @admin.display(description="étude")
@@ -382,9 +509,18 @@ class BrickRequestAdmin(admin.ModelAdmin):
 
 # ----- Consultation seule -----
 
+
 @admin.register(models.AuditEvent)
 class AuditEventAdmin(ReadOnlyAdmin):
-    list_display = ("created_at", "who", "actor_kind_label", "channel", "action_label", "target", "study_link")
+    list_display = (
+        "created_at",
+        "who",
+        "actor_kind_label",
+        "channel",
+        "action_label",
+        "target",
+        "study_link",
+    )
     list_filter = ("channel", "action", ("study", admin.EmptyFieldListFilter))
     search_fields = ("action", "target", "actor_user__username", "study__title", "study__public_id")
     list_select_related = ("actor_user", "actor_token", "study")
@@ -393,6 +529,7 @@ class AuditEventAdmin(ReadOnlyAdmin):
     @admin.display(description="action", ordering="action")
     def action_label(self, obj):
         from .views import ACTION_LABELS
+
         return ACTION_LABELS.get(obj.action, obj.action)
 
     @admin.display(description="qui", ordering="actor_user__username")
@@ -485,19 +622,48 @@ def _dashboard(request, extra_context=None):
     now = timezone.now()
     week = now - timedelta(days=7)
     tokens_active = models.ApiToken.objects.filter(revoked_at__isnull=True).filter(
-        Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        Q(expires_at__isnull=True) | Q(expires_at__gt=now)
+    )
     figures = [
-        ("Comptes actifs", User.objects.filter(is_active=True).count(), "admin:auth_user_changelist", "is_active__exact=1"),
-        ("Connectés cette semaine", User.objects.filter(last_login__gte=week).count(), "admin:auth_user_changelist", ""),
-        ("Études en cours", models.Study.objects.filter(archived_at__isnull=True).count(), "admin:core_study_changelist", "etat=active"),
+        (
+            "Comptes actifs",
+            User.objects.filter(is_active=True).count(),
+            "admin:auth_user_changelist",
+            "is_active__exact=1",
+        ),
+        (
+            "Connectés cette semaine",
+            User.objects.filter(last_login__gte=week).count(),
+            "admin:auth_user_changelist",
+            "",
+        ),
+        (
+            "Études en cours",
+            models.Study.objects.filter(archived_at__isnull=True).count(),
+            "admin:core_study_changelist",
+            "etat=active",
+        ),
         ("Jetons actifs", tokens_active.count(), "admin:core_apitoken_changelist", "etat=active"),
-        ("Signalements à traiter", models.BrickRequest.objects.filter(status="open").count(), "admin:core_brickrequest_changelist", "status=open"),
-        ("Événements, 7 jours", AuditEvent.objects.filter(created_at__gte=week).count(), "admin:core_auditevent_changelist", ""),
+        (
+            "Signalements à traiter",
+            models.BrickRequest.objects.filter(status="open").count(),
+            "admin:core_brickrequest_changelist",
+            "status=open",
+        ),
+        (
+            "Événements, 7 jours",
+            AuditEvent.objects.filter(created_at__gte=week).count(),
+            "admin:core_auditevent_changelist",
+            "",
+        ),
     ]
-    context = {"demetra_figures": [{"label": label, "value": value,
-                                    "url": reverse(name) + (f"?{query}" if query else "")}
-                                   for label, value, name, query in figures],
-               **(extra_context or {})}
+    context = {
+        "demetra_figures": [
+            {"label": label, "value": value, "url": reverse(name) + (f"?{query}" if query else "")}
+            for label, value, name, query in figures
+        ],
+        **(extra_context or {}),
+    }
     return _index(request, context)
 
 

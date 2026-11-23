@@ -43,6 +43,7 @@ class SSOError(Exception):
 
 # ----- Échanges HTTP (remplacés dans les tests) -----
 
+
 def _ssl_context(conf) -> ssl.SSLContext:
     return ssl.create_default_context(cafile=conf.get("ca_bundle"))
 
@@ -55,8 +56,12 @@ def _get_json(url: str, conf) -> dict:
 
 def _post_form(url: str, data: dict, conf) -> dict:
     body = urllib.parse.urlencode(data).encode("ascii")
-    request = urllib.request.Request(url, data=body, method="POST", headers={
-        "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"})
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+    )
     try:
         with urllib.request.urlopen(request, timeout=conf["timeout"], context=_ssl_context(conf)) as response:
             return json.loads(response.read().decode("utf-8"))
@@ -78,6 +83,7 @@ def discovery(conf) -> dict:
 
 # ----- Jeton d'identité -----
 
+
 def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
@@ -91,9 +97,15 @@ def verify_id_token(token: str, conf, meta: dict, nonce: str) -> dict:
             raise SSOError("La clé de signature du jeton est inconnue.")
         algorithms = meta.get("id_token_signing_alg_values_supported") or ["RS256"]
         algorithms = [a for a in algorithms if a != "none"]
-        claims = jwt.decode(token, candidates[0], algorithms=algorithms, audience=conf["client_id"],
-                            issuer=meta.get("issuer", conf["issuer"]), leeway=60,
-                            options={"require": ["exp", "iat", "sub", "iss", "aud"]})
+        claims = jwt.decode(
+            token,
+            candidates[0],
+            algorithms=algorithms,
+            audience=conf["client_id"],
+            issuer=meta.get("issuer", conf["issuer"]),
+            leeway=60,
+            options={"require": ["exp", "iat", "sub", "iss", "aud"]},
+        )
     except jwt.PyJWTError as exc:
         raise SSOError("Le jeton d'identité n'est pas valide.") from exc
     if claims.get("nonce") != nonce:
@@ -102,6 +114,7 @@ def verify_id_token(token: str, conf, meta: dict, nonce: str) -> dict:
 
 
 # ----- Compte local -----
+
 
 def _username_from(claims, conf) -> str:
     raw = str(claims.get(conf["username_claim"]) or claims.get("email") or claims["sub"])
@@ -115,7 +128,8 @@ def _username_from(claims, conf) -> str:
 
 
 def user_for(claims: dict, conf) -> object:
-    """Retrouve ou crée le compte lié à l'identité ; applique les groupes d'administration s'ils sont réglés."""
+    """Retrouve ou crée le compte lié à l'identité ; applique les groupes d'administration s'ils sont
+    réglés."""
     User = get_user_model()
     issuer, subject = claims["iss"], str(claims["sub"])
     email = str(claims.get("email") or "").strip()
@@ -124,7 +138,9 @@ def user_for(claims: dict, conf) -> object:
         if domain not in conf["allowed_domains"]:
             raise SSOError("Ce compte n'appartient pas à un domaine autorisé.")
     with transaction.atomic():
-        identity = ExternalIdentity.objects.select_related("user").filter(issuer=issuer, subject=subject).first()
+        identity = (
+            ExternalIdentity.objects.select_related("user").filter(issuer=issuer, subject=subject).first()
+        )
         if identity:
             user = identity.user
         else:
@@ -133,11 +149,16 @@ def user_for(claims: dict, conf) -> object:
                 user = User.objects.filter(email__iexact=email).order_by("id").first()
             if user is None:
                 if not conf["create_users"]:
-                    raise SSOError("Aucun compte Demetra n'est ouvert pour cette identité. Demandez-le à "
-                                   "l'administrateur du site.")
-                user = User(username=_username_from(claims, conf), email=email,
-                            first_name=str(claims.get("given_name") or "")[:150],
-                            last_name=str(claims.get("family_name") or "")[:150])
+                    raise SSOError(
+                        "Aucun compte Demetra n'est ouvert pour cette identité. Demandez-le à "
+                        "l'administrateur du site."
+                    )
+                user = User(
+                    username=_username_from(claims, conf),
+                    email=email,
+                    first_name=str(claims.get("given_name") or "")[:150],
+                    last_name=str(claims.get("family_name") or "")[:150],
+                )
                 user.set_unusable_password()
                 user.save()
             identity = ExternalIdentity.objects.create(user=user, issuer=issuer, subject=subject)
@@ -157,6 +178,7 @@ def user_for(claims: dict, conf) -> object:
 
 # ----- Vues -----
 
+
 def _conf():
     return getattr(settings, "DEMETRA_OIDC", None)
 
@@ -167,12 +189,13 @@ def start(request):
     if not conf:
         return HttpResponseNotFound()
     next_url = request.GET.get("next", "")
-    if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
-                                           require_https=request.is_secure()):
+    if not url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
         next_url = ""
     try:
         meta = discovery(conf)
-    except (SSOError, OSError, ValueError):
+    except SSOError, OSError, ValueError:
         messages.error(request, "Le fournisseur d'identité ne répond pas. Réessayez dans un instant.")
         return redirect(settings.LOGIN_URL)
     state, nonce, verifier = secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(48)
@@ -206,9 +229,13 @@ def callback(request):
         if not code:
             raise SSOError("Le fournisseur d'identité n'a pas rendu de code.")
         meta = discovery(conf)
-        data = {"grant_type": "authorization_code", "code": code, "code_verifier": pending["verifier"],
-                "redirect_uri": request.build_absolute_uri(reverse("sso_callback")),
-                "client_id": conf["client_id"]}
+        data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": pending["verifier"],
+            "redirect_uri": request.build_absolute_uri(reverse("sso_callback")),
+            "client_id": conf["client_id"],
+        }
         if conf["client_secret"]:
             data["client_secret"] = conf["client_secret"]
         tokens = _post_form(meta["token_endpoint"], data, conf)
@@ -219,10 +246,17 @@ def callback(request):
     except SSOError as exc:
         messages.error(request, str(exc))
         return redirect(settings.LOGIN_URL)
-    except (OSError, ValueError, KeyError):
-        messages.error(request, "Le fournisseur d'identité ne répond pas correctement. Réessayez dans un instant.")
+    except OSError, ValueError, KeyError:
+        messages.error(
+            request, "Le fournisseur d'identité ne répond pas correctement. Réessayez dans un instant."
+        )
         return redirect(settings.LOGIN_URL)
     login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    AuditEvent.objects.create(actor_user=user, channel="web", action="login.sso", target=user.username,
-                              detail={"issuer": claims["iss"]})
+    AuditEvent.objects.create(
+        actor_user=user,
+        channel="web",
+        action="login.sso",
+        target=user.username,
+        detail={"issuer": claims["iss"]},
+    )
     return redirect(pending.get("next") or settings.LOGIN_REDIRECT_URL)

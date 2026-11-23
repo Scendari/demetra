@@ -10,7 +10,8 @@ class AccountAdapter(DefaultAccountAdapter):
         return settings.ACCOUNT_SIGNUP_OPEN and settings.DEMETRA_PASSWORD_LOGIN
 
     def authenticate(self, request, **credentials):
-        # Mot de passe coupé (tout passe par le SSO) : le formulaire de connexion ne laisse plus entrer personne.
+        # Mot de passe coupé (tout passe par le SSO) : le formulaire de connexion ne laisse plus entrer
+        # personne.
         if not settings.DEMETRA_PASSWORD_LOGIN:
             return None
         return super().authenticate(request, **credentials)

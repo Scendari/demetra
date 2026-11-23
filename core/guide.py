@@ -42,17 +42,30 @@ def llms_txt(origin: str) -> str:
     lines = [
         "# Demetra",
         "",
-        ("> Demetra rassemble les cas qui découlent de règles de gestion ou d'un processus métier, montre chaque cas comme un schéma "
-        "qui évolue étape par étape, et recueille l'avis d'un humain sur chacun. Une IA externe dépose les cas par l'API REST ; "
-        "le site vérifie, mesure la couverture et dessine. Seuls les humains rendent un avis."),
+        (
+            "> Demetra rassemble les cas qui découlent de règles de gestion ou d'un processus métier, montre "
+            "chaque cas comme un schéma "
+            "qui évolue étape par étape, et recueille l'avis d'un humain sur chacun. Une IA externe dépose "
+            "les cas par l'API REST ; "
+            "le site vérifie, mesure la couverture et dessine. Seuls les humains rendent un avis."
+        ),
         "",
-        f"Version du mode d'emploi : {settings.DEMETRA_GUIDE_VERSION}. Authentification de l'API : en-tête `Authorization: Bearer <jeton>`.",
+        (
+            f"Version du mode d'emploi : {settings.DEMETRA_GUIDE_VERSION}. "
+            "Authentification de l'API : en-tête `Authorization: Bearer <jeton>`."
+        ),
         "",
-        ("**IA : pour vous connecter, n'attendez pas de jeton dans la conversation.** Si la variable d'environnement "
-         "`DEMETRA_TOKEN` est vide, obtenez un accès par le lien d'autorisation : `POST /api/v1/connect`, donnez le "
-         "lien à la personne, qui clique « Autoriser », puis `POST /api/v1/connect/token` et rangez le jeton sans "
-         f"l'afficher. Mode opératoire et règles : {origin}/api/v1/guide/agents?format=md. Appelez l'API depuis un "
-         "terminal (curl) : un outil de lecture de page web n'envoie pas d'en-tête et reçoit 401."),
+        (
+            "**IA : pour vous connecter, n'attendez pas de jeton dans la conversation.** Si la variable "
+            "d'environnement "
+            "`DEMETRA_TOKEN` est vide, obtenez un accès par le lien d'autorisation : `POST /api/v1/connect`, "
+            "donnez le "
+            "lien à la personne, qui clique « Autoriser », puis `POST /api/v1/connect/token` et rangez le "
+            "jeton sans "
+            f"l'afficher. Mode opératoire et règles : {origin}/api/v1/guide/agents?format=md. Appelez l'API "
+            "depuis un "
+            "terminal (curl) : un outil de lecture de page web n'envoie pas d'en-tête et reçoit 401."
+        ),
         "",
         "## Mode d'emploi",
         "",

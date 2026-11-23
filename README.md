@@ -332,7 +332,7 @@ uv run ruff check .
 ```
 core/services.py     toutes les règles métier ; l'interface et l'API passent par cette seule couche
 core/api.py          API REST (Django Ninja), jetons Bearer, erreurs structurées
-core/views.py        interface (gabarits Django + JavaScript natif, sans cadre côté navigateur)
+core/views/          interface (gabarits Django + JavaScript natif, sans cadre côté navigateur), un module par domaine
 core/casemodel.py    format de cas, validation, rejeu des étapes, empreinte du déroulé
 core/extensions.py   format étendu : tranches, jeu de règles, cycles de vie, montants, champs, messages
 core/coverage.py     couverture par combinaisons de dimensions, contrôles de structure

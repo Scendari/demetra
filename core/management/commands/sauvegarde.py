@@ -25,8 +25,12 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("dossier", help="Dossier de destination (par exemple /backup).")
-        parser.add_argument("--keep-days", type=int, default=30,
-                            help="Efface les sauvegardes de plus de N jours (0 : ne rien effacer). Défaut : 30.")
+        parser.add_argument(
+            "--keep-days",
+            type=int,
+            default=30,
+            help="Efface les sauvegardes de plus de N jours (0 : ne rien effacer). Défaut : 30.",
+        )
 
     def handle(self, *args, dossier, keep_days, **options):
         db = settings.DATABASES["default"]
@@ -43,8 +47,10 @@ class Command(BaseCommand):
         final = target_dir / f"{PREFIX}{stamp}{SUFFIX}"
         partial = target_dir / f".{final.name}.partiel"
         try:
-            with closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30)) as src, \
-                    closing(sqlite3.connect(partial)) as dst:
+            with (
+                closing(sqlite3.connect(f"file:{source}?mode=ro", uri=True, timeout=30)) as src,
+                closing(sqlite3.connect(partial)) as dst,
+            ):
                 src.backup(dst, pages=1024, sleep=0.05)
             with closing(sqlite3.connect(partial)) as check:
                 result = check.execute("PRAGMA integrity_check").fetchone()[0]

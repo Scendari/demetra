@@ -43,6 +43,8 @@ line-length = 110
 extend-exclude = ["sources", "research_notes", "reports", "core/migrations"]
 
 [tool.ruff.lint]
+# E501 : la limite de 110 caractères s'applique aussi aux chaînes et commentaires que le formateur ne coupe pas.
+extend-select = ["E501"]
 # RUF012 : attributs de classe des modèles Django (Meta.ordering…) ; RUF059 : valeurs dépaquetées non lues ;
 # BLE001 : les deux « except Exception » sont voulus (aperçu image facultatif, Chromium absent).
 ignore = ["RUF012", "RUF059", "BLE001"]

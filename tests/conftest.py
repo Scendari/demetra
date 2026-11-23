@@ -1,4 +1,5 @@
 """Outils communs aux tests : comptes, jetons, client d'API, étude d'exemple."""
+
 from __future__ import annotations
 
 import json
@@ -26,20 +27,46 @@ STUDY = {
         {"key": "horaire", "label": "Horaire", "values": ["jour", "nuit", "week-end"]},
     ],
     "rules": [{"key": "R1", "title": "Badge valide", "text": "Un badge expiré n'ouvre aucune porte."}],
-    "exclusions": [{"when": {"badge": "expiré", "horaire": "week-end"}, "reason": "Les badges expirés sont désactivés le vendredi soir."}],
+    "exclusions": [
+        {
+            "when": {"badge": "expiré", "horaire": "week-end"},
+            "reason": "Les badges expirés sont désactivés le vendredi soir.",
+        }
+    ],
 }
 
 
-def make_case(key: str, badge: str = "valide", horaire: str = "jour", *, ok: bool = True, title: str | None = None, **extra) -> dict:
+def make_case(
+    key: str,
+    badge: str = "valide",
+    horaire: str = "jour",
+    *,
+    ok: bool = True,
+    title: str | None = None,
+    **extra,
+) -> dict:
     case = {
-        "key": key, "title": title or f"Badge {badge}, {horaire}", "family": "Entrées", "rules": ["R1"],
+        "key": key,
+        "title": title or f"Badge {badge}, {horaire}",
+        "family": "Entrées",
+        "rules": ["R1"],
         "dimensions": {"badge": badge, "horaire": horaire},
-        "entities": [{"id": "lecture", "label": "Lecture du badge", "type": "task"}, {"id": "porte", "label": "Ouverture", "type": "task"}],
+        "entities": [
+            {"id": "lecture", "label": "Lecture du badge", "type": "task"},
+            {"id": "porte", "label": "Ouverture", "type": "task"},
+        ],
         "links": [{"from": "lecture", "to": "porte", "type": "prerequisite"}],
         "steps": [
             {"title": "Le badge est lu", "changes": {"lecture": "EN_COURS"}},
-            {"title": "Le badge est accepté" if ok else "Le badge est refusé", "changes": {"lecture": "OK" if ok else "KO"}},
-            {"title": "La porte s'ouvre" if ok else "La porte reste fermée", "changes": {"porte": "OK" if ok else "BLOQUE"}, "global": "OK" if ok else "KO"},
+            {
+                "title": "Le badge est accepté" if ok else "Le badge est refusé",
+                "changes": {"lecture": "OK" if ok else "KO"},
+            },
+            {
+                "title": "La porte s'ouvre" if ok else "La porte reste fermée",
+                "changes": {"porte": "OK" if ok else "BLOQUE"},
+                "global": "OK" if ok else "KO",
+            },
         ],
         "outcome": {"label": "Entrée" if ok else "Refus", "status": "OK" if ok else "KO"},
     }
@@ -80,7 +107,10 @@ class Api:
 @pytest.fixture
 def users(db):
     User = get_user_model()
-    return {name: User.objects.create_user(name, f"{name}@example.org", PASSWORD) for name in ("ana", "ben", "cleo")}
+    return {
+        name: User.objects.create_user(name, f"{name}@example.org", PASSWORD)
+        for name in ("ana", "ben", "cleo")
+    }
 
 
 @pytest.fixture
@@ -88,6 +118,7 @@ def token_for(users):
     def build(name: str, scopes=None, studies=None, days=30) -> str:
         _, secret = svc.create_token(users[name], f"jeton-{name}", list(scopes or svc.SCOPES), studies, days)
         return secret
+
     return build
 
 
@@ -109,4 +140,5 @@ def web(users):
         client = Client()
         assert client.login(username=name, password=PASSWORD)
         return client
+
     return login

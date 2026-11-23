@@ -8,6 +8,7 @@ en thème clair puis sombre. Un constat est accepté s'il figure dans ACCEPTES p
 constat fait échouer le script (code 1). Les constats acceptés sont antérieurs au catalogue élargi et ont été
 acceptés le 22/11/2026 ; ils sont décrits dans le README, section « Ce qui n'a pas été vérifié ».
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,26 +22,54 @@ PORT = 9337
 
 # Écran (préfixe du libellé) → types de constat acceptés. « * » vaut pour tous les écrans.
 ACCEPTES = {
-    "*": {"codex-grid-background"},                      # fond quadrillé du schéma, choix de design
-    "onglet ": {"flat-type-hierarchy"},                   # titres des onglets d'étude : 20, 17 et 15 px
-    "onglet couverture": {"repeating-stripes-gradient"},  # hachures des combinaisons exclues : elles portent du sens
-    "revue Relances": {"em-dash-overuse", "content-hidden-at-rest"},  # textes et étapes repliées de cette étude
+    "*": {"codex-grid-background"},  # fond quadrillé du schéma, choix de design
+    "onglet ": {"flat-type-hierarchy"},  # titres des onglets d'étude : 20, 17 et 15 px
+    "onglet couverture": {
+        "repeating-stripes-gradient"
+    },  # hachures des combinaisons exclues : elles portent du sens
+    "revue Relances": {
+        "em-dash-overuse",
+        "content-hidden-at-rest",
+    },  # textes et étapes repliées de cette étude
 }
 
-PUBLICS = [("accueil", "/"), ("connexion", "/comptes/login/"), ("inscription", "/comptes/signup/"),
-           ("page introuvable", "/page-inexistante/"), ("briques", "/briques/")] + [
-    (f"mode d'emploi {t}", f"/guide/{t}/") for t in ("index", "studies", "cases", "representations", "auth", "review",
-                                                      "coverage", "sharing")]
-REVUES = ["Catalogue des runs Lancelot", "Remboursement d'une commande", "Relances d'une facture impayée",
-          "Droits d'accès aux documents", "Prix à payer d'une commande", "Validation d'une note de frais",
-          "Changement d'adresse d'un assuré", "Priorité d'un ticket de support", "Mode de livraison proposé",
-          "Validation d'un document", "Cycle de vie d'une commande en ligne", "Paiement par carte d'une commande"]
-ONGLETS = [("couverture", "couverture/"), ("partage", "partage/"), ("historique", "historique/"),
-           ("définitions", "definitions/"), ("représentation", "representation/")]
+PUBLICS = [
+    ("accueil", "/"),
+    ("connexion", "/comptes/login/"),
+    ("inscription", "/comptes/signup/"),
+    ("page introuvable", "/page-inexistante/"),
+    ("briques", "/briques/"),
+] + [
+    (f"mode d'emploi {t}", f"/guide/{t}/")
+    for t in ("index", "studies", "cases", "representations", "auth", "review", "coverage", "sharing")
+]
+REVUES = [
+    "Catalogue des runs Lancelot",
+    "Remboursement d'une commande",
+    "Relances d'une facture impayée",
+    "Droits d'accès aux documents",
+    "Prix à payer d'une commande",
+    "Validation d'une note de frais",
+    "Changement d'adresse d'un assuré",
+    "Priorité d'un ticket de support",
+    "Mode de livraison proposé",
+    "Validation d'un document",
+    "Cycle de vie d'une commande en ligne",
+    "Paiement par carte d'une commande",
+]
+ONGLETS = [
+    ("couverture", "couverture/"),
+    ("partage", "partage/"),
+    ("historique", "historique/"),
+    ("définitions", "definitions/"),
+    ("représentation", "representation/"),
+]
 
 
 def acceptes(ecran: str) -> set[str]:
-    return set().union(*(kinds for prefix, kinds in ACCEPTES.items() if prefix == "*" or ecran.startswith(prefix)))
+    return set().union(
+        *(kinds for prefix, kinds in ACCEPTES.items() if prefix == "*" or ecran.startswith(prefix))
+    )
 
 
 def main() -> int:
@@ -54,8 +83,13 @@ def main() -> int:
     def scan(page, ecran: str) -> None:
         nonlocal ecrans
         page.wait_for_load_state("networkidle")
-        out = subprocess.run([args.detecteur, "detect", "--json", "--cdp", str(PORT), "--target", host],
-                             capture_output=True, text=True, timeout=180, check=False).stdout
+        out = subprocess.run(
+            [args.detecteur, "detect", "--json", "--cdp", str(PORT), "--target", host],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        ).stdout
         try:
             items = json.loads(out)
         except ValueError:
@@ -63,19 +97,26 @@ def main() -> int:
         ecrans += 1
         for item in items:
             if item["antipattern"] not in acceptes(ecran):
-                ecarts.append(f"{ecran} : {item['antipattern']} — {item.get('selector', '')} — {item.get('snippet', '')}")
+                ecarts.append(
+                    f"{ecran} : {item['antipattern']} — {item.get('selector', '')} — "
+                    f"{item.get('snippet', '')}"
+                )
 
     with sync_playwright() as pw:
         for theme in ("light", "dark"):
             for width, height in ((1440, 900), (390, 844)):
                 browser = pw.chromium.launch(args=[f"--remote-debugging-port={PORT}"])
                 page = browser.new_page(viewport={"width": width, "height": height})
-                page.add_init_script(f"try {{ localStorage.setItem('demetra-theme', '{theme}'); }} catch (e) {{}}")
+                page.add_init_script(
+                    f"try {{ localStorage.setItem('demetra-theme', '{theme}'); }} catch (e) {{}}"
+                )
                 tag = f"[{theme}, {width} px]"
                 for ecran, url in PUBLICS:
                     page.goto(args.base + url)
                     if page.title().startswith("Page not found at"):
-                        sautes.add(f"{ecran} : page de débogage de Django (serveur lancé avec DEMETRA_DEBUG=1)")
+                        sautes.add(
+                            f"{ecran} : page de débogage de Django (serveur lancé avec DEMETRA_DEBUG=1)"
+                        )
                         continue
                     scan(page, f"{ecran} {tag}")
                 page.goto(args.base + "/comptes/login/")

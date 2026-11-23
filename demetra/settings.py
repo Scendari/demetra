@@ -14,6 +14,7 @@ DEBUG = os.environ.get("DEMETRA_DEBUG", "1") == "1"
 DEMETRA_PRODUCTION = not DEBUG
 if not DEBUG and SECRET_KEY == _DEV_SECRET:
     from django.core.exceptions import ImproperlyConfigured
+
     raise ImproperlyConfigured("DEMETRA_SECRET_KEY doit être renseignée quand DEMETRA_DEBUG=0.")
 ALLOWED_HOSTS = os.environ.get("DEMETRA_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DEMETRA_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
@@ -80,7 +81,8 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-# HTTPS (derrière un frontal), SSO OpenID Connect et annuaire LDAP : tout se règle par variables d'environnement.
+# HTTPS (derrière un frontal), SSO OpenID Connect et annuaire LDAP : tout se règle par variables
+# d'environnement.
 globals().update(https_settings(os.environ, DEBUG))
 DEMETRA_OIDC = oidc_settings(os.environ)
 _LDAP = ldap_settings(os.environ)
@@ -122,6 +124,7 @@ STATIC_ROOT = os.environ.get("DEMETRA_STATIC_ROOT", BASE_DIR / "staticfiles")
 if not Path(STATIC_ROOT).is_dir():
     # Développement et tests : pas de collectstatic, WhiteNoise n'a rien à servir et le dit.
     import warnings
+
     warnings.filterwarnings("ignore", message="No directory at")
 if os.environ.get("DEMETRA_STATIC_MANIFEST") == "1":
     STORAGES = {
