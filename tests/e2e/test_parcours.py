@@ -211,8 +211,9 @@ def test_parcours_complet(site, browser):
     page.click("button[type=submit]")
     page.wait_for_url("**/etudes/")
     expect(page.get_by_role("heading", level=1)).to_have_text("Études")
-    # Le catalogue, trois exemples (décision, temps, cas paramétrés), un exemple par représentation élargie.
-    expect(page.locator("a.row-link")).to_have_count(14)
+    # Le catalogue, cinq exemples (décision, temps, cas paramétrés, deux ateliers), un exemple par
+    # représentation élargie.
+    expect(page.locator("a.row-link")).to_have_count(15)
     shot(page, "03-etudes", full_page=True)
 
     # ---- Revue d'un cas, au clavier
@@ -957,7 +958,6 @@ def test_atelier_periodes(site, browser):
     expect(rows).to_have_count(1)
     page.select_option('select[name="r.sans_remise"]', "gardés")
     expect(rows).to_have_count(3)
-    shot(page, "45-atelier-periodes", full_page=True)
     query = page.url.split("?", 1)[1]
     assert query == "e=A%3Acontrat&e=B%3Aremise&e=C%3Abareme&de.A=1&a.A=6&de.B=2&a.B=3&de.C=1&a.C=3"
     page.fill('input[name="a.C"]', "")
@@ -995,5 +995,57 @@ def test_atelier_periodes(site, browser):
     page.get_by_role("button", name="Enregistrer comme cas").click()
     expect(page).to_have_url(re.compile(r"cas=atelier-1"))
     expect(page.locator(".cp-title, [data-panel] h2").first).to_contain_text("Remise d'un mois")
+    assert not problems, problems
+    context.close()
+
+
+def watched(page) -> list[str]:
+    """Les erreurs de script et de console d'une page, relevées au fil du test."""
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    return problems
+
+
+def test_atelier_etude_de_periodes_semee(site, browser):
+    """L'étude de démonstration qui déclare un atelier de périodes : on y arrive par la liste des études, la
+    page part vide, et une situation à trois sources donne l'historique attendu, avec des jours sans
+    responsable gardés puis retirés."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Responsable d'un magasin au fil du temps").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    expect(page.locator(".at-empty h2")).to_have_text("Composer l'historique d'un magasin")
+    expect(page.locator(".at-add")).to_have_text(["Magasin", "Nomination", "Fiche d'agent"])
+    expect(page.locator(".at-rules li")).to_have_count(7)
+
+    # Un magasin, deux nominations séparées par deux jours, les fiches des deux agents.
+    base = page.url.split("?")[0]
+    page.goto(
+        base + "?e=A%3Amagasin&e=B%3Anomination&e=C%3Anomination&e=D%3Aagent&e=E%3Aagent"
+        "&de.A=1&a.A=7&de.B=1&a.B=3&de.C=5&a.C=7&o.C.agent=A2&de.D=1&a.D=7"
+        "&de.E=1&a.E=7&o.E.matricule=A2&o.E.nom=Bruno"
+    )
+    rows = page.locator(".at-history tbody tr")
+    expect(rows).to_have_count(3)
+    cells = [rows.nth(n).locator("td").all_inner_texts()[:4] for n in range(3)]
+    assert cells == [
+        ["1", "3", "Halle du Port", "Alice"],
+        ["3", "5", "Halle du Port", "vide"],
+        ["5", "7", "Halle du Port", "Bruno"],
+    ]
+    expect(page.locator("[data-result]")).to_contain_text("avec des jours sans responsable")
+    expect(page.locator(".at-plan .rep-timeline")).to_be_visible()
+    shot(page, "45-atelier-periodes", full_page=True)
+
+    page.select_option('select[name="r.sans_responsable"]', "retirés")
+    expect(rows).to_have_count(2)
+    expect(page.locator("[data-result]")).to_have_text(re.compile(r"^Historique publié"))
     assert not problems, problems
     context.close()

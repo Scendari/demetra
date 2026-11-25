@@ -20,7 +20,7 @@ Vue d'ensemble, limites connues, licences : `README.md`. Mise en production : `D
 ```bash
 uv sync                                   # dépendances (ajouter --extra ldap pour l'annuaire LDAP)
 uv run python manage.py migrate           # base SQLite locale + représentations système
-uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 14 études
+uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 15 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
 uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium :
@@ -58,7 +58,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `sante.py` | Sonde `/sante/`, traitée avant la vérification d'hôte | |
 | `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule | Le contenu des études n'y est pas modifiable |
 | `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown |
-| `demo/` | Données des 14 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
+| `demo/` | Données des 15 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 
@@ -122,6 +122,8 @@ URLs. `scripts/` : outils hors application (empreinte de rendu, détecteur de de
   étude de démonstration, et que les exemples du chapitre `atelier` du guide donnent ce qu'il annonce.
   `test_periodes.py` : la famille « périodes » sur une étude d'essai sans rapport avec les démonstrations
   (déclaration, moteur, adresse, API, écran, exemple du guide).
+  `test_demo_magasin.py` : l'étude de démonstration qui déclare un atelier de périodes ; onze situations aux
+  lignes attendues écrites à la main, le semis, et rien de cette étude dans `core/` hors `core/demo/`.
   `test_parametrique.py`, `test_modele.py` : cas paramétrés, accord avec le jeu de règles.
 - `test_contrast.py` : contrastes des deux thèmes. `test_licences.py` : licences et absence de bibliothèque de
   disposition. `test_admin.py`, `test_entreprise.py`, `test_connect.py`, `test_exploitation.py` : administration,

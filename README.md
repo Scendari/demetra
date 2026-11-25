@@ -18,7 +18,7 @@ Prérequis : [uv](https://docs.astral.sh/uv/) (il installe Python 3.14 si besoin
 ```bash
 uv sync                                  # installe les dépendances
 uv run python manage.py migrate          # crée la base SQLite et les 16 représentations système
-uv run python manage.py seed_demo        # crée les comptes et les 14 études de démonstration
+uv run python manage.py seed_demo        # crée les comptes et les 15 études de démonstration
 uv run python manage.py runserver        # http://127.0.0.1:8000
 ```
 
@@ -163,8 +163,9 @@ catalogue élargi (règles logicielles et processus métier). Chacune porte la r
 | Paiement par carte d'une commande | Diagramme de séquence | 4 acteurs, 3 cas dont un message perdu |
 | Renouvellement d'un abonnement | Table de trace (conseillée) | 3 cas dont 2 paramétrés, soit 7 situations |
 | Circuit de validation d'un document | Graphe en couches (conseillée) | 4 cas, et des règles d'atelier : 3 briques, 8 règles |
+| Responsable d'un magasin au fil du temps | Frise temporelle | 8 cas, et un atelier de périodes : 3 sources, 1 réglage |
 
-`uv run python manage.py seed_demo` crée ou met à jour ces quatorze études ; la rejouer ne crée ni doublon ni
+`uv run python manage.py seed_demo` crée ou met à jour ces quinze études ; la rejouer ne crée ni doublon ni
 révision de cas.
 
 Le catalogue est importé depuis `core/demo/catalogue_lancelot.json`, copie fidèle des données de
@@ -227,7 +228,7 @@ Tout l'état tient dans l'adresse : une situation se partage par son lien, et la
 résultat dit toujours qu'il vient des règles déclarées, et que rien ne prouve que le système réel se comporte
 ainsi.
 
-- **Deux études de démonstration ont leur atelier.** « Catalogue des runs Lancelot » déclare onze règles
+- **Deux études de démonstration ont un atelier d'éléments reliés.** « Catalogue des runs Lancelot » déclare onze règles
   d'ordonnancement des Tasks (options `active`, `always_run`, `ignore_on_error`, réglage `stop_on_error`) ; elles
   redonnent à l'identique les états finaux et l'issue de 35 scénarios du catalogue (test
   `test_the_catalogue_rules_replay_its_task_scenarios`). « Circuit de validation d'un document » déclare d'autres
@@ -270,11 +271,15 @@ frise n'offre pas les gestes à la souris du schéma en graphe.
 - **Généricité.** Le moteur (`core/periods.py`) ne nomme aucune étude ; ses tests portent sur une étude d'essai
   sans rapport (le tarif d'un contrat). Les deux familles offrent la même interface (`core/families.py`) :
   l'écran, l'API et les services ne connaissent qu'elle.
-- **Aucune étude de démonstration ne déclare cette famille pour l'instant.** Elle a été mise au point sur une
-  étude d'historisation déposée par l'API dans une base locale : onze situations de son catalogue (trois
-  sources, jointure gardée ou non, fusion, borne de minuit, image de fin de journée, champs surveillés,
-  périodes invalides, priorité entre deux liens) y redonnent les périodes cibles annoncées par les cas. Cette
-  comparaison a été faite à la main, par l'API ; elle n'est pas un test du dépôt.
+- **Une étude de démonstration la déclare.** « Responsable d'un magasin au fil du temps » (données fictives,
+  `core/demo/magasin.py`) combine trois sources : le magasin, la nomination qui le rattache à un agent, la fiche
+  de cet agent. Un réglage garde ou retire les jours sans responsable. Ses huit cas sont ceux que l'atelier
+  enregistre pour quatre situations sous chaque réglage.
+- **Onze situations sont des tests du dépôt** (`tests/test_demo_magasin.py`) : source rattachée gardée ou non,
+  fusion, fin exclue, image de fin de jour, champ non restitué, périodes invalides (durée nulle, bornes
+  inversées, borne absente), priorité entre deux nominations (début le plus récent, même début). Elles ont
+  d'abord été vérifiées à la main sur une étude réelle de même mécanique, restée hors du dépôt ; les lignes
+  attendues sont écrites à la main.
 - **Hors de la famille** : un traitement incrémental (reprise, correction rétroactive, relance), une publication
   en plusieurs temps, un calcul sur les valeurs.
 
@@ -426,7 +431,7 @@ uv run ruff check .
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
   la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `45` : l'onglet « Atelier » (page vide,
   situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
-  de périodes sur l'étude d'essai des tests).
+  de périodes de l'étude « Responsable d'un magasin au fil du temps »).
 
 ## Architecture en bref
 
