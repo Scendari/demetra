@@ -779,8 +779,18 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .atelier { display: grid; gap: var(--s-4); }
 .at-grid { display: grid; grid-template-columns: minmax(0, 23rem) minmax(0, 1fr); gap: var(--s-6); align-items: start; }
 .at-build { display: grid; gap: var(--s-4); align-content: start; position: sticky; top: var(--s-4); max-height: calc(100vh - 2 * var(--s-4)); padding-right: var(--s-2); overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-.at-build-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
-.at-build-head h2 { font-size: var(--t-md); }
+.at-build-head { display: flex; align-items: center; gap: var(--s-3); }
+.at-build-head h2 { margin-right: auto; font-size: var(--t-md); }
+/* Le panneau se replie en une fine bande : le résultat, la frise et les exécutions prennent toute la largeur.
+   Le choix vit dans le navigateur (comme la liste des cas masquée) ; une page vide garde toujours son panneau. */
+.at-dock, .at-undock { display: none; }
+@media (min-width: 901px) {
+  .js .at-dock { display: inline-grid; margin: -0.3rem -0.3rem -0.3rem 0; }
+  .js[data-build-folded] .at-grid:has(.at-card) { grid-template-columns: 2.25rem minmax(0, 1fr); gap: var(--s-4); }
+  .js[data-build-folded] .at-grid:has(.at-card) > .at-build { padding-right: 0; overflow: visible; }
+  .js[data-build-folded] .at-grid:has(.at-card) > .at-build > :not(.at-undock) { display: none; }
+  .js[data-build-folded] .at-grid:has(.at-card) > .at-build > .at-undock { display: inline-grid; }
+}
 .at-build-head .link { font-size: var(--t-sm); }
 /* Cibles d'au moins 24 px : les liens et les titres dépliables de l'écran, sans changer le rythme des lignes. */
 .at-build-head .link, .at-runs-jump .link, .at-plan .cp-rep-head .link { display: inline-block; padding-block: 0.2rem; }
@@ -946,6 +956,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-pop { position: absolute; z-index: 5; display: grid; gap: var(--s-1); max-width: min(24rem, 100%); padding: var(--s-2); border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--raised); box-shadow: var(--shadow-float); }
 .at-pop .btn { justify-content: flex-start; font-size: var(--t-sm); text-align: left; white-space: normal; }
 .at-card.is-shown { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* La brique (ou la période) choisie porte dans le schéma le même cerne que sa fiche : l'anneau plein de l'entité
+   désignée, là où « ce qui change à cette étape » est en pointillé. Quand les deux s'appliquent, il l'emporte. */
+.at-plan .n.is-chosen .n-halo, .at-plan .tm-highlight .n.is-chosen .n-halo, .at-plan .tl-bar.is-chosen .n-halo { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
 @media (hover: hover) and (pointer: fine) {
   .atelier.is-live .at-drop { display: grid; place-items: center; min-height: 9rem; margin-top: var(--s-3); padding: var(--s-4); border: 1px dashed var(--line-strong); border-radius: var(--radius); color: var(--ink-3); font-size: var(--t-sm); text-align: center; }
   .atelier.is-live .at-drop.is-over { outline: none; border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }

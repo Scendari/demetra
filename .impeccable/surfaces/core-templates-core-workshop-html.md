@@ -22,7 +22,7 @@ OWN-WORLD : celui de DESIGN.md. Palette de boutons « + brique », fiches cerné
 
 STORY : « je pose trois tâches, je les relie, j'en fais échouer une, et je vois ce que les règles de l'étude en font ».
 
-FIRST VIEWPORT : à gauche (23rem, collante), « Construire la situation » : palette, réglages, briques posées. À droite : « Résultat », le compte des briques par état final, la phrase sur l'origine, puis le schéma (plan de travail) et le déroulé. Page vide : le titre de l'atelier, une phrase, les règles de l'étude. Sous 900 px, la construction passe au-dessus, avec un lien « Voir le résultat ».
+FIRST VIEWPORT : à gauche (23rem, collante, repliable en une bande de 2.25rem au-dessus de 900 px), « Construire la situation » : palette, réglages, briques posées ; la brique choisie est cernée dans sa fiche et cerclée dans le schéma. À droite : « Résultat », le compte des briques par état final, la phrase sur l'origine, puis le schéma (plan de travail) et le déroulé. Page vide : le titre de l'atelier, une phrase, les règles de l'étude. Sous 900 px, la construction passe au-dessus, avec un lien « Voir le résultat ».
 
 FORM : construction à gauche, réponse à droite. seed: none (pinned) — voir la demande ci-dessus.
 

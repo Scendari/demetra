@@ -16,6 +16,7 @@
   const DOCKS = {
     rail: ["railMini", "demetra-rail"], list: ["listHidden", "demetra-list"],
     facts: ["foldFacts", "demetra-fold-facts"], legend: ["foldLegend", "demetra-fold-legend"],
+    build: ["buildFolded", "demetra-build"],   // le panneau « Construire la situation » de l'atelier
   };
   const docked = (name) => DOCKS[name][0] in root.dataset;
   function syncDock() {
@@ -44,7 +45,7 @@
       const name = dock.dataset.dock;
       setDock(name, !docked(name));
       // Le bouton qui vient d'être masqué rend la main à son pendant, pour ne pas perdre le focus clavier.
-      if (name === "list" && event.detail === 0) { const other = $$('[data-dock="list"]').find((button) => button.offsetParent !== null); if (other) other.focus(); }
+      if ((name === "list" || name === "build") && event.detail === 0) { const other = $$('[data-dock="' + name + '"]').find((button) => button.offsetParent !== null); if (other) other.focus(); }
     }
     const toggle = event.target.closest("[data-theme-toggle]");
     if (toggle) {
@@ -289,6 +290,7 @@
       if (hint) hint.hidden = !$("[data-at-plan] .n[data-e], [data-at-plan] .tl-bar[data-p]", atelier);
       if (!historyRow(pinned)) pinned = null;
       trace(historyRow(pinned));
+      choose(chosen);
       // Sur une frise, seules les périodes posées se déplacent : une ligne de l'historique n'a pas de bornes à soi.
       $$("[data-at-plan] .tl-bar[data-p]", atelier).forEach((bar) => bar.classList.toggle("is-movable", !!boundsOf(bar.dataset.p)));
     };
@@ -453,6 +455,21 @@
       $$("." + name, atelier).forEach((old) => { if (old !== el) old.classList.remove(name); });
       if (el) el.classList.add(name);
     };
+    /* La brique (ou la période) choisie : celle dont la fiche a eu le focus en dernier, ou qu'on a cliquée dans le
+       schéma. Sa fiche et son dessin portent la même marque, et la gardent d'un résultat au suivant. */
+    let chosen = null;
+    const choose = (id) => {
+      const card = id === null ? null : $('.at-card[data-brick="' + id + '"]', atelier);
+      chosen = card ? id : null;
+      mark(card, "is-shown");
+      $$("[data-at-plan] .is-chosen", atelier).forEach((el) => el.classList.remove("is-chosen"));
+      if (!card) return;
+      $$('[data-at-plan] .n[data-e="' + id + '"], [data-at-plan] .tl-bar[data-p="' + id + '"]', atelier).forEach((el) => el.classList.add("is-chosen"));
+    };
+    atelier.addEventListener("focusin", (event) => {
+      const card = event.target.closest(".at-card");
+      if (card && card.dataset.brick !== chosen) choose(card.dataset.brick);
+    });
     const under = (event, selector) => { const el = doc.elementFromPoint(event.clientX, event.clientY); return el ? el.closest(selector) : null; };
     const inSvg = (svg, x, y) => { const point = svg.createSVGPoint(); point.x = x; point.y = y; return point.matrixTransform(svg.getScreenCTM().inverse()); };
     const closePop = () => { if (pop) pop.remove(); pop = null; mark(null, "is-picked"); };
@@ -543,9 +560,10 @@
     const showCard = (id) => {   // un clic sur une brique du schéma mène à sa fiche
       const field = doc.getElementById("at-name-" + id);
       if (!field) return;
+      if (docked("build")) setDock("build", false);   // panneau replié : demander une fiche le rouvre
       field.closest(".at-card").scrollIntoView({ block: "nearest" });
       field.focus({ preventScroll: true });
-      mark(field.closest(".at-card"), "is-shown");
+      choose(id);
     };
     const begin = () => {
       drag.live = true;

@@ -217,9 +217,16 @@ un **vocabulaire fermé** (état, option, évènement, réglage, voisins directs
 moins un / aucun, et / ou / non) : **aucun code fourni par l'étude n'est exécuté**. Le déroulé est dessiné par la
 représentation de l'étude, comme un cas ; on le suit au clavier, par les boutons, ou en le laissant défiler.
 
+**Le panneau de construction se replie.** Sur grand écran, un bouton en bout de son en-tête réduit « Construire
+la situation » à une fine bande : le résultat, le schéma et le déroulé prennent toute la largeur. Un bouton le
+rouvre, cliquer une brique du schéma aussi. Le choix est gardé par le navigateur ; une page vide garde toujours
+son panneau, et sur téléphone, où tout est en une colonne, il n'y a pas de repli.
+
 **À la souris, le schéma est le plan de travail.** On y glisse une brique de la palette ; déposée sur une
 brique, elle s'y enchaîne par le lien que l'étude permet. On tire un lien d'une brique à une autre ; on clique
-un lien pour le retirer ; on clique une brique pour aller à sa fiche. Le site place les briques lui-même : on ne
+un lien pour le retirer ; on clique une brique pour aller à sa fiche. La brique choisie se voit des deux côtés :
+sa fiche est entourée, son dessin est cerclé dans le schéma — qu'on l'ait cliquée dans le schéma ou qu'on
+travaille dans sa fiche. Le site place les briques lui-même : on ne
 les déplace pas à la main. Un lien que l'étude ne permet pas n'est pas posé, et le site dit pourquoi. Ces gestes
 sont des raccourcis : les boutons de la palette et la liste « Relier à… » de chaque fiche font la même chose au
 clavier, au doigt et sans script.

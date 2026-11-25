@@ -5,9 +5,11 @@
     <button type="submit" hidden tabindex="-1"></button>
     <input type="hidden" name="f" value="1">
     {% for name, value in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    {% if cards %}<button type="button" class="icon-btn at-undock" data-dock="build" aria-label="Rouvrir le panneau « Construire la situation »" title="Rouvrir le panneau « Construire la situation »"><svg class="ic" aria-hidden="true"><use href="#ui-dock"/></svg></button>{% endif %}
     <header class="at-build-head">
       <h2 id="at-build-title" tabindex="-1">Construire la situation</h2>
-      {% if cards %}<a class="link" href="{{ reset_url }}" data-atelier-link>Tout effacer</a>{% endif %}
+      {% if cards %}<a class="link" href="{{ reset_url }}" data-atelier-link>Tout effacer</a>
+      <button type="button" class="icon-btn at-dock" data-dock="build" aria-label="Replier le panneau « Construire la situation »" title="Replier le panneau : le résultat prend toute la largeur"><svg class="ic" aria-hidden="true"><use href="#ui-dock"/></svg></button>{% endif %}
     </header>
     {% if cards %}<a class="link at-jump" href="#at-result-title">Voir le résultat</a>{% endif %}
 

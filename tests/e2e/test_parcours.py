@@ -852,8 +852,49 @@ def test_atelier_glisser_deposer(site, browser):
     # Cliquer une brique du schéma mène à sa fiche ; un simple clic sur la palette pose une brique.
     page.locator('.n[data-e="B"]').click()
     assert page.evaluate("document.activeElement.id") == "at-name-B"
+    # La brique choisie se voit aux deux endroits : sa fiche est entourée, son dessin cerclé.
+    chosen = page.locator("[data-at-plan] .is-chosen")
+    expect(page.locator(".at-card.is-shown")).to_have_attribute("data-brick", "B")
+    expect(chosen).to_have_attribute("data-e", "B")
     task.click()
     expect(page.locator(".at-card")).to_have_count(4)
+    expect(chosen).to_have_attribute("data-e", "B")  # la marque tient d'un résultat au suivant
+    # Choisir une fiche, par l'un de ses champs, cercle sa brique dans le schéma.
+    page.locator("#at-name-C").click()
+    expect(chosen).to_have_attribute("data-e", "C")
+    expect(page.locator(".at-card.is-shown")).to_have_attribute("data-brick", "C")
+    halo = chosen.locator(".n-halo").evaluate("(el) => getComputedStyle(el).strokeWidth")
+    assert halo == "2.4px", halo
+    # Le panneau de construction se replie : le résultat prend la largeur, et le choix survit au rechargement.
+    wide = page.locator(".at-out").bounding_box()["width"]
+    page.locator(".at-dock").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".at-cards")).to_be_hidden()
+    expect(page.locator(".at-undock")).to_be_focused()  # le focus passe au bouton qui rouvre
+    assert page.locator(".at-out").bounding_box()["width"] > wide + 250
+    page.reload()
+    expect(page.locator(".at-cards")).to_be_hidden()
+    expect(page.locator(".at-undock")).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    # Demander la fiche d'une brique rouvre le panneau.
+    page.locator('.n[data-e="A"]').click()
+    expect(page.locator(".at-cards")).to_be_visible()
+    assert page.evaluate("document.activeElement.id") == "at-name-A"
+    expect(chosen).to_have_attribute("data-e", "A")
+    # Replié de nouveau : à 390 px il n'y a pas de repli, et une page vide garde son panneau.
+    page.locator(".at-dock").click()
+    expect(page.locator(".at-cards")).to_be_hidden()
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(page.locator(".at-cards")).to_be_visible()
+    expect(page.locator(".at-undock")).to_be_hidden()
+    page.set_viewport_size({"width": 1280, "height": 900})
+    built = page.url
+    page.goto(built.split("?")[0])
+    expect(page.locator(".at-drop")).to_be_visible()
+    expect(page.locator(".at-palette")).to_be_visible()
+    page.goto(built)
+    page.locator(".at-undock").click()
+    expect(page.locator(".at-cards")).to_be_visible()
     # Relâcher un lien dans le vide ne pose rien.
     _glisser(page, _centre(page.locator('.n[data-e="B"]')), (plan["x"] + 12, plan["y"] + plan["height"] - 12))
     expect(links).to_have_count(1)
@@ -1283,6 +1324,10 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     expect(page.locator('input[name="a.C"]')).to_have_value("8")
     expect(rows).to_have_count(3)
     assert writes == []
+    # Une période choisie par sa fiche est cerclée sur la frise.
+    page.locator("#at-de-C").click()
+    expect(page.locator("[data-at-plan] .tl-bar.is-chosen")).to_have_attribute("data-p", "C")
+    expect(page.locator(".at-card.is-shown")).to_have_attribute("data-brick", "C")
 
     page.select_option('select[name="r.sans_responsable"]', "retirés")
     expect(rows).to_have_count(2)
