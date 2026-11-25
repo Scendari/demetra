@@ -846,7 +846,7 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-why-btn { display: none; }
 .at-why-btn:focus-visible { outline-offset: -2px; }   /* dans un cadre qui défile : l'anneau reste entier */
 /* La place du mot du dernier geste est réservée : le tableau ne s'élargit pas quand les marques arrivent. */
-.atelier.is-live .at-history [data-delta-cell] { min-width: 10.5rem; }
+.atelier.is-live .at-history [data-delta-cell] { min-width: 8.75rem; }
 .atelier.is-live .at-why-btn { display: inline-grid; }
 .at-why-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .atelier.is-live .at-history tbody tr[data-start] { cursor: pointer; }
@@ -906,6 +906,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 /* Dans un tableau d'exécution, le mot du changement ouvre la ligne : il reste en vue quand le tableau défile. */
 .at-history .at-row-start { width: 1%; white-space: nowrap; }
 .at-history .at-row-start .at-delta { margin-right: 0; }
+/* Sur petit écran (voir plus bas), le mot passe sur sa propre ligne, au-dessus de la ligne qu'il qualifie : le
+   tableau tient alors dans la fenêtre, statut compris. Les deux écritures ne sont jamais affichées ensemble. */
+.at-history .at-run-mark { display: none; }
 .at-blocking { margin-top: var(--s-1); padding-left: 1.1em; list-style: disc; }
 .at-source { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }
 .at-source .ic { flex: none; margin-top: 0.2em; }
@@ -971,9 +974,14 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
   .at-history { min-width: 0; }
   .at-history .at-row-end { position: static; }
   .at-history th, .at-history td { padding-right: var(--s-2); }
-  /* Le tableau principal tient dans la fenêtre : sa pastille de statut passe à la ligne, en étiquette. */
-  .at-history:not(.at-history-run) .st { border-radius: var(--radius-lg); white-space: normal; }
+  /* Le tableau se resserre : sa pastille de statut passe à la ligne, en étiquette. */
+  .at-history .st { border-radius: var(--radius-lg); white-space: normal; }
   .atelier.is-live .at-history [data-delta-cell] { min-width: 0; }
+  .at-history-run .at-row-start { display: none; }
+  .at-history .at-run-mark { display: table-row; }
+  .at-history .at-run-mark > td { padding-top: var(--s-2); padding-bottom: 0; border-bottom: 0; }
+  .at-history .at-run-mark .at-delta { margin-right: 0; }
+  .at-history-run tr[data-change] > td { padding-top: 0.2rem; }
   .atelier.is-live .at-trace { min-height: 7.6em; }
   .atelier.is-live .at-delta-note { min-height: 3em; }
   .tick { min-height: 2.75rem; }

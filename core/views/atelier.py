@@ -338,7 +338,8 @@ def _runs(study: Study, extra: dict, sit: dict) -> list[dict]:
     names = {e["id"]: e["label"] for e in sit["elements"]}
     out = []
     for entry in runs:
-        said = entry["text"].partition(" : ")[2]
+        # À l'écran, le deux-points ne part jamais seul en début de ligne (espace insécable).
+        said = entry["text"].partition(" : ")[2].replace(" : ", "\u00a0: ")
         out.append(
             {
                 "n": entry["run"],

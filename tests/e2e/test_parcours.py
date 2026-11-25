@@ -1097,7 +1097,8 @@ def test_atelier_executions_successives(site, browser):
     expect(runs.nth(1).locator(".at-run-known")).to_have_text(
         "Connues depuis cette exécution : Nomination C, Fiche d'agent E."
     )
-    expect(runs.nth(1).locator(".at-delta")).to_have_text(["inchangée", "fermée", "ajoutée"])
+    words = "tr[data-change] .at-delta"  # le mot en tête de ligne ; sur petit écran, il a sa propre ligne
+    expect(runs.nth(1).locator(words)).to_have_text(["inchangée", "fermée", "ajoutée"])
     expect(runs.nth(1).locator('tr[data-change="closed"] .at-delta')).to_have_attribute(
         "title", "Avant : du 3 au 7 · Halle du Port · vide · Publiée sans responsable"
     )
@@ -1108,7 +1109,7 @@ def test_atelier_executions_successives(site, browser):
         "1 ligne modifiée, 1 ligne inchangée et 1 ligne retirée ; "
         "à l'écriture : 2 lignes supprimées et 1 ligne écrite."
     )
-    expect(runs.nth(2).locator(".at-delta")).to_have_text(["modifiée", "inchangée", "retirée"])
+    expect(runs.nth(2).locator(words)).to_have_text(["modifiée", "inchangée", "retirée"])
     expect(runs.nth(2).locator("del")).to_have_text(
         "du 3 au 5 · Halle du Port · vide · Publiée sans responsable"
     )
@@ -1120,6 +1121,15 @@ def test_atelier_executions_successives(site, browser):
     assert page.url.endswith("&x=3") and "c.C=2" in page.url and "j.B=2" in page.url
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     shot(page, "49-atelier-executions", full_page=True)
+    # Sur un téléphone, le mot passe au-dessus de sa ligne : chaque tableau tient dans la fenêtre.
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(runs.nth(2).locator(".at-run-mark .at-delta")).to_have_text(["modifiée", "inchangée", "retirée"])
+    expect(runs.nth(2).locator(words).first).to_be_hidden()
+    assert page.evaluate(
+        "[...document.querySelectorAll('.at-run .at-history-wrap')]"
+        ".every(e => e.scrollWidth <= e.clientWidth)"
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     assert not problems, problems
     context.close()
 
