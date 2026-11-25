@@ -473,6 +473,33 @@ def test_a_read_only_token_runs_the_workshop(atelier, token_for):
     assert status == 200 and data["final"] == {"A": "OK"}
 
 
+def test_a_read_only_token_validates_a_declaration_and_writes_nothing(atelier, token_for):
+    """Valider ne demande que de lire l'étude : la déclaration proposée est vérifiée, ses règles rendues, et
+    celle de l'étude reste en place."""
+    reader = Api(token_for("ana", scopes=["studies:read"]))
+    before = svc.Study.objects.get(public_id=atelier)
+    proposed = json.loads(json.dumps(WORKSHOP))
+    proposed["title"] = "Une autre déclaration"
+    del proposed["rules"][-1]
+    status, data = reader.post(f"/studies/{atelier}/workshop/validate", {"workshop": proposed})
+    assert status == 200 and data["valid"] and data["declared"] and data["written"] is False
+    assert data["family"] == "linked" and data["workshop"]["title"] == "Une autre déclaration"
+    # Pour cette famille, les règles rendues sont la table déclarée, normalisée.
+    assert [r["key"] for r in data["rules"]] == [r["key"] for r in WORKSHOP["rules"][:-1]]
+    after = svc.Study.objects.get(public_id=atelier)
+    assert after.workshop == before.workshop and after.workshop["title"] != "Une autre déclaration"
+    assert (after.revision, after.updated_at) == (before.revision, before.updated_at)
+    assert data["study_revision"] == before.revision
+    # Une règle qui nomme un statut que l'étude n'a pas : l'erreur est rendue, pas levée.
+    proposed["rules"][0]["then"] = "INCONNU"
+    status, data = reader.post(f"/studies/{atelier}/workshop/validate", {"workshop": proposed})
+    assert status == 200 and data["valid"] is False and data["workshop"] is None
+    assert data["errors"][0]["path"].startswith("workshop.rules[0]")
+    # Sans accès à l'étude, elle est introuvable, comme partout.
+    status, data = Api(token_for("ben")).post(f"/studies/{atelier}/workshop/validate", {"workshop": {}})
+    assert status == 404
+
+
 def test_a_study_without_rules_has_no_workshop(api, study, web):
     api.post(f"/studies/{study}/cases/batch", {"cases": [make_case("a")]})
     status, data = api.get(f"/studies/{study}/workshop")

@@ -240,8 +240,9 @@ ainsi.
 - **De l'atelier à la revue.** Un humain peut enregistrer la situation construite comme un cas : il arrive « à
   analyser », dans la famille « Atelier ». Une IA ne peut pas le faire à sa place, et une situation de l'atelier
   ne reçoit jamais d'avis.
-- **API.** `GET …/workshop` (ce que l'étude déclare) et `POST …/workshop/run` (dérouler une situation, lecture
-  seule) ; le champ `workshop` de l'étude porte la déclaration ; chapitre `atelier` du mode d'emploi.
+- **API.** `GET …/workshop` (ce que l'étude déclare), `POST …/workshop/validate` (vérifier une déclaration
+  sans rien écrire, et lire les règles que le site en tirerait) et `POST …/workshop/run` (dérouler une
+  situation, lecture seule) ; le champ `workshop` de l'étude porte la déclaration ; chapitre `atelier` du mode d'emploi.
 
 Ce que le vocabulaire ne dit pas reste hors de l'atelier : un calcul de montants, un délai, une relance, une
 limite au nombre de briques actives en même temps, l'action d'une brique sur une autre. Pour l'étude Lancelot,

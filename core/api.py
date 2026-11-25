@@ -240,6 +240,18 @@ class WorkshopRunIn(Schema):
     )
 
 
+class WorkshopValidateIn(Schema):
+    workshop: dict = Field(
+        ...,
+        description="La déclaration d'atelier à vérifier, telle qu'on la passerait à PATCH /studies/{id}.",
+    )
+    statuses: list | None = Field(
+        None,
+        description="Les statuts à supposer, si on compte les changer du même coup ; par défaut, ceux de "
+        "l'étude.",
+    )
+
+
 class BrickRequestIn(Schema):
     title: str
     need: str
@@ -757,6 +769,17 @@ def worklist(request, sid: str):
 def workshop_read(request, sid: str):
     study = svc.get_study(actor_of(request), sid)
     return svc.workshop_out(study)
+
+
+@api.post(
+    "/studies/{sid}/workshop/validate",
+    tags=["Atelier"],
+    summary="Vérifier une déclaration d'atelier sans rien écrire, et lire les règles que le site en tirerait",
+)
+def workshop_validate(request, sid: str, payload: WorkshopValidateIn):
+    """Lecture seule : l'étude n'est pas modifiée, sa révision ne bouge pas, rien n'est journalisé."""
+    study = svc.get_study(actor_of(request), sid)
+    return svc.workshop_validate_out(study, payload.workshop, payload.statuses)
 
 
 @api.post(

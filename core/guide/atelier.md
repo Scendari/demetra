@@ -120,6 +120,46 @@ L'ordre des règles fait donc la priorité : placez les règles d'arrêt (blocag
 
 Sans déclaration : `declared: false`, `family: null`, `workshop: null`, et `hint` dit comment en déclarer une. Le champ `workshop` figure aussi dans `GET /api/v1/studies/{id}`.
 
+## Valider une déclaration sans rien écrire
+
+`POST /api/v1/studies/{id}/workshop/validate` — portée `studies:read`. **Lecture seule : rien n'est écrit**, l'étude garde sa déclaration et sa révision, rien n'est journalisé. Corps : `{"workshop": { … }}`, la déclaration telle que vous la passeriez à `PATCH /studies/{id}` ; facultatif, `statuses` (les statuts à supposer si vous comptez les changer du même coup — par défaut, ceux de l'étude). Faites-le **avant** le `PATCH` : vous corrigez sans toucher à l'étude, et vous lisez les règles que le relecteur lirait avant de les lui proposer.
+
+Une déclaration avec deux fautes :
+
+```json
+{"workshop": {"family": "periods", "title": "Tarif à vérifier",
+  "axis": {"label": "Mois", "min": 1, "max": 13, "grain": 1},
+  "bricks": [{"type": "contrat", "label": "Contrat",
+              "options": [{"key": "offre", "label": "Offre", "values": ["A", "B"]}]}],
+  "image": {"sources": [{"brick": "contrat", "several": "newest"}],
+            "fields": [{"key": "offre", "label": "Offre", "from": "contrat.offre"}],
+            "status": [{"then": "REMISE"}]},
+  "states": {"active": "EN_COURS", "past": "FINIE", "ignored": "IGNOREE", "invalid": "KO", "blocked": "KO"},
+  "outcome": [{"label": "Tarif"}],
+  "rules": []}}
+```
+
+La réponse, toujours `200` :
+
+```json
+{"valid": false, "declared": false, "written": false, "family": null,
+ "errors": [
+  {"path": "workshop", "code": "unknown_field", "message": "Champ inconnu dans « workshop ».",
+   "severity": "error", "received": ["rules"]},
+  {"path": "workshop.image.sources[0].several", "code": "enum", "message": "Valeur inconnue.",
+   "severity": "error", "received": "newest", "expected": ["latest_start", "earliest_start", "block"]}],
+ "warnings": [], "rules": [], "workshop": null, "study_revision": 0,
+ "hint": "Corrigez les erreurs puis revalidez ; PATCH /studies/{id} refuserait cette déclaration."}
+```
+
+- `valid` : `PATCH /studies/{id}` accepterait cette déclaration. `errors` et `warnings` ont la forme des erreurs de validation de l'API (`path`, `code`, `message`, et selon le cas `received`, `expected`, `example`).
+- `declared` : l'étude aurait bien un atelier. Une déclaration vide (`{}`) est valide et retire l'atelier : `valid: true`, `declared: false`.
+- `written` : toujours `false`. `study_revision` : la révision de l'étude, inchangée.
+- `workshop` : la déclaration normalisée, celle que `GET …/workshop` rendrait après le `PATCH` ; `family` : sa famille.
+- `rules` : **les règles que le site en tirerait**, celles que le relecteur lit dans l'onglet « Atelier ». Pour la famille périodes, les phrases écrites par le site (`key` `P1`…, `role`, `title`) ; pour les éléments reliés, votre table de règles normalisée. Une fois les deux fautes corrigées (retirer `rules`, écrire `"several": "latest_start"`), la même requête rend `valid: true` et cinq règles : `P1` (une image par pas), `P2` (début inclus, fin exclue), `P3` (les périodes invalides), `P4` (la source « Contrat »), `P5` (les champs restitués et la fusion).
+
+Une requête sans `workshop` est une requête mal formée (`422`), comme partout ailleurs.
+
 ## Dérouler une situation
 
 `POST /api/v1/studies/{id}/workshop/run` — portée `studies:read`. **Lecture seule : rien n'est écrit**, la révision de l'étude ne bouge pas.

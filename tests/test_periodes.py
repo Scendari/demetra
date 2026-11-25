@@ -588,6 +588,95 @@ def test_a_human_saves_the_built_history_as_a_case(atelier, web):
 # ---------------------------------------------------------------------------
 
 
+GUIDE_STATUSES = [
+    {"key": "A_VENIR", "label": "À venir", "role": "waiting", "default": True},
+    {"key": "EN_COURS", "label": "En cours", "role": "active"},
+    {"key": "FINIE", "label": "Finie", "role": "neutral"},
+    {"key": "IGNOREE", "label": "Ignorée", "role": "disabled"},
+    {"key": "KO", "label": "Invalide", "role": "error"},
+    {"key": "REMISE", "label": "Avec remise", "role": "success"},
+    {"key": "SANS_REMISE", "label": "Sans remise", "role": "info"},
+]
+
+
+def test_a_declaration_is_validated_without_writing_anything(api):
+    """L'exemple du mode d'emploi, tel quel : la requête fautive rend la réponse écrite dans le chapitre ; une
+    fois corrigée, elle rend les règles que le site en tirerait. L'étude, elle, ne change pas."""
+    text = (Path(svc.__file__).parent / "guide" / "atelier.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```json\n(.*?)```", text, flags=re.DOTALL)
+    request = json.loads(next(b for b in blocks if b.startswith('{"workshop"') and '"newest"' in b))
+    expected = json.loads(next(b for b in blocks if b.startswith('{"valid": false')))
+    status, data = api.post(
+        "/studies", {"title": "À vérifier", "kind": "temporal", "statuses": GUIDE_STATUSES}
+    )
+    assert status == 201, data
+    sid = data["id"]
+    before = (svc.Study.objects.get(public_id=sid).updated_at, svc.AuditEvent.objects.count())
+
+    status, data = api.post(f"/studies/{sid}/workshop/validate", request)
+    assert status == 200 and data == expected
+
+    fixed = json.loads(json.dumps(request))
+    del fixed["workshop"]["rules"]
+    fixed["workshop"]["image"]["sources"][0]["several"] = "latest_start"
+    status, data = api.post(f"/studies/{sid}/workshop/validate", fixed)
+    assert status == 200 and data["valid"] and data["declared"] and data["written"] is False
+    assert data["family"] == "periods" and data["errors"] == []
+    assert [(r["key"], r["role"]) for r in data["rules"]] == [
+        ("P1", "grain"),
+        ("P2", "bounds"),
+        ("P3", "invalid"),
+        ("P4", "source:contrat"),
+        ("P5", "merge"),
+    ]
+    assert data["workshop"]["rules"] == data["rules"] and data["workshop"]["merge"] is True
+
+    # Rien n'a été écrit : ni déclaration, ni révision, ni ligne de journal.
+    study = svc.Study.objects.get(public_id=sid)
+    assert study.workshop == {} and study.revision == 0
+    assert (study.updated_at, svc.AuditEvent.objects.count()) == before
+    status, data = api.get(f"/studies/{sid}/workshop")
+    assert data["declared"] is False
+
+    # Ce que la validation accepte, PATCH l'accepte, et l'étude lit alors les mêmes règles.
+    status, data = api.patch(f"/studies/{sid}", fixed)
+    assert status == 200, data
+    status, data = api.get(f"/studies/{sid}/workshop")
+    assert [r["key"] for r in data["workshop"]["rules"]] == ["P1", "P2", "P3", "P4", "P5"]
+
+
+def test_validation_says_what_patch_would_say(api):
+    status, data = api.post(
+        "/studies", {"title": "À vérifier", "kind": "temporal", "statuses": GUIDE_STATUSES}
+    )
+    sid = data["id"]
+    text = (Path(svc.__file__).parent / "guide" / "atelier.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```json\n(.*?)```", text, flags=re.DOTALL)
+    decl = json.loads("{" + next(b for b in blocks if b.startswith('"workshop"') and '"periods"' in b) + "}")
+    # Avec d'autres statuts que ceux de l'étude : la validation les suppose, sans les écrire.
+    status, data = api.post(f"/studies/{sid}/workshop/validate", {**decl, "statuses": GUIDE_STATUSES[:3]})
+    assert status == 200 and data["valid"] is False and data["rules"] == [] and data["workshop"] is None
+    assert {e["code"] for e in data["errors"]} >= {"unknown_status"}
+    assert len(svc.Study.objects.get(public_id=sid).statuses) == 7
+    # Les mêmes erreurs que PATCH, aux mêmes chemins.
+    broken = json.loads(json.dumps(decl))
+    broken["workshop"]["axis"]["grain"] = 0
+    broken["workshop"]["image"]["fields"][0]["from"] = "contrat.inconnu"
+    status, dry = api.post(f"/studies/{sid}/workshop/validate", broken)
+    status, real = api.patch(f"/studies/{sid}", broken)
+    assert status == 422 and dry["valid"] is False
+    assert dry["errors"] == real["error"]["details"]
+    # Une déclaration vide est valide et dit qu'il n'y aurait pas d'atelier ; une requête sans « workshop »
+    # est mal formée ; une famille inconnue est une erreur comme une autre.
+    status, data = api.post(f"/studies/{sid}/workshop/validate", {"workshop": {}})
+    assert (data["valid"], data["declared"], data["family"]) == (True, False, None)
+    status, data = api.post(f"/studies/{sid}/workshop/validate", {})
+    assert status == 422
+    status, data = api.post(f"/studies/{sid}/workshop/validate", {"workshop": {"family": "calcul"}})
+    assert data["valid"] is False and data["errors"][0]["path"] == "workshop.family"
+    assert svc.Study.objects.get(public_id=sid).workshop == {}
+
+
 def test_the_guide_example_is_valid_and_gives_what_the_guide_says(api):
     text = (Path(svc.__file__).parent / "guide" / "atelier.md").read_text(encoding="utf-8")
     blocks = re.findall(r"```json\n(.*?)```", text, flags=re.DOTALL)

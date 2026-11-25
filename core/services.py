@@ -1621,6 +1621,36 @@ def workshop_out(study: Study) -> dict:
     }
 
 
+def workshop_validate_out(study: Study, raw: Any, statuses: Any = None) -> dict:
+    """Lecture seule : valide une déclaration d'atelier comme le ferait PATCH /studies/{id}, sans l'écrire, et
+    rend ce que le site en tirerait — la déclaration normalisée et les règles que le relecteur lirait."""
+    report = casemodel.Report()
+    known = study.statuses if statuses is None else casemodel.normalize_statuses(statuses, report)
+    decl = families.normalize(raw, {s["key"] for s in known}, report)
+    valid = report.ok
+    declared = valid and families.declared(decl)
+    if not valid:
+        hint = "Corrigez les erreurs puis revalidez ; PATCH /studies/{id} refuserait cette déclaration."
+    elif not decl:
+        hint = "Déclaration vide : avec elle, l'étude n'aurait pas d'atelier."
+    elif not declared:
+        hint = "Déclaration acceptée mais incomplète : l'étude n'aurait pas d'atelier."
+    else:
+        hint = "Rien n'a été écrit. Pour l'appliquer : PATCH /studies/{id} avec ce même « workshop »."
+    return {
+        "valid": valid,
+        "declared": declared,
+        "written": False,
+        "family": families.name_of(decl) if valid and decl else None,
+        "errors": [i.as_dict() for i in report.errors],
+        "warnings": [i.as_dict() for i in report.warnings],
+        "rules": decl.get("rules", []) if valid else [],
+        "workshop": (decl or None) if valid else None,
+        "study_revision": study.revision,
+        "hint": hint,
+    }
+
+
 def workshop_run_out(study: Study, raw: Any) -> dict:
     """Lecture seule : déroule la situation donnée, n'écrit rien. Une situation ne reçoit jamais d'avis."""
     decl = workshop_of(study)
