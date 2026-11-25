@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -27,6 +28,9 @@ ROOT = Path(__file__).resolve().parents[2]
 CAPTURES = os.environ.get("DEMETRA_CAPTURES")
 
 
+SITE_ENV: dict[str, str] = {}  # l'environnement du site servi : pour y préparer une étude d'essai
+
+
 def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -38,6 +42,7 @@ def site(tmp_path_factory):
     """Le site, servi par `manage.py runserver` sur une base temporaire de démonstration."""
     database = tmp_path_factory.mktemp("demetra") / "e2e.sqlite3"
     env = {**os.environ, "DEMETRA_DB": str(database), "DEMETRA_SSE_MAX_SECONDS": "20"}
+    SITE_ENV.update(env)
     manage = [sys.executable, str(ROOT / "manage.py")]
     subprocess.run([*manage, "migrate", "-v0"], cwd=ROOT, env=env, check=True)
     subprocess.run([*manage, "seed_demo"], cwd=ROOT, env=env, check=True, capture_output=True)
@@ -206,9 +211,8 @@ def test_parcours_complet(site, browser):
     page.click("button[type=submit]")
     page.wait_for_url("**/etudes/")
     expect(page.get_by_role("heading", level=1)).to_have_text("Études")
-    expect(page.locator("a.row-link")).to_have_count(
-        12
-    )  # le catalogue, deux exemples, et un exemple par représentation élargie
+    # Le catalogue, trois exemples (décision, temps, cas paramétrés), un exemple par représentation élargie.
+    expect(page.locator("a.row-link")).to_have_count(14)
     shot(page, "03-etudes", full_page=True)
 
     # ---- Revue d'un cas, au clavier
@@ -524,7 +528,7 @@ def test_representations_elargies(site, browser):
     for name, title, capture, shown_case, shown_step in EXTENDED:
         page.set_viewport_size({"width": 1440, "height": 900})
         page.goto(site + "/etudes/")
-        page.get_by_role("link", name=title).click()
+        page.get_by_role("link", name=title, exact=True).click()
         expect(page.locator(".cp-rep-head strong")).to_have_text(
             name
         )  # l'étude porte la représentation qu'elle illustre
@@ -569,7 +573,7 @@ def test_representations_elargies(site, browser):
 
     # ---- Une étude = une représentation ; on en change pour soi, pour un cas, ou pour toute l'étude
     page.goto(site + "/etudes/")
-    page.get_by_role("link", name="Validation d'un document").click()
+    page.get_by_role("link", name="Validation d'un document", exact=True).click()
     expect(page.locator(".cp-rep-head strong")).to_have_text("Table d'états")
     first = page.locator("[data-panel]").get_attribute("data-key")
     page.locator(".cp-rep-head a").click()
@@ -613,7 +617,7 @@ def test_representations_elargies(site, browser):
     small.on("pageerror", lambda error: problems.append(f"erreur de script (mobile) : {error}"))
     for name, title, capture, shown_case, _ in EXTENDED:
         small.goto(site + "/etudes/")
-        small.get_by_role("link", name=title).tap()
+        small.get_by_role("link", name=title, exact=True).tap()
         small.locator(".case-item a.case").nth(min(shown_case, 2)).tap()
         expect(small.locator("[data-panel]")).to_be_visible()
         expect(small.locator(".cp-rep-head strong")).to_have_text(name)
@@ -631,3 +635,365 @@ def test_representations_elargies(site, browser):
 
     context.close()
     assert not problems, problems
+
+
+def test_atelier(site, browser):
+    """L'onglet « Atelier » : on part d'une page vide, on pose trois Tasks, on les relie, on change une
+    option, on provoque un échec, on déroule, et on lit l'état final de chaque Task. Aucun cas déposé
+    n'apparaît. Le résultat se redessine sur place, le schéma ne bouge pas d'un pas à l'autre. Une seconde
+    étude sans rapport a son atelier par ses seules déclarations ; une étude sans règles le dit. En clair, en
+    sombre et sur mobile."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    login(page, site, "demo")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+
+    # Page vide : la palette de l'étude, ses règles, aucune brique, aucun cas déposé.
+    expect(page.locator(".at-empty h2")).to_have_text("Composer un Workflow")
+    expect(page.locator(".at-card")).to_have_count(0)
+    expect(page.locator(".at-rules li")).to_have_count(11)
+    assert page.locator(".case-item, .case, [data-case]").count() == 0
+    assert "Une seule Task" not in page.locator("main").inner_text()  # titre du premier cas du catalogue
+    shot(page, "40-atelier-vide", full_page=True)
+
+    # Poser trois Tasks : le fragment est remplacé sans recharger la page.
+    page.evaluate("window.__meme_page = true")
+    for count in (1, 2, 3):
+        page.get_by_role("button", name="Task", exact=True).click()
+        expect(page.locator(".at-card")).to_have_count(count)
+    assert page.evaluate("window.__meme_page") is True
+    assert page.evaluate("document.activeElement.name") == "add"
+
+    # Les relier : B et C dépendent de A.
+    page.select_option("#at-link-B", "in:prerequisite:A")
+    expect(page.locator('[data-brick="B"] .at-links li')).to_have_text("dépend de Task A")
+    page.select_option("#at-link-C", "in:prerequisite:A")
+    expect(page.locator('[data-brick="A"] .at-links li')).to_have_count(2)
+    for key in "ABC":
+        expect(page.locator(f'[data-brick="{key}"] [data-final]')).to_have_attribute(
+            "data-final", "FINISHED_OK"
+        )
+    expect(page.locator("[data-result]")).to_contain_text("Workflow FINISHED_OK")
+
+    # Changer une option, puis provoquer un échec : le résultat se redessine à chaque changement.
+    page.check('input[name="o.C.always_run"]')
+    expect(page).to_have_url(re.compile(r"o\.C\.always_run=true"))
+    page.check('input[name="ev"][value="A:echec"]')
+    expect(page.locator("[data-result]")).to_contain_text("Workflow FINISHED_KO")
+    final = {"A": "FINISHED_KO", "B": "BLOCKED", "C": "FINISHED_OK"}
+    for key, status in final.items():
+        expect(page.locator(f'[data-brick="{key}"] [data-final]')).to_have_attribute("data-final", status)
+    # Tout l'état tient dans l'adresse, sans trace du geste qui y a mené.
+    query = page.url.split("?", 1)[1]
+    assert query == (
+        "e=A%3Atask&e=B%3Atask&e=C%3Atask&o.C.always_run=true&ev=A%3Aechec"
+        "&l=A%3Aprerequisite%3AB&l=A%3Aprerequisite%3AC"
+    )
+    shot(page, "41-atelier-construit", full_page=True)
+
+    # Dérouler pas à pas : du départ à la fin, le schéma garde ses dimensions.
+    page.locator('a[data-at-step="first"]').click()
+    expect(page.locator(".at-walk .stop-btn[aria-current=step]")).to_have_attribute("data-step", "0")
+    expect(page.locator(".at-walk .step-pane.is-current")).to_contain_text(
+        "Aucune règle n'a encore été appliquée"
+    )
+    box = page.locator(".at-walk [data-rep]").first.bounding_box()
+    page.locator('a[data-at-step="next"]').click()
+    expect(page.locator(".at-walk .stop-btn[aria-current=step]")).to_have_attribute("data-step", "1")
+    expect(page).to_have_url(re.compile(r"etape=2"))
+    after = page.locator(".at-walk [data-rep]").first.bounding_box()
+    assert (box["width"], box["height"]) == (after["width"], after["height"])
+    page.get_by_role("button", name="Dérouler").click()
+    expect(page.locator(".at-walk .stop-btn[aria-current=step]")).to_have_attribute(
+        "data-step", "5", timeout=9000
+    )
+    expect(page.get_by_role("button", name="Dérouler")).to_be_visible()
+
+    # La même adresse, ouverte sans script, donne la même situation et le même résultat.
+    plain = browser.new_context(
+        java_script_enabled=False, storage_state=context.storage_state(), locale="fr-FR"
+    )
+    static = plain.new_page()
+    static.goto(page.url.split("&etape")[0])
+    for key, status in final.items():
+        expect(static.locator(f'[data-brick="{key}"] [data-final]')).to_have_attribute("data-final", status)
+    static.locator('button[name="del"][value="B"]').click()
+    expect(static.locator(".at-card")).to_have_count(2)
+    assert "B%3Atask" not in static.url and "del=" not in static.url
+    plain.close()
+
+    # Enregistrer la situation comme cas : un geste humain, le cas attend un avis.
+    page.fill("#at-title", "A échoue, C nettoie")
+    page.get_by_role("button", name="Enregistrer comme cas").click()
+    expect(page).to_have_url(re.compile(r"cas=atelier-1"))
+    expect(page.locator(".cp-title, [data-panel] h2").first).to_contain_text("A échoue, C nettoie")
+
+    # Une seconde étude, sans rapport avec un workflow de tâches : ses seules déclarations font son atelier.
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Circuit de validation d'un document").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    expect(page.locator(".at-add")).to_have_text(["Relecture", "Signature", "Publication"])
+    page.get_by_role("button", name="Relecture", exact=True).click()
+    expect(page.locator(".at-card")).to_have_count(1)
+    page.get_by_role("button", name="Publication", exact=True).click()
+    expect(page.locator(".at-card")).to_have_count(2)
+    page.select_option("#at-link-B", "in:puis:A")
+    expect(page.locator("[data-result]")).to_contain_text("Document publié")
+    page.check('input[name="ev"][value="A:refus"]')
+    expect(page.locator("[data-result]")).to_contain_text("Document refusé")
+    expect(page.locator('[data-brick="B"] [data-final]')).to_have_attribute("data-final", "ABANDONNE")
+    page.select_option('select[name="r.procedure"]', "urgente")
+    expect(page).to_have_url(re.compile(r"r\.procedure=urgente"))
+    shot(page, "42-atelier-autre-etude", full_page=True)
+
+    # Une étude qui ne déclare pas de règles n'a pas d'atelier : l'écran le dit et renvoie vers ses cas.
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Remboursement d'une commande").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    expect(page.locator(".empty h2")).to_contain_text("ne déclare pas de règles")
+    expect(page.get_by_role("link", name="Voir les cas de l'étude")).to_be_visible()
+
+    # Thème sombre et largeur mobile : rien ne déborde.
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    page.goto(page.url + "?" + query)
+    page.evaluate("localStorage.setItem('demetra-theme', 'dark')")
+    for width, height in ((1280, 900), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        page.reload()
+        expect(page.locator(".at-card")).to_have_count(3)
+        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    shot(page, "43-atelier-mobile-sombre", full_page=True)
+    page.evaluate("localStorage.setItem('demetra-theme', 'light')")
+    page.reload()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert not problems, problems
+    context.close()
+
+
+def _centre(locator) -> tuple[float, float]:
+    box = locator.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
+def _glisser(page, start: tuple[float, float], end: tuple[float, float]) -> None:
+    """Un glisser à la souris, en plusieurs pas, puis l'attente du fragment redemandé."""
+    page.mouse.move(*start)
+    page.mouse.down()
+    page.mouse.move(start[0] + 10, start[1] + 10, steps=3)
+    page.mouse.move(*end, steps=8)
+    page.mouse.up()
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+
+
+def test_atelier_glisser_deposer(site, browser):
+    """Dans l'atelier, à la souris : glisser une brique de la palette sur la page vide, sur le schéma, sur une
+    autre brique (elle s'y enchaîne) ; tirer un lien d'une brique à l'autre ; retirer un lien en le cliquant ;
+    cliquer une brique mène à sa fiche. Un simple clic sur la palette pose toujours une brique. Une étude à
+    plusieurs types de briques ne relie que ce qu'elle permet."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    login(page, site, "demo")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    task = page.locator(".at-add").first
+    links = page.locator('input[name="l"]')
+
+    # Page vide : la brique se dépose dans le cadre prévu.
+    expect(page.locator(".at-drop")).to_be_visible()
+    _glisser(page, _centre(task), _centre(page.locator(".at-drop")))
+    expect(page.locator(".at-card")).to_have_count(1)
+    # Sur le schéma, hors de toute brique : une brique de plus, sans lien.
+    plan = page.locator("[data-at-plan]").bounding_box()
+    _glisser(page, _centre(task), (plan["x"] + plan["width"] - 40, plan["y"] + plan["height"] - 40))
+    expect(page.locator(".at-card")).to_have_count(2)
+    expect(links).to_have_count(0)
+    # Sur la brique A : la nouvelle brique s'y enchaîne.
+    _glisser(page, _centre(task), _centre(page.locator('.n[data-e="A"]')))
+    expect(page.locator(".at-card")).to_have_count(3)
+    expect(links).to_have_count(1)
+    expect(links.first).to_have_value("A:prerequisite:C")
+    # Tirer un lien de B vers C.
+    _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]')))
+    expect(links).to_have_count(2)
+    expect(page.locator('[data-brick="C"] .at-links li')).to_have_text(
+        ["dépend de Task A", "dépend de Task B"]
+    )
+    expect(page.locator('.lk[data-l="B:prerequisite:C"]')).to_have_count(1)
+    assert page.url.endswith(
+        "?e=A%3Atask&e=B%3Atask&e=C%3Atask&l=A%3Aprerequisite%3AC&l=B%3Aprerequisite%3AC"
+    )
+    # Le même lien une seconde fois : rien ne change, le site dit pourquoi.
+    _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]')))
+    expect(page.locator("[data-at-hint-text]")).to_have_text("Task B et Task C sont déjà reliées ainsi.")
+    expect(links).to_have_count(2)
+    shot(page, "44-atelier-glisser-deposer", full_page=True)
+    # Cliquer un lien propose de le retirer.
+    page.locator('.lk[data-l="A:prerequisite:C"] .lk-hit').click(force=True)
+    expect(page.locator(".at-pop button")).to_have_text(["Retirer le lien : Task A précède Task C"])
+    page.locator(".at-pop button").click()
+    expect(links).to_have_count(1)
+    expect(links.first).to_have_value("B:prerequisite:C")
+    # Cliquer une brique du schéma mène à sa fiche ; un simple clic sur la palette pose une brique.
+    page.locator('.n[data-e="B"]').click()
+    assert page.evaluate("document.activeElement.id") == "at-name-B"
+    task.click()
+    expect(page.locator(".at-card")).to_have_count(4)
+    # Relâcher un lien dans le vide ne pose rien.
+    _glisser(page, _centre(page.locator('.n[data-e="B"]')), (plan["x"] + 12, plan["y"] + plan["height"] - 12))
+    expect(links).to_have_count(1)
+
+    # Une étude à plusieurs types de briques : un lien que l'étude ne permet pas n'est pas posé.
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Circuit de validation d'un document").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    relecture = page.get_by_role("button", name="Relecture", exact=True)
+    publication = page.get_by_role("button", name="Publication", exact=True)
+    _glisser(page, _centre(publication), _centre(page.locator(".at-drop")))
+    _glisser(page, _centre(relecture), _centre(page.locator('.n[data-e="A"]')))
+    expect(page.locator(".at-card")).to_have_count(2)
+    expect(links).to_have_count(0)  # rien ne suit une publication : la relecture est posée sans lien
+    _glisser(page, _centre(page.locator('.n[data-e="A"]')), _centre(page.locator('.n[data-e="B"]')))
+    expect(page.locator("[data-at-hint-text]")).to_contain_text(
+        "L'étude ne permet pas de lien de Publication A"
+    )
+    expect(links).to_have_count(0)
+    _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="A"]')))
+    expect(links).to_have_count(1)
+    expect(links.first).to_have_value("B:puis:A")
+    expect(page.locator("[data-result]")).to_contain_text("Document publié")
+    assert not problems, problems
+    context.close()
+
+
+PERIODS_STUDY = """
+from django.contrib.auth import get_user_model
+from core import services as svc
+from core.models import Representation
+from tests.test_periodes import STUDY, WORKSHOP
+owner = get_user_model().objects.get(username="demo")
+frise = Representation.objects.get(name="Frise temporelle", owner=None)
+actor = svc.Actor(owner)
+study = svc.get_study(actor, svc.create_study(actor, {**STUDY, "workshop": WORKSHOP}).public_id)
+svc.choose_representation(actor, study, frise, for_study=True)
+print(study.public_id)
+"""
+
+
+def test_atelier_periodes(site, browser):
+    """L'atelier d'une étude qui déclare des périodes : on part d'une page vide, on pose un contrat, une
+    remise et un barème, on change des bornes au clavier puis un réglage, on vide une borne, et l'historique
+    obtenu suit à chaque geste. La touche Entrée dans une borne ne pose pas de période. Tout l'état tient
+    dans l'adresse. En clair, en sombre et sur mobile ; la situation s'enregistre comme cas."""
+    made = subprocess.run(
+        [sys.executable, str(ROOT / "manage.py"), "shell", "-c", PERIODS_STUDY],
+        cwd=ROOT,
+        env=SITE_ENV,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    sid = made.stdout.strip().splitlines()[-1]
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
+    page.on(
+        "console",
+        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
+    )
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/{sid}/atelier/")
+    rows = page.locator(".at-history tbody tr")
+
+    # Page vide : les sources de l'étude, les règles que sa déclaration revient à poser, aucune période.
+    expect(page.locator(".at-empty h2")).to_have_text("Composer un tarif")
+    expect(page.locator(".at-add")).to_have_text(["Contrat", "Remise", "Barème"])
+    expect(page.locator(".at-rules li")).to_have_count(7)
+    expect(page.locator(".at-card")).to_have_count(0)
+
+    # Poser un contrat, une remise, un barème : chacun arrive avec ses bornes, l'historique se compose.
+    page.evaluate("window.__meme_page = true")
+    for count, name in enumerate(("Contrat", "Remise", "Barème"), 1):
+        page.get_by_role("button", name=name, exact=True).click()
+        expect(page.locator(".at-card")).to_have_count(count)
+    assert page.evaluate("window.__meme_page") is True
+    expect(page.locator('input[name="de.A"]')).to_have_value("1")
+    expect(page.locator('input[name="a.A"]')).to_have_value("3")
+    expect(rows).to_have_count(1)
+    expect(rows.first).to_contain_text("Tarif remisé")
+    expect(page.locator(".at-plan .rep-timeline")).to_be_visible()
+    expect(page.locator("[data-at-hint]")).to_be_hidden()  # une frise n'a pas de briques à relier
+
+    # Changer une borne au clavier : Entrée met à jour le résultat et ne pose rien.
+    page.fill('input[name="a.A"]', "6")
+    page.press('input[name="a.A"]', "Enter")
+    expect(rows).to_have_count(2)
+    expect(page.locator(".at-card")).to_have_count(3)
+    expect(rows.nth(1)).to_contain_text("Plein tarif")
+    expect(rows.nth(1).locator("td").nth(3)).to_have_text("vide")
+    page.fill('input[name="de.B"]', "2")
+    page.locator('input[name="de.B"]').blur()
+    expect(rows).to_have_count(3)
+    expect(page).to_have_url(re.compile(r"de\.B=2"))
+    assert [rows.nth(n).locator("td").nth(0).inner_text() for n in range(3)] == ["1", "2", "3"]
+
+    # Un réglage de la situation retire les mois sans remise ; une borne vidée bloque le traitement.
+    page.select_option('select[name="r.sans_remise"]', "retirés")
+    expect(rows).to_have_count(1)
+    page.select_option('select[name="r.sans_remise"]', "gardés")
+    expect(rows).to_have_count(3)
+    shot(page, "45-atelier-periodes", full_page=True)
+    query = page.url.split("?", 1)[1]
+    assert query == "e=A%3Acontrat&e=B%3Aremise&e=C%3Abareme&de.A=1&a.A=6&de.B=2&a.B=3&de.C=1&a.C=3"
+    page.fill('input[name="a.C"]', "")
+    page.locator('input[name="a.C"]').blur()
+    expect(page.locator(".at-out .notice")).to_contain_text("Le traitement est bloqué")
+    expect(page.locator("[data-result]")).to_contain_text("Tarif non publié")
+    expect(page.locator('input[name="a.C"]')).to_have_value("")
+    expect(page).to_have_url(re.compile(r"a\.C=(&|$)"))
+
+    # Dérouler pas à pas : la frise garde ses dimensions.
+    page.goto(f"{site}/etudes/{sid}/atelier/?{query}")
+    page.locator('a[data-at-step="first"]').click()
+    expect(page.locator(".at-walk .stop-btn[aria-current=step]")).to_have_attribute("data-step", "0")
+    box = page.locator(".at-walk [data-rep]").first.bounding_box()
+    page.locator('a[data-at-step="next"]').click()
+    expect(page).to_have_url(re.compile(r"etape=2"))
+    after = page.locator(".at-walk [data-rep]").first.bounding_box()
+    assert (box["width"], box["height"]) == (after["width"], after["height"])
+    expect(page.locator(".at-walk .step-pane.is-current")).to_contain_text("Contrat : Contrat A")
+
+    # Thème sombre et largeur mobile : rien ne déborde.
+    page.goto(f"{site}/etudes/{sid}/atelier/?{query}")
+    page.evaluate("localStorage.setItem('demetra-theme', 'dark')")
+    for width, height in ((1280, 900), (390, 844)):
+        page.set_viewport_size({"width": width, "height": height})
+        page.reload()
+        expect(rows).to_have_count(3)
+        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    page.evaluate("localStorage.setItem('demetra-theme', 'light')")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.reload()
+
+    # Enregistrer la situation comme cas : les périodes posées et l'historique obtenu y figurent.
+    page.fill("#at-title", "Remise d'un mois")
+    page.get_by_role("button", name="Enregistrer comme cas").click()
+    expect(page).to_have_url(re.compile(r"cas=atelier-1"))
+    expect(page.locator(".cp-title, [data-panel] h2").first).to_contain_text("Remise d'un mois")
+    assert not problems, problems
+    context.close()

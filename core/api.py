@@ -16,7 +16,7 @@ from ninja.errors import AuthenticationError, ValidationError
 from ninja.security import HttpBearer
 from pydantic import Field
 
-from . import bricks, casemodel, connect, guide
+from . import bricks, casemodel, connect, guide, parametric
 from . import preview as pv
 from . import services as svc
 from .models import (
@@ -142,6 +142,11 @@ class StudyIn(Schema):
         description="Options portées par les entités (« attrs ») : [{key, label, text?}] — libellé lisible "
         "et définition.",
     )
+    workshop: dict | None = Field(
+        None,
+        description="Atelier : {bricks: [{type, label, options, events}], links: [{type, label}], settings, "
+        "rules: [{key, title, on?, when, then}], outcome} — chapitre « atelier » du mode d'emploi.",
+    )
 
 
 class StudyPatch(Schema):
@@ -155,6 +160,7 @@ class StudyPatch(Schema):
     ruleset: dict | None = None
     lifecycles: list[dict] | None = None
     attributes: list[dict] | None = None
+    workshop: dict | None = None
 
 
 class CasesIn(Schema):
@@ -226,6 +232,14 @@ class PreviewIn(Schema):
     theme: str = Field("light", description="light | dark")
 
 
+class WorkshopRunIn(Schema):
+    situation: dict = Field(
+        ...,
+        description="La situation construite : {elements: [{id, type, label?, options?, events?}], "
+        "links: [{from, to, type}], settings?}.",
+    )
+
+
 class BrickRequestIn(Schema):
     title: str
     need: str
@@ -267,6 +281,7 @@ def study_out(study: Study, role: str | None = None, full: bool = True) -> dict:
             ruleset=study.ruleset or None,
             lifecycles=study.lifecycles or [],
             attributes=study.attributes or [],
+            workshop=study.workshop or None,
             representation={"id": study.representation.public_id, "name": study.representation.name}
             if study.representation
             else None,
@@ -583,7 +598,12 @@ def get_case(request, sid: str, key: str, frames: bool = True):
     study = svc.get_study(actor_of(request), sid)
     case = svc.get_case(study, key)
     out = case_summary(case, _verdict_counts(study))
-    out["case"] = case.content
+    out["case"] = parametric.source_of(case.content)
+    if parametric.is_parametric(case.content):
+        out["parametric"] = {
+            "combinations": [combo for combo, _ in parametric.expand(case.content)],
+            "shown": "Les états rejoués ci-dessous sont ceux de la première combinaison.",
+        }
     if frames:
         out["frames"] = [
             {
@@ -722,6 +742,32 @@ def worklist(request, sid: str):
         "checks": [f for f in svc.checks_report(study) if f["severity"] != "info"],
         "review": svc.review_summary(study),
     }
+
+
+# ---------------------------------------------------------------------------
+# Atelier
+# ---------------------------------------------------------------------------
+
+
+@api.get(
+    "/studies/{sid}/workshop",
+    tags=["Atelier"],
+    summary="Les briques, les liens et la table de règles que l'étude déclare pour l'atelier",
+)
+def workshop_read(request, sid: str):
+    study = svc.get_study(actor_of(request), sid)
+    return svc.workshop_out(study)
+
+
+@api.post(
+    "/studies/{sid}/workshop/run",
+    tags=["Atelier"],
+    summary="Dérouler une situation construite avec les briques de l'étude, d'après ses règles",
+)
+def workshop_run(request, sid: str, payload: WorkshopRunIn):
+    """Lecture seule : rien n'est écrit. Une situation de l'atelier ne reçoit jamais d'avis."""
+    study = svc.get_study(actor_of(request), sid)
+    return svc.workshop_run_out(study, payload.situation)
 
 
 # ---------------------------------------------------------------------------

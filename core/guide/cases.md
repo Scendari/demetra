@@ -119,6 +119,64 @@ Quelle donnée pour quelle représentation :
 | un objet qui change d'état | `lifecycles` (étude), `steps[].changes` | diagramme d'états, table d'états |
 | des acteurs qui se parlent | `steps[].messages` | diagramme de séquence |
 
+## Un cas pour plusieurs situations
+
+Un cas peut décrire plusieurs situations qui ne diffèrent que par quelques paramètres. Déclarez les paramètres, posez une condition sur les étapes qui en dépendent.
+
+```json
+{
+  "key": "abonne-recent", "title": "Échéance d'un abonné récent",
+  "dimensions": {"anciennete": "recent"},
+  "params": [
+    {"key": "paiement", "label": "Premier prélèvement", "values": ["accepte", "refuse"]},
+    {"key": "relance", "label": "Relance automatique", "values": ["active", "inactive"], "default": "active"}
+  ],
+  "entities": [{"id": "abonnement", "label": "Abonnement", "type": "abonnement"},
+               {"id": "prelevement", "label": "Prélèvement", "type": "paiement"}],
+  "steps": [
+    {"title": "Le prélèvement est tenté", "changes": {"prelevement": "EN_COURS"}},
+    {"when": {"paiement": "accepte"}, "title": "Le prélèvement est accepté",
+     "changes": {"prelevement": "ACCEPTE", "abonnement": "RENOUVELE"}},
+    {"when": {"all": [{"paiement": "refuse"}, {"relance": "inactive"}]}, "title": "L'abonnement est suspendu",
+     "changes": {"prelevement": "REFUSE", "abonnement": "SUSPENDU"}},
+    {"when": {"all": [{"paiement": "refuse"}, {"relance": "active"}]}, "title": "Une relance part",
+     "changes": {"prelevement": "REFUSE"}}
+  ],
+  "outcome": [
+    {"when": {"paiement": "accepte"}, "label": "Abonnement renouvelé", "status": "RENOUVELE"},
+    {"when": {"relance": "active"}, "label": "Relance envoyée"},
+    {"label": "Abonnement suspendu", "status": "SUSPENDU"}
+  ]
+}
+```
+
+- `params` : 6 paramètres au plus, 8 valeurs au plus chacun (texte, nombre ou booléen), **64 combinaisons au plus** (`too_many_combinations`). `default` est la valeur montrée d'abord ; sans lui, c'est la première.
+- Un paramètre qui porte la clé d'une **dimension de l'étude** prend ses valeurs parmi celles de la dimension : le cas compte alors, dans la couverture, pour toutes les combinaisons que ses paramètres permettent. Il y est marqué « paramétré ». Ne répétez pas cette clé dans `dimensions`.
+- Un paramètre qui n'est pas une dimension devient un réglage du cas (`config`) pour chaque variante.
+- `steps[].when` : l'étape n'existe que si la condition est vraie. `outcome` peut être une liste : le premier résultat dont la condition est vraie est retenu ; une entrée sans `when` sert de repli.
+- Une option d'entité peut suivre un paramètre : `"attrs": {"always_run": {"param": "always_run"}}`.
+
+Conditions — un vocabulaire fermé, aucun code n'est exécuté :
+
+| Forme | Sens |
+|---|---|
+| `{"paiement": "refuse"}` | le paramètre vaut cette valeur |
+| `{"essais": {"gte": 2}}` | comparaison : `eq`, `ne`, `in`, `gt`, `gte`, `lt`, `lte` |
+| `{"paiement": "refuse", "relance": "active"}` | toutes les égalités à la fois |
+| `{"all": [ … ]}`, `{"any": [ … ]}`, `{"not": { … }}` | et, ou, non (4 niveaux au plus) |
+
+L'égalité est stricte : `true` ne vaut pas `1`, `"1"` ne vaut pas `1`.
+
+**Le site rejoue le cas pour chaque combinaison au moment du dépôt.** Si une seule combinaison donne un cas invalide (transition interdite, aucune étape, statut inconnu…), le cas entier est refusé ; l'erreur dit pour quelles valeurs : « (avec paiement = refuse, relance = active) ». Codes propres aux cas paramétrés : `too_many_combinations`, `unknown_param`, `never_true` (une étape qu'aucune combinaison ne garde), `unknown_value`, `duplicate`.
+
+**L'avis porte sur le cas entier**, conditions comprises : dès qu'un paramètre change, ou que ce que montre une seule combinaison change, les avis repassent « à analyser ». Réécrire une condition sans rien changer à ce que montrent les combinaisons garde les avis. `GET …/cases/{key}` rend le cas tel que déposé (avec `params` et `when`) ; `frames` rejoue la première combinaison et `parametric.combinations` liste les autres.
+
+Préférez un cas paramétré quand les variantes partagent l'essentiel du déroulé. Si elles divergent dès la deuxième étape, déposez des cas distincts : le relecteur les lira mieux.
+
+## Écart entre un cas et le jeu de règles
+
+Quand un cas annonce, dans `steps[].rows`, un sort des lignes que le jeu de règles de l'étude ne donne pas pour ses dimensions et réglages, le dépôt renvoie l'avertissement `model_mismatch`. **C'est un avertissement, jamais un refus** : le cas est écrit. Soit le cas se trompe, soit le jeu de règles est incomplet ; dites-le à l'utilisateur au lieu de corriger l'un pour faire taire l'autre. `GET /api/v1/studies/{id}/checks` liste les cas concernés sous le même code.
+
 ## Valider à blanc
 
 `POST /api/v1/studies/{id}/cases/validate` avec `{"cases": [...]}` — rien n'est écrit. La réponse a la même forme qu'un dépôt, avec `dry_run: true`, et donne la couverture **comme si** le lot était déposé.
@@ -155,12 +213,12 @@ Chaque erreur donne le chemin exact :
  "example": {"key": "RUNNING", "label": "En cours", "role": "active"}}
 ```
 
-Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`).
+Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Pour un cas paramétré : `too_many_combinations`, `unknown_param`, `never_true`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`, `model_mismatch` : le cas annonce un sort des lignes que le jeu de règles de l'étude ne donne pas).
 
 ## Lire, retirer, rétablir
 
 - `GET /api/v1/studies/{id}/cases?limit=50&offset=0` — vue sommaire paginée. Filtres : `family`, `verdict`, `q`, `changed_since`, `include_retired`.
-- `GET /api/v1/studies/{id}/cases/{key}` — le cas complet, ses états rejoués, ses avis. Le champ `case` contient le cas **tel que déposé** : modifiez-le et redéposez-le tel quel pour corriger un cas.
+- `GET /api/v1/studies/{id}/cases/{key}` — le cas complet, ses états rejoués, ses avis. Le champ `case` contient le cas **tel que déposé** : modifiez-le et redéposez-le tel quel pour corriger un cas. Pour un cas paramétré, il porte `params` et les `when` ; `parametric.combinations` liste ses combinaisons.
 - `GET /api/v1/studies/{id}/cases/{key}/revisions` — historique.
 - `DELETE /api/v1/studies/{id}/cases/{key}` — **retire** le cas : il sort de la revue mais reste dans l'historique avec ses avis.
 - `POST /api/v1/studies/{id}/cases/{key}/restore` — le rétablit.

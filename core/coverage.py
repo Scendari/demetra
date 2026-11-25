@@ -55,12 +55,15 @@ def coverage(dimensions: list[dict], exclusions: list[dict], cases: list[dict], 
         return result
 
     seen: dict[tuple, list[str]] = defaultdict(list)
+    counted: set[str] = set()
     for case in cases:
         cdims = case.get("dimensions") or {}
         if not cdims:
             result["cases_without_dimensions"].append(case["key"])
             continue
-        result["cases_counted"] += 1
+        if case["key"] not in counted:  # un cas paramétré donne plusieurs lignes : il compte une fois
+            counted.add(case["key"])
+            result["cases_counted"] += 1
         for group in combinations(keys, strength):
             if all(k in cdims for k in group):
                 seen[(group, tuple(cdims[k] for k in group))].append(case["key"])
@@ -85,21 +88,24 @@ def coverage(dimensions: list[dict], exclusions: list[dict], cases: list[dict], 
     result["missing"] = missing[:MAX_MISSING_LISTED]
     result["truncated"] = len(missing) > MAX_MISSING_LISTED
 
-    for key in keys:
-        counts = {value: 0 for value in dims[key]}
-        for case in cases:
-            value = (case.get("dimensions") or {}).get(key)
-            if value in counts:
-                counts[value] += 1
-        result["by_dimension"].append(
-            {
-                "key": key,
-                "label": labels[key],
-                "values": [{"value": v, "cases": n} for v, n in counts.items()],
-                "unused": [v for v, n in counts.items() if n == 0],
-            }
-        )
+    result["by_dimension"] = [_by_dimension(key, labels[key], dims[key], cases) for key in keys]
     return result
+
+
+def _by_dimension(key: str, label: str, values: list[str], cases: list[dict]) -> dict:
+    """Nombre de cas par valeur d'une dimension ; un cas paramétré compte une fois par valeur illustrée."""
+    users: dict[str, set[str]] = {value: set() for value in values}
+    for case in cases:
+        value = (case.get("dimensions") or {}).get(key)
+        if value in users:
+            users[value].add(case["key"])
+    counts = {value: len(found) for value, found in users.items()}
+    return {
+        "key": key,
+        "label": label,
+        "values": [{"value": v, "cases": n} for v, n in counts.items()],
+        "unused": [v for v, n in counts.items() if n == 0],
+    }
 
 
 def matrix(
@@ -115,14 +121,18 @@ def matrix(
     for case in cases:
         cdims = case.get("dimensions") or {}
         if row_key in cdims and col_key in cdims:
-            cells[(cdims[row_key], cdims[col_key])].append(
-                {
-                    "key": case["key"],
-                    "number": case.get("number"),
-                    "label": case.get("label") or f"{case.get('number') or 0:02d}",
-                    "title": case.get("title", ""),
-                }
-            )
+            cell = cells[(cdims[row_key], cdims[col_key])]
+            if any(c["key"] == case["key"] for c in cell):
+                continue
+            entry = {
+                "key": case["key"],
+                "number": case.get("number"),
+                "label": case.get("label") or f"{case.get('number') or 0:02d}",
+                "title": case.get("title", ""),
+            }
+            if case.get("parametric"):
+                entry["parametric"] = True
+            cell.append(entry)
     applicable = [e for e in exclusions if set(e["when"]) <= {row_key, col_key}]
     grid = []
     for row in rows:
@@ -138,6 +148,20 @@ def matrix(
     }
 
 
+def statuses_used(content: dict) -> set[str]:
+    """Les statuts qu'un cas emploie ; pour un cas paramétré, ceux de toutes ses variantes."""
+    source = content.get("source") if content.get("params") else None
+    steps = [*content.get("steps", []), *((source or {}).get("steps") or [])]
+    outcomes = [content.get("outcome") or {}, *((source or {}).get("outcome") or [])]
+    used = set(content.get("initial", {}).values())
+    for step in steps:
+        used.update(c["status"] for c in step.get("changes", {}).values())
+        if step.get("global"):
+            used.add(step["global"])
+    used.update(o["status"] for o in outcomes if o.get("status"))
+    return used
+
+
 def _usage(cases: list[dict]) -> tuple[dict, set[str], set[str], list[dict]]:
     """Cas par empreinte, statuts et règles utilisés, et constats « une seule étape »."""
     findings = []
@@ -148,13 +172,7 @@ def _usage(cases: list[dict]) -> tuple[dict, set[str], set[str], list[dict]]:
         by_hash[case["content_hash"]].append(case["key"])
         content = case["content"]
         used_rules.update(content.get("rules", []))
-        used_statuses.update(content.get("initial", {}).values())
-        for step in content.get("steps", []):
-            used_statuses.update(c["status"] for c in step.get("changes", {}).values())
-            if step.get("global"):
-                used_statuses.add(step["global"])
-        if (content.get("outcome") or {}).get("status"):
-            used_statuses.add(content["outcome"]["status"])
+        used_statuses.update(statuses_used(content))
         if len(content.get("steps", [])) == 1:
             findings.append(
                 {

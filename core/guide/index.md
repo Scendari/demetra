@@ -51,6 +51,8 @@ Les rôles sont séparés :
 | Lire, retirer, rétablir un cas ; lire son historique | `GET …/cases`, `GET`/`DELETE …/cases/{key}`, `POST …/restore`, `GET …/revisions` | `studies:read`, `studies:write` | `cases` |
 | Mesurer la couverture, lire les combinaisons manquantes et les contrôles de structure | `GET …/coverage?strength=`, `GET …/checks` | `studies:read` | `coverage` |
 | Lire les avis et commentaires ; obtenir la liste de ce qu'il reste à corriger | `GET …/verdicts`, `GET …/worklist` | `studies:read` | `review` |
+| Déclarer les règles d'atelier d'une étude (éléments reliés et table de règles au vocabulaire fermé, ou périodes datées à combiner en un historique) ; lire cette déclaration ; dérouler une situation construite avec ces briques | champ `workshop` de l'étude, `GET …/workshop`, `POST …/workshop/run` | `studies:write` pour déclarer, `studies:read` pour lire et dérouler | `atelier` |
+| Décrire plusieurs situations par un seul cas (paramètres, étapes conditionnelles) | champs `params`, `steps[].when`, `outcome` en liste | `studies:write` | `cases` |
 | Obtenir les représentations conseillées, fixer celle de l'étude, en changer pour vous ou pour un cas | `GET …/representations/recommended`, `GET`/`PUT …/representation` | `studies:read` pour lire, `representations:write` pour choisir (rôle éditeur pour toute l'étude) | `representations` |
 | Proposer une représentation à l'utilisateur | `POST …/representations/proposals` | `representations:write` (rôle éditeur) | `representations` |
 | Voir un cas dans une représentation : image PNG et résumé textuel | `POST …/cases/{key}/preview` | `studies:read` | `representations` |
@@ -65,6 +67,7 @@ Tout est aussi décrit, paramètre par paramètre, dans le document OpenAPI : `G
 - Rendre un avis : `POST …/verdict` répond toujours 403.
 - Partager directement : `POST …/share-requests` crée une demande **en attente** qu'un humain confirme dans l'interface.
 - Remplacer la représentation qu'un humain a choisie pour l'étude : `PUT …/representation` répond 409 `human_choice` ; vous proposez, il décide.
+- Enregistrer comme cas une situation construite dans l'atelier : c'est un geste de l'interface. Vous déposez vos propres cas par `POST …/cases/batch`.
 - Archiver une étude.
 
 ## Règles de conduite

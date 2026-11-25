@@ -204,6 +204,7 @@ class Context:
     lifecycles: list = field(default_factory=list)
     default_status: str = ""
     attributes: list = field(default_factory=list)
+    handles: bool = False  # atelier : chaque nœud et chaque lien dit qui il est, pour qu'on puisse le saisir
 
     def initial_status(self, ent_id: str) -> str:
         """Statut de l'entité avant la première étape."""
@@ -606,6 +607,10 @@ def _draw_links(ctx: Context, links: list[dict], port, axis: str, fixed_step: in
         ):  # la règle tient à ce lien : trait renforcé dans la teinte choisie par l'auteur
             cls += f" is-flagged {flag_classes(flagged)}"
         body = f'<path class="lk-path" d="{path}"/>'
+        if ctx.handles:  # une zone plus large que le trait, pour le cliquer
+            name = escape(f"{link['from']}:{link.get('type', '')}:{link['to']}", quote=True)
+            attrs += f' data-l="{name}"'
+            body += f'<path class="lk-hit" d="{path}"/>'
         if arrow in ("end", "both"):
             body += (
                 f'<path class="lk-tip" d="M0 0L-8 -4.2L-8 4.2Z" '
@@ -680,6 +685,8 @@ def _draw_node(ctx: Context, node: dict, pos: dict, radius: float, fixed_step: i
     if mark["show_annotations"]:
         body += _node_annotation(ctx, node["id"], w, h, fixed_step)
     cls = " ".join(["n", f"n-{mark['shape']}", *classes])
+    if ctx.handles:
+        attrs += f' data-e="{escape(node["id"], quote=True)}"'
     return f'<g class="{cls}"{attrs} transform="translate({x:.1f} {y:.1f})">{body}</g>'
 
 
@@ -1511,8 +1518,12 @@ def render(
     ruleset: dict | None = None,
     lifecycles: list[dict] | None = None,
     attributes: list[dict] | None = None,
+    handles: bool = False,
 ) -> tuple[str, dict]:
-    """Dessine la représentation pour un cas. Renvoie (fragment HTML, résumé structurel)."""
+    """Dessine la représentation pour un cas. Renvoie (fragment HTML, résumé structurel).
+
+    `handles` ajoute à chaque nœud et à chaque lien d'un graphe de quoi le saisir dans l'atelier (`data-e`,
+    `data-l`) ; sans lui, le dessin est exactement celui d'un cas."""
     from . import render_ext
     from .casemodel import default_status
 
@@ -1540,6 +1551,7 @@ def render(
         lifecycles=lifecycles or [],
         default_status=default_status(statuses) or "",
         attributes=attributes or [],
+        handles=handles,
     )
     summary = Summary()
     compose = with_defaults(spec.get("compose") or {"brick": "compose.stack"})

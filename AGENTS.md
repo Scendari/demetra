@@ -20,7 +20,7 @@ Vue d'ensemble, limites connues, licences : `README.md`. Mise en production : `D
 ```bash
 uv sync                                   # dépendances (ajouter --extra ldap pour l'annuaire LDAP)
 uv run python manage.py migrate           # base SQLite locale + représentations système
-uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 12 études
+uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 14 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
 uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium :
@@ -42,18 +42,23 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `casemodel.py` | Validation et normalisation d'un cas et des définitions d'étude (`normalize_*`), rejeu des étapes (`replay`), empreintes (`semantic_hash`, `presentation_hash`) | Pur : aucun accès à la base. Un rapport (`Report`) porte erreurs et avertissements |
 | `extensions.py` | Champs étendus d'un cas : jeu de règles, cycles de vie, mesures, calculs, bandes | Appelé par `casemodel` |
 | `coverage.py` | Couverture des dimensions, combinaisons manquantes, contrôles d'étude | Pur |
+| `workshop.py` | Atelier : déclaration d'une étude (`normalize` : briques, options, évènements, liens, réglages, table de règles), conditions au vocabulaire fermé (`check_condition`, `holds`), situation construite (`situation`, `from_query`, `to_query`), moteur pas à pas (`run`), passage au format de cas (`to_case`) | Pur. Aucun code fourni par l'étude n'est exécuté. Rien n'y nomme une étude : les règles d'une étude vivent dans sa déclaration (`Study.workshop`), jamais ici |
+| `periods.py` | Atelier, famille « périodes » : déclaration (`normalize` : axe, sources, composition d'une image, champs restitués, fusion, périodes invalides), phrases tirées de la déclaration (`principles`), périodes posées (`situation`, `from_query`, `to_query`, `placed`), moteur (`run` : une image par pas, puis réunion), passage au format de cas (`to_case`) | Pur. Mêmes interdits que `workshop.py`. Réutilise ses contrôles de briques et d'options |
+| `families.py` | Les familles d'atelier (`FAMILIES`) et leur interface commune : `normalize`, `declared`, `situation`, `from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `to_case` | Pur. `services`, `api` et `views/atelier` passent par `families.of(decl)` : aucun n'appelle une famille par son nom. Ajouter une famille = un module de plus ici, sans toucher à l'écran ni à l'API |
+| `rulecheck.py` | Accord entre le sort des lignes qu'un cas annonce et ce que calcule le jeu de règles de l'étude (`model_mismatch`) | Pur |
+| `parametric.py` | Cas paramétré : `params`, `when`, rejeu de chaque combinaison au dépôt. En base : la variante par défaut (un cas ordinaire) plus `params` et `source` | Pur. `source_of` rend la forme déposée ; tout nouveau lecteur de `Case.content` qui doit voir les variantes passe par `expand` |
 | `bricks.py` | Catalogue des briques de représentation, schéma JSON, 16 représentations système | La source de vérité des représentations |
-| `render.py`, `render_ext.py` | Dessin SVG côté serveur de toutes les représentations ; `render()` est le point d'entrée | Pur ; aucune bibliothèque de disposition (ni Graphviz, ni ELK, ni dagre) |
+| `render.py`, `render_ext.py` | Dessin SVG côté serveur de toutes les représentations ; `render()` est le point d'entrée | Pur ; aucune bibliothèque de disposition (ni Graphviz, ni ELK, ni dagre). `handles=True` (atelier seulement) ajoute `data-e` aux nœuds et `data-l` aux liens d'un graphe, pour le glisser-déposer ; sans lui le dessin d'un cas ne change pas d'un octet |
 | `recommend.py` | Recommandation de représentation d'après la forme des cas | |
 | `services.py` | **Toutes les règles métier** : droits, création d'étude, dépôt de cas, avis, partage, jetons, représentations, journal | L'API et l'interface passent par ici ; ne pas dupliquer une règle dans `api.py` ou `views/` |
 | `api.py` | API REST (django-ninja), authentification par jeton, schémas d'entrée | Mince : délègue à `services` |
-| `views/` | Pages de l'interface, un module par domaine : `pages` (accueil, guide, briques), `etudes` (liste, définitions), `revue` (espace de travail, panneau d'un cas, avis, événements), `couverture`, `representations`, `partage`, `historique`, `jetons` ; `commun` porte les briques partagées (`web`, `actor`, `study_nav`) | Mince : délègue à `services`. `__init__.py` réexporte les vues pour `urls.py`, l'admin et les tests |
+| `views/` | Pages de l'interface, un module par domaine : `pages` (accueil, guide, briques), `etudes` (liste, définitions), `revue` (espace de travail, panneau d'un cas, avis, événements), `couverture`, `atelier` (onglet « Atelier »), `representations`, `partage`, `historique`, `jetons` ; `commun` porte les briques partagées (`web`, `actor`, `study_nav`) | Mince : délègue à `services`. `__init__.py` réexporte les vues pour `urls.py`, l'admin et les tests |
 | `connect.py` | Connexion d'une IA par lien d'autorisation (`POST /api/v1/connect`, page `/connecter/`) | Aucun jeton n'est stocké en clair |
 | `sso.py`, `accounts.py` | SSO OpenID Connect (bibliothèque standard + PyJWT) et règles de connexion allauth | Voir `demetra/entreprise.py` pour LDAP, HTTPS, SMTP |
 | `sante.py` | Sonde `/sante/`, traitée avant la vérification d'hôte | |
 | `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule | Le contenu des études n'y est pas modifiable |
 | `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown |
-| `demo/` | Données des 12 études de démonstration (`seed_demo`) | Le catalogue vient de `sources/catalogue` |
+| `demo/` | Données des 14 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 
@@ -79,7 +84,7 @@ URLs. `scripts/` : outils hors application (empreinte de rendu, détecteur de de
    `presentation_hash` change, les avis sont conservés (`updated_cosmetic`). Toute nouvelle option d'un cas doit
    être rangée sciemment dans l'une ou l'autre.
 6. **Une IA ne rend jamais d'avis et ne partage jamais sans confirmation humaine.** Ces gestes restent dans
-   l'interface, réservés aux humains.
+   l'interface, réservés aux humains. De même, enregistrer comme cas une situation construite dans l'atelier.
 7. **Un jeton n'est jamais affiché, journalisé ni placé dans une URL.** Le site n'en garde que le condensé.
 8. **Le mode d'emploi suit le code.** Toute route d'API doit être décrite dans `core/guide/*.md`
    (`tests/test_api.py::test_every_api_route_is_documented_in_the_guide`). À chaque changement visible par une IA,
@@ -112,14 +117,21 @@ URLs. `scripts/` : outils hors application (empreinte de rendu, détecteur de de
 - `tests/test_api.py`, `test_web.py` : API et interface, avec les fixtures de `tests/conftest.py`
   (`users`, `api`, `study`, `web`).
 - `test_representations.py`, `test_elargi.py` : rendu et stabilité des 16 représentations.
+- `test_atelier.py` : vocabulaire fermé des règles, moteur pas à pas, situation dans l'adresse, écran, API,
+  enregistrement réservé aux humains ; il vérifie aussi que rien dans `core/` hors `core/demo/` ne nomme une
+  étude de démonstration, et que les exemples du chapitre `atelier` du guide donnent ce qu'il annonce.
+  `test_periodes.py` : la famille « périodes » sur une étude d'essai sans rapport avec les démonstrations
+  (déclaration, moteur, adresse, API, écran, exemple du guide).
+  `test_parametrique.py`, `test_modele.py` : cas paramétrés, accord avec le jeu de règles.
 - `test_contrast.py` : contrastes des deux thèmes. `test_licences.py` : licences et absence de bibliothèque de
   disposition. `test_admin.py`, `test_entreprise.py`, `test_connect.py`, `test_exploitation.py` : administration,
   SSO/LDAP/HTTPS, lien d'autorisation, sonde et sauvegarde.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque).
 - `scripts/empreinte_rendu.py` : empreinte de tout ce que le site calcule sur les études de démonstration
   (données produites par `core/demo/*`, normalisation, rejeu, empreintes, couverture, recommandation,
-  16 rendus × 2 étapes par cas ; environ 14 000 empreintes). **Avant un remaniement, écrivez-la ; après,
-  comparez : une seule différence signifie que le comportement a changé.** L'intégration continue la rejoue
+  16 rendus × 2 étapes par cas ; environ 16 000 empreintes). **Avant un remaniement, écrivez-la ; après,
+  comparez : une seule différence signifie que le comportement a changé.** Après un ajout (étude, cas, atelier),
+  la comparaison ne doit montrer que des lignes « nouvelles » : aucune « changée », aucune « absente ». L'intégration continue la rejoue
   aussi (écriture puis comparaison, pour vérifier qu'elle reste déterministe).
 - Design : `scripts/controle_impeccable.py` passe toutes les pages au détecteur du skill impeccable, s'il est
   installé sur le poste ; facultatif.

@@ -70,7 +70,7 @@ passe sont générés sur le serveur, lus dans des variables d'environnement, et
 # Compte d'administration : Django lit DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_PASSWORD.
 docker compose exec demetra python manage.py createsuperuser --noinput
 
-# Vitrine : les 12 études de démonstration (catalogue Lancelot et 11 exemples, avec leurs avis), et les comptes
+# Vitrine : les 14 études de démonstration (catalogue Lancelot et 13 exemples, avec leurs avis), et les comptes
 # demo (propriétaire des études), lea (commentatrice) et marc (sans accès, pour essayer le partage).
 docker compose exec -e DEMETRA_DEMO_PASSWORD demetra python manage.py seed_demo --password-env DEMETRA_DEMO_PASSWORD
 ```

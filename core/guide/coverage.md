@@ -27,6 +27,8 @@ Pour chaque combinaison de `missing`, vous avez trois issues honnêtes :
 2. **Déclarer une exclusion** dans l'étude si la combinaison est impossible, avec sa raison (`PATCH /studies/{id}`, champ `exclusions`).
 3. **La laisser** et le dire à l'utilisateur.
 
+Un **cas paramétré** (chapitre `cases`) compte pour toutes les combinaisons de dimensions que ses paramètres permettent, et pour un seul cas dans `cases_counted` et `by_dimension`. Dans l'interface, la case qu'il couvre est marquée « paramétré ».
+
 ## Limite à dire à l'utilisateur
 
 La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que les dimensions ne décrivent pas n'apparaît pas comme manquante. Si vous découvrez un facteur qui change le comportement, ajoutez-le comme dimension.
@@ -40,7 +42,8 @@ La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que
 - `case_without_rule` : des cas rattachés à aucune règle ;
 - `unused_status` : un statut déclaré mais jamais atteint ;
 - `single_step` : un cas d'une seule étape ;
-- `compare_missing_case` : un `compare_with` qui vise un cas absent ou retiré.
+- `compare_missing_case` : un `compare_with` qui vise un cas absent ou retiré ;
+- `model_mismatch` : des cas annoncent un sort des lignes que le jeu de règles de l'étude ne donne pas (avertissement).
 
 ## Niveau de preuve
 

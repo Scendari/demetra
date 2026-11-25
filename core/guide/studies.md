@@ -114,6 +114,10 @@ Les états possibles d'un type d'entité et les **seules transitions permises**.
 - Dès qu'un cycle est déclaré, chaque changement d'état d'une entité de ce type est contrôlé : une transition absente est refusée (`forbidden_transition`, avec les états permis dans `expected`), de même qu'un état de départ hors du cycle (`outside_lifecycle`).
 - Représentations : « diagramme d'états » (peu de transitions) et « table d'états » (beaucoup de transitions : elle montre aussi ce qui n'est pas permis).
 
+### Règles d'atelier (`workshop`)
+
+Ce que le site **exécute** quand un humain construit une situation dans l'onglet « Atelier » : des briques, des liens et une table de règles (famille `linked`), ou des sources de périodes et la façon de les combiner (famille `periods`). Chapitre `atelier`. Une étude qui ne les déclare pas n'a pas d'atelier.
+
 ### Modifier ces déclarations
 
 `PATCH /api/v1/studies/{id}` avec `dimensions`, `ruleset` ou `lifecycles`. Le site revalide les cas déjà déposés contre la nouvelle déclaration : si un cas cite une ligne retirée, porte une mesure hors de sa tranche ou emprunte une transition supprimée, la modification est refusée (`in_use`, avec les cas concernés) et rien ne change.

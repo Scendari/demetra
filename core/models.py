@@ -56,6 +56,11 @@ class Study(models.Model):
     attributes = models.JSONField(
         default=list, blank=True, help_text="Options portées par les entités : libellé lisible et définition."
     )
+    workshop = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Atelier : briques, liens et table de règles que le site exécute sur une situation.",
+    )
     representation = models.ForeignKey(
         "Representation", null=True, blank=True, on_delete=models.SET_NULL, related_name="default_for"
     )

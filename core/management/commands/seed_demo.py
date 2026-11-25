@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from core import services as svc
-from core.demo import catalogue, decision, elargi, temporal
+from core.demo import catalogue, circuit, decision, elargi, parametre, temporal
 from core.models import Decision, Membership, Representation, Role, Study
 
 PASSWORD = "demetra-demo"
@@ -25,8 +25,8 @@ LEA_COMMENTS = {
 
 class Command(BaseCommand):
     help = (
-        "Crée les comptes et les douze études de démonstration : le catalogue et onze exemples à données "
-        "fictives (rejouable sans doublon)."
+        "Crée les comptes et les quatorze études de démonstration : le catalogue et treize exemples à "
+        "données fictives (rejouable sans doublon)."
     )
 
     def add_arguments(self, parser):
@@ -104,12 +104,14 @@ class Command(BaseCommand):
     def _studies() -> list[tuple]:
         """(définition, cas, est un exemple, représentation imposée) pour chaque étude de démonstration."""
         data = catalogue.load()
-        # Le catalogue vient d'un prototype réel ; les deux autres études sont des exemples aux données
+        # Le catalogue vient d'un prototype réel ; les autres études sont des exemples aux données
         # fictives.
         return [
             (catalogue.study_definition(data), catalogue.cases(data), False, None),
             (decision.DEFINITION, decision.cases(), True, None),
             (temporal.DEFINITION, temporal.cases(), True, None),
+            (parametre.DEFINITION, parametre.cases(), True, None),
+            (circuit.DEFINITION, circuit.cases(), True, None),
             # Une étude par représentation du catalogue élargi : elle porte la représentation qu'elle
             # illustre.
             *[(definition, build(), True, slug) for slug, definition, build in elargi.STUDIES],
@@ -131,7 +133,7 @@ class Command(BaseCommand):
                 study,
                 {
                     k: definition.get(k)
-                    for k in (*always, "ruleset", "lifecycles", "attributes")
+                    for k in (*always, "ruleset", "lifecycles", "attributes", "workshop")
                     if k in definition or k in always
                 },
             )

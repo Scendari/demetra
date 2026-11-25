@@ -6,6 +6,7 @@ importent de `core.views`.
 
 from __future__ import annotations
 
+from .atelier import study_workshop
 from .commun import DECISION_KEYS, actor, body_of, legend_of, steps_payload, study_nav, wants_json, web
 from .couverture import study_coverage
 from .etudes import STARTER_STATUSES, studies, study_setup
@@ -54,6 +55,7 @@ __all__ = [
     "study_setup",
     "study_sharing",
     "study_state",
+    "study_workshop",
     "tokens",
     "wants_json",
     "web",

@@ -463,6 +463,110 @@ def normalize_ruleset(raw: Any, status_keys: set[str], report: Report, path: str
     return {"title": title, "policy": policy, "conditions": conditions, "rows": rows}
 
 
+def _row_fate(row: dict, order: list[str], values: dict, labels: dict) -> dict:
+    """Une ligne face aux valeurs données : failed (et sur quelle condition), unknown ou matched."""
+    unknown = False
+    for cond in order:
+        if cond not in row["when"]:
+            continue
+        value = values.get(cond)
+        if value is None:
+            unknown = True
+        elif row["when"][cond] not in (value, (labels.get(cond) or {}).get(value)):
+            return {"result": "failed", "on": cond}
+    return {"result": "unknown" if unknown else "matched"}
+
+
+def _apply_policy(policy: str, matched: list[dict]) -> tuple[list[dict], str | None]:
+    """Les lignes retenues parmi celles qui correspondent, et l'anomalie éventuelle."""
+    if not matched:
+        return [], "none_matches"
+    if policy in ("first", "priority"):
+        return matched[:1], None
+    if policy == "unique":
+        return matched, "several_unique" if len(matched) > 1 else None
+    if policy == "any":
+        return matched, "conflict_any" if len({r["then"] for r in matched}) > 1 else None
+    return matched, None  # collect
+
+
+RULESET_ISSUES = {
+    "none_matches": "Aucune ligne ne correspond à ces valeurs.",
+    "several_unique": "Plusieurs lignes correspondent, alors que la politique n'en admet qu'une.",
+    "conflict_any": "Les lignes qui correspondent ne concluent pas toutes pareil.",
+}
+
+
+def evaluate_ruleset(ruleset: dict, values: dict, labels: dict | None = None) -> dict:
+    """Ce que le jeu de règles conclut pour des valeurs de conditions données.
+
+    `values` : condition → valeur (None si elle n'est pas connue). `labels` : condition → {valeur: libellé},
+    pour qu'une ligne écrite avec le libellé d'une valeur de dimension corresponde aussi.
+    Tant qu'une ligne dépend d'une condition sans valeur, rien n'est conclu (`complete` faux)."""
+    order = [c["key"] for c in ruleset.get("conditions", [])]
+    rows = {r["key"]: _row_fate(r, order, values, labels or {}) for r in ruleset.get("rows", [])}
+    missing = [
+        c
+        for c in order
+        if values.get(c) is None
+        and any(c in r["when"] and rows[r["key"]]["result"] == "unknown" for r in ruleset["rows"])
+    ]
+    out = {"rows": rows, "complete": not missing, "missing": missing, "selected": [], "issue": None}
+    out.update(conclusion=None, status=None)
+    if missing:
+        return out
+    matched = [r for r in ruleset["rows"] if rows[r["key"]]["result"] == "matched"]
+    selected, issue = _apply_policy(ruleset.get("policy") or "unique", matched)
+    keys = [r["key"] for r in selected]
+    for row in matched:
+        rows[row["key"]] = {"result": "selected" if row["key"] in keys else "discarded"}
+    out.update(selected=keys, issue=issue)
+    if selected:
+        out["conclusion"] = " ; ".join(dict.fromkeys(r["then"] for r in selected))
+        out["status"] = selected[0].get("status")
+    return out
+
+
+def ruleset_values(ruleset: dict, dimensions: dict, config: dict) -> dict:
+    """Les valeurs d'un cas pour les conditions du jeu de règles : sa dimension, sinon son réglage."""
+    values = {}
+    for cond in ruleset.get("conditions", []):
+        key = cond["key"]
+        value = dimensions.get(key)
+        values[key] = value if value is not None else _text(config.get(key))
+    return values
+
+
+def dimension_labels(dimensions: list[dict]) -> dict:
+    return {d["key"]: {v["value"]: v.get("label") or v["value"] for v in d["values"]} for d in dimensions}
+
+
+def check_ruleset_agreement(case: dict, ruleset: dict, dimensions: list[dict], report: Report, path: str):
+    """Écart entre le sort des lignes annoncé par le cas et celui que le jeu de règles calcule : un
+    avertissement, jamais un refus (le cas peut justement montrer un comportement contesté)."""
+    if not ruleset or not any(s.get("rows") for s in case["steps"]):
+        return
+    values = ruleset_values(ruleset, case["dimensions"], case["config"])
+    verdict = evaluate_ruleset(ruleset, values, dimension_labels(dimensions))
+    if not verdict["complete"]:
+        return
+    declared: dict[str, tuple[int, str]] = {}
+    for i, step in enumerate(case["steps"]):
+        for key, entry in (step.get("rows") or {}).items():
+            declared[key] = (i, entry["result"])
+    for key, (i, result) in declared.items():
+        expected = verdict["rows"][key]["result"]
+        if result != expected:
+            report.warn(
+                f"{path}.steps[{i}].rows.{key}",
+                "model_mismatch",
+                f"Le cas annonce la ligne « {key} » {RULE_RESULTS[result].lower()}, mais le jeu de règles "
+                f"de l'étude la donne {RULE_RESULTS[expected].lower()} pour les valeurs de ce cas.",
+                received=result,
+                expected=expected,
+            )
+
+
 # ---------------------------------------------------------------------------
 # Étude : cycles de vie
 # ---------------------------------------------------------------------------

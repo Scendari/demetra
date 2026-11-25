@@ -57,7 +57,7 @@
       {% for row in table.rows %}<tr><th scope="row">{{ row.label }}</th>
         {% for cell in row.cells %}<td class="{% if cell.excluded %}mx-excluded{% elif cell.cases %}mx-covered{% else %}mx-missing{% endif %}">
           {% if cell.excluded %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ic-disabled"/></svg>Exclue</span><span class="mx-reason">{{ cell.excluded }}</span>
-          {% elif cell.cases %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>{{ cell.cases|length }} cas</span><p class="mx-cases">{% for c in cell.cases|slice:":8" %}<a href="{% url 'workspace' study.public_id %}?cas={{ c.key }}" title="{{ c.title }}">{{ c.label }}</a>{% endfor %}{% if cell.cases|length > 8 %}<span>+{{ cell.cases|length|add:"-8" }}</span>{% endif %}</p>
+          {% elif cell.cases %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>{{ cell.cases|length }} cas</span><p class="mx-cases">{% for c in cell.cases|slice:":8" %}<a href="{% url 'workspace' study.public_id %}?cas={{ c.key }}" title="{{ c.title }}{% if c.parametric %} — cas paramétré : une de ses variantes couvre cette case{% endif %}">{{ c.label }}{% if c.parametric %} <span class="mx-param">paramétré</span>{% endif %}</a>{% endfor %}{% if cell.cases|length > 8 %}<span>+{{ cell.cases|length|add:"-8" }}</span>{% endif %}</p>
           {% else %}<span class="mx-state"><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>Manque</span>{% endif %}
         </td>{% endfor %}
       </tr>{% endfor %}

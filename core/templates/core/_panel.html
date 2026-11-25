@@ -17,6 +17,7 @@
     {% if c.summary %}<p class="cp-summary">{{ c.summary }}</p>{% endif %}
     {% if c.retired_at %}<p class="notice notice-retired"><svg class="ic" aria-hidden="true"><use href="#ui-retired"/></svg>Ce cas a été retiré de la revue le {{ c.retired_at|date:"j F Y" }}. Il reste consultable avec ses avis.</p>{% endif %}
     {% if p.stale_label %}<p class="notice notice-changed" data-stale-notice><svg class="ic" aria-hidden="true"><use href="#ui-changed"/></svg><span><strong>Modifié depuis votre avis.</strong> Vous l'aviez {{ p.stale_label }} ; son déroulé a changé, il est repassé « à analyser ».</span></p>{% endif %}
+    {% if p.variants %}<div class="notice notice-variants"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><div><p><strong>Cas paramétré : {{ p.variants|length }} variantes.</strong> Votre avis porte sur le cas entier, toutes variantes comprises.</p><ul>{% for v in p.variants %}<li>{% if v.current %}<strong aria-current="true">{{ v.label }}</strong> (affichée){% else %}<a class="link" href="{{ v.url }}">{{ v.label }}</a>{% endif %}</li>{% endfor %}</ul></div></div>{% endif %}
     {# Deux rubriques nommées, dans l'ordre où l'on raisonne : les paramètres du cas, puis le résultat attendu. Les paramètres mis en avant par l'auteur restent visibles ; les autres se déplient, et le choix est mémorisé. #}
     {% if p.highlight_rows or p.other_rows or p.outcome.label %}
     <dl class="cp-facts">

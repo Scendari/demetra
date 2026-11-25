@@ -101,6 +101,137 @@ STATUSES = [
     },
 ]
 
+# Atelier : les règles d'ordonnancement des Tasks, déclarées dans le vocabulaire fermé du site. Elles viennent
+# du catalogue : chaque règle cite le comportement que ses scénarios décrivent. Ce que le vocabulaire ne dit
+# pas reste hors de l'atelier : le nombre de places d'exécution, les actions d'une Task sur une autre, un
+# blocage prononcé avant la fin d'une Task déjà en erreur.
+_DONE = ["FINISHED_OK", "WARNING", "KO_IGNORED", "FINISHED_KO", "BLOCKED", "DEACTIVATED"]
+_PASSED = ["FINISHED_OK", "WARNING", "KO_IGNORED"]
+WORKSHOP = {
+    "title": "Composer un Workflow",
+    "bricks": [
+        {
+            "type": "task",
+            "label": "Task",
+            "options": [
+                {"key": "active", "label": "Active", "values": [True, False]},
+                {"key": "always_run", "label": "Toujours exécutée", "values": [False, True]},
+                {"key": "ignore_on_error", "label": "Erreur ignorée", "values": [False, True]},
+            ],
+            "events": [
+                {"key": "echec", "label": "Échoue"},
+                {"key": "avertissement", "label": "Termine avec un avertissement"},
+            ],
+        }
+    ],
+    "links": [{"type": "prerequisite", "label": "précède", "reverse": "dépend de"}],
+    "settings": [
+        {"key": "stop_on_error", "label": "Arrêt sur erreur (stop_on_error)", "values": [False, True]}
+    ],
+    "rules": [
+        {
+            "key": "T1",
+            "title": "Une Task inactive est désactivée et ne s'exécute pas",
+            "when": {"status": "WAITING", "option": {"active": False}},
+            "then": "DEACTIVATED",
+        },
+        {
+            "key": "T2",
+            "title": "Une Task est désactivée quand un de ses prérequis, direct ou indirect, l'est",
+            "when": {
+                "status": ["WAITING", "BLOCKED"],
+                "option": {"always_run": False},
+                "upstream": {"any": {"status": "DEACTIVATED"}},
+            },
+            "then": "DEACTIVATED",
+        },
+        {
+            "key": "T3",
+            "title": "Une Task toujours exécutée démarre quand tous ses prérequis, même indirects, ont fini",
+            "when": {
+                "status": "WAITING",
+                "option": {"always_run": True},
+                "upstream": {"all": {"status": _DONE}},
+            },
+            "then": "RUNNING",
+        },
+        {
+            "key": "T4",
+            "title": "Avec l'arrêt sur erreur, un échec bloque les Tasks ordinaires encore en attente",
+            "when": {
+                "status": "WAITING",
+                "option": {"always_run": False},
+                "setting": {"stop_on_error": True},
+                "elements": {"any": {"status": "FINISHED_KO"}},
+            },
+            "then": "BLOCKED",
+        },
+        {
+            "key": "T5",
+            "title": "Une Task est bloquée quand un de ses prérequis, direct ou indirect, a échoué",
+            "when": {
+                "status": "WAITING",
+                "option": {"always_run": False},
+                "upstream": {"any": {"status": "FINISHED_KO"}},
+            },
+            "then": "BLOCKED",
+        },
+        {
+            "key": "T6",
+            "title": "Une Task démarre quand tous ses prérequis ont réussi",
+            "when": {
+                "status": "WAITING",
+                "option": {"always_run": False},
+                "incoming": {"all": {"status": _PASSED}},
+            },
+            "then": "RUNNING",
+        },
+        {
+            "key": "T7",
+            "title": "Une Task qui échoue reste en cours le temps d'enregistrer son erreur",
+            "when": {"status": "RUNNING", "event": "echec"},
+            "then": "RUNNING_KO",
+        },
+        {
+            "key": "T8",
+            "title": "Une erreur ignorée termine la Task en KO_IGNORED",
+            "when": {"status": "RUNNING_KO", "option": {"ignore_on_error": True}},
+            "then": "KO_IGNORED",
+        },
+        {
+            "key": "T9",
+            "title": "Une Task en erreur termine en échec",
+            "when": {"status": "RUNNING_KO"},
+            "then": "FINISHED_KO",
+        },
+        {
+            "key": "T10",
+            "title": "Une Task peut terminer avec un avertissement",
+            "when": {"status": "RUNNING", "event": "avertissement"},
+            "then": "WARNING",
+        },
+        {
+            "key": "T11",
+            "title": "Une Task en cours termine avec succès",
+            "when": {"status": "RUNNING"},
+            "then": "FINISHED_OK",
+        },
+    ],
+    "outcome": [
+        {
+            "when": {"elements": {"any": {"status": "FINISHED_KO"}}},
+            "label": "Workflow FINISHED_KO",
+            "status": "FINISHED_KO",
+        },
+        {
+            "when": {"elements": {"any": {"status": "WARNING"}}},
+            "label": "Workflow WARNING",
+            "status": "WARNING",
+        },
+        {"label": "Workflow FINISHED_OK", "status": "FINISHED_OK"},
+    ],
+}
+
 # Statuts d'ensemble du prototype dont la clé n'est pas en ASCII : on garde le libellé, on normalise la clé.
 GLOBAL_KEYS = {"NON_DÉMARRÉ": "NON_DEMARRE", "CONTRÔLE_KO": "CONTROLE_KO"}
 
@@ -172,6 +303,7 @@ def study_definition(data: dict) -> dict:
         ],
         "rules": rules,
         "exclusions": [],
+        "workshop": WORKSHOP,
         # Options des Tasks, définies d'après le catalogue d'origine (repères de lecture et légende des
         # statuts).
         "attributes": [

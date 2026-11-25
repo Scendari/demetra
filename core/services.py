@@ -20,7 +20,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
-from . import bricks, casemodel, extensions
+from . import bricks, casemodel, extensions, families, parametric, rulecheck
 from . import coverage as cov
 from .models import (
     ROLE_RANK,
@@ -278,6 +278,11 @@ def _study_definitions(data: dict, report: casemodel.Report, current: Study | No
         out["lifecycles"] = extensions.normalize_lifecycles(data["lifecycles"], status_keys, report)
     if "attributes" in data:
         out["attributes"] = casemodel.normalize_attributes(data["attributes"], report)
+    if "workshop" in data:
+        out["workshop"] = families.normalize(data["workshop"], status_keys, report)
+    elif "statuses" in data and current and current.workshop:
+        # Un statut ne se retire pas sous une règle d'atelier qui le nomme.
+        families.normalize(current.workshop, status_keys, report)
     return out
 
 
@@ -360,13 +365,7 @@ def _usage(study: Study) -> dict:
     statuses, dims, rules = {}, {}, {}
     for case in study.cases.filter(retired_at__isnull=True).only("key", "content", "dimensions"):
         content = case.content
-        used = set(content.get("initial", {}).values())
-        for step in content.get("steps", []):
-            used.update(c["status"] for c in step.get("changes", {}).values())
-            if step.get("global"):
-                used.add(step["global"])
-        if (content.get("outcome") or {}).get("status"):
-            used.add(content["outcome"]["status"])
+        used = cov.statuses_used(content)
         for key in used:
             statuses.setdefault(key, []).append(case.key)
         for key, value in (case.dimensions or {}).items():
@@ -845,7 +844,9 @@ def review_summary(study: Study) -> dict:
     }
 
 
-def _case_rows(study: Study, extra_cases: list[dict] | None = None) -> list[dict]:
+def _case_rows(study: Study, extra_cases: list[dict] | None = None, variants: bool = False) -> list[dict]:
+    """Les cas actifs, tels que la couverture et les contrôles les lisent. Avec `variants`, un cas
+    paramétré donne une ligne par combinaison de dimensions qu'il illustre."""
     rows = [
         {
             "key": c.key,
@@ -871,15 +872,49 @@ def _case_rows(study: Study, extra_cases: list[dict] | None = None) -> list[dict
             }
             for c in extra_cases
         ]
-    return rows
+    if not variants:
+        return rows
+    out = []
+    for row in rows:
+        combos = parametric.dimension_rows(row["content"])
+        if len(combos) == 1 and not parametric.is_parametric(row["content"]):
+            out.append(row)
+        else:
+            out += [{**row, "dimensions": dims, "parametric": True} for dims in combos]
+    return out
 
 
 def coverage_report(study: Study, strength: int = 2, extra_cases: list[dict] | None = None) -> dict:
-    return cov.coverage(study.dimensions, study.exclusions, _case_rows(study, extra_cases), strength)
+    rows = _case_rows(study, extra_cases, variants=True)
+    return cov.coverage(study.dimensions, study.exclusions, rows, strength)
+
+
+def _model_findings(study: Study, rows: list[dict]) -> list[dict]:
+    """Cas dont le sort des lignes annoncé s'écarte de ce que calcule le jeu de règles de l'étude."""
+    if not (study.ruleset or {}).get("rows"):
+        return []
+    off = []
+    for row in rows:
+        for _, content in parametric.expand(row["content"]):
+            if rulecheck.agreement(study.ruleset, study.dimensions, content):
+                off.append(row["key"])
+                break
+    if not off:
+        return []
+    return [
+        {
+            "code": "model_mismatch",
+            "severity": "warning",
+            "cases": off[:50],
+            "message": f"{len(off)} cas annonce(nt) un sort des lignes que le jeu de règles de l'étude ne "
+            "donne pas : " + ", ".join(off[:20]) + ".",
+        }
+    ]
 
 
 def checks_report(study: Study) -> list[dict]:
-    return cov.study_checks(study.statuses, study.rules, _case_rows(study))
+    rows = _case_rows(study)
+    return cov.study_checks(study.statuses, study.rules, rows) + _model_findings(study, rows)
 
 
 def study_state(study: Study) -> dict:
@@ -1451,12 +1486,24 @@ def siblings_of(study: Study) -> list[dict]:
 def render_case(
     study: Study, case: Case, spec: dict, step: int = 0, siblings: list[dict] | None = None
 ) -> tuple[str, dict, list[dict]]:
+    return render_content(study, case.content, spec, step, siblings)
+
+
+def render_content(
+    study: Study,
+    content: dict,
+    spec: dict,
+    step: int = 0,
+    siblings: list[dict] | None = None,
+    handles: bool = False,
+) -> tuple[str, dict, list[dict]]:
+    """Dessine un contenu de cas, déposé ou construit dans l'atelier, avec les définitions de l'étude."""
     from .render import render
 
-    frames = casemodel.replay(case.content, study.statuses)
+    frames = casemodel.replay(content, study.statuses)
     html, summary = render(
         spec,
-        case.content,
+        content,
         frames,
         study.statuses,
         step=step,
@@ -1465,5 +1512,153 @@ def render_case(
         ruleset=study.ruleset or {},
         lifecycles=study.lifecycles or [],
         attributes=study.attributes or [],
+        handles=handles,
     )
     return html, summary, frames
+
+
+# ---------------------------------------------------------------------------
+# Atelier : une situation construite avec les briques de l'étude, déroulée d'après ses règles
+# ---------------------------------------------------------------------------
+
+WORKSHOP_SOURCE = (
+    "Situation construite dans l'atelier ; déroulé calculé par le site d'après les règles de l'étude"
+)
+
+
+def workshop_of(study: Study) -> dict | None:
+    """Ce que l'étude déclare pour l'atelier ; None si elle ne déclare ni briques ni règles."""
+    decl = study.workshop or {}
+    return decl if families.declared(decl) else None
+
+
+def workshop_run(study: Study, situation: dict) -> dict:
+    """Déroule une situation déjà vérifiée. Rend le déroulé, le résultat d'ensemble, et le même déroulé sous
+    la forme d'un cas (`content`, None si la situation ne donne pas un cas que le site sait valider)."""
+    decl = study.workshop
+    family = families.of(decl)
+    default = casemodel.default_status(study.statuses)
+    result = family.run(decl, situation, default)
+    raw = family.to_case(decl, situation, result, default)
+    content, report = casemodel.normalize_case(raw, context_of(study), "atelier")
+    placed = {e["id"] for e in situation["elements"]}
+    return {
+        "steps": result["steps"],
+        "end": result["end"],
+        "final": {key: s for key, s in result["steps"][-1]["states"].items() if key in placed},
+        "outcome": family.outcome(decl, result),
+        "used": result.get("used", []),
+        "extra": family.extra(decl, result),
+        "content": content,
+        "issues": [i.as_dict() for i in report.errors],
+    }
+
+
+def _free_key(study: Study) -> str:
+    taken = set(study.cases.filter(key__startswith="atelier-").values_list("key", flat=True))
+    return next(f"atelier-{n}" for n in range(1, len(taken) + 2) if f"atelier-{n}" not in taken)
+
+
+def save_built_case(actor: Actor, study: Study, situation: dict, title: str) -> str:
+    """Un humain enregistre la situation qu'il a construite comme un cas à relire. Rend la clé du cas créé."""
+    need_role(actor, study, Role.EDITOR)
+    if actor.is_token:
+        raise ServiceError(
+            403, "human_only", "Enregistrer une situation de l'atelier comme cas se fait dans l'interface."
+        )
+    if not workshop_of(study) or not situation["elements"]:
+        raise ServiceError(422, "nothing_to_save", "Il n'y a pas de situation construite à enregistrer.")
+    content = workshop_run(study, situation)["content"]
+    if content is None:
+        raise ServiceError(422, "validation_failed", "Cette situation ne donne pas un cas valide.")
+    raw = {k: v for k, v in content.items() if k not in ("number", "label")}
+    raw.update(
+        key=_free_key(study),
+        title=(title or "").strip()[:200] or content["title"],
+        summary=WORKSHOP_SOURCE + ".",
+        references=[{"kind": "atelier", "label": WORKSHOP_SOURCE}],
+    )
+    entry = upsert_cases(actor, study, [raw])["results"][0]
+    if entry["status"] == "error":
+        raise ServiceError(
+            422, "validation_failed", "Cette situation ne donne pas un cas valide.", details=entry["errors"]
+        )
+    audit(actor, "workshop.save", study, target=raw["key"])
+    return raw["key"]
+
+
+def workshop_url(study: Study, situation: dict | None = None) -> str:
+    """L'adresse de l'atelier, ouverte sur une situation : tout l'état tient dans l'adresse."""
+    from urllib.parse import urlencode
+
+    base = f"/etudes/{study.public_id}/atelier/"
+    family = families.of(study.workshop)
+    query = family.to_query(study.workshop, situation) if situation and situation["elements"] else []
+    return f"{base}?{urlencode(query)}" if query else base
+
+
+def workshop_out(study: Study) -> dict:
+    """Ce qu'une IA lit avant de construire une situation : le vocabulaire et les règles de l'étude."""
+    decl = workshop_of(study)
+    family = families.of(decl)
+    return {
+        "declared": bool(decl),
+        "family": families.name_of(decl) if decl else None,
+        "workshop": decl,
+        "default_status": casemodel.default_status(study.statuses),
+        "limits": {
+            "elements": family.MAX_ELEMENTS,
+            "links": family.MAX_SITUATION_LINKS,
+            "steps": decl.get("max_steps", family.DEFAULT_RUN_STEPS) if decl else family.DEFAULT_RUN_STEPS,
+        },
+        "web_url": workshop_url(study),
+        "hint": ""
+        if decl
+        else "Cette étude ne déclare pas de règles d'atelier : PATCH /studies/{id} avec « workshop » "
+        "(chapitre « atelier » du mode d'emploi).",
+    }
+
+
+def workshop_run_out(study: Study, raw: Any) -> dict:
+    """Lecture seule : déroule la situation donnée, n'écrit rien. Une situation ne reçoit jamais d'avis."""
+    decl = workshop_of(study)
+    if decl is None:
+        raise ServiceError(
+            409,
+            "no_workshop",
+            "Cette étude ne déclare pas de règles d'atelier : il n'y a rien à dérouler.",
+            guide="atelier",
+        )
+    family = families.of(decl)
+    report = casemodel.Report()
+    situation = family.situation(decl, raw, report)
+    if report.ok and not situation["elements"]:
+        report.error(
+            "situation.elements",
+            "required",
+            "Une situation pose au moins une brique.",
+            example=family.EXAMPLE_SITUATION,
+        )
+    if not report.ok:
+        _raise_issues(report, "La situation n'a pas été déroulée : corrigez les champs signalés.", "atelier")
+    result = workshop_run(study, situation)
+    rules = {r["key"]: r["title"] for r in decl["rules"]}
+    cited = [c["rule"] for step in result["steps"] for c in step["changes"]]
+    used = list(dict.fromkeys(cited + result["used"]))  # dans l'ordre où elles ont servi
+    steps = [
+        {"step": n, "states": step["states"], "changes": step["changes"]}
+        | ({"at": step["at"]} if step.get("at") is not None else {})
+        for n, step in enumerate(result["steps"])
+    ]
+    return {
+        "family": families.name_of(decl),
+        "situation": situation,
+        "steps": steps,
+        "end": result["end"],
+        "final": result["final"],
+        "outcome": result["outcome"],
+        **result["extra"],
+        "rules_applied": [{"key": key, "title": rules[key]} for key in used],
+        "case": result["content"],
+        "web_url": workshop_url(study, situation),
+    }

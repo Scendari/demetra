@@ -38,7 +38,7 @@ def study_coverage(request, sid: str):
         else next((k for k in keys if k != row_key), None)
     )
     table = (
-        cov.matrix(study.dimensions, study.exclusions, svc._case_rows(study), row_key, col_key)
+        cov.matrix(study.dimensions, study.exclusions, svc._case_rows(study, variants=True), row_key, col_key)
         if row_key and col_key
         else None
     )

@@ -14,6 +14,7 @@ TOPICS = {
     "cases": "Cas : format, dépôt en lot, validation à blanc, erreurs",
     "coverage": "Couverture : dimensions, combinaisons manquantes, contrôles",
     "review": "Revue : lire les avis et commentaires, liste de travail",
+    "atelier": "Atelier : déclarer les règles d'une étude, dérouler une situation construite",
     "representations": "Représentations : briques, création, ajustement, aperçu",
     "sharing": "Partage et journal d'audit",
 }

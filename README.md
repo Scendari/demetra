@@ -18,7 +18,7 @@ Prérequis : [uv](https://docs.astral.sh/uv/) (il installe Python 3.14 si besoin
 ```bash
 uv sync                                  # installe les dépendances
 uv run python manage.py migrate          # crée la base SQLite et les 16 représentations système
-uv run python manage.py seed_demo        # crée les comptes et les 12 études de démonstration
+uv run python manage.py seed_demo        # crée les comptes et les 14 études de démonstration
 uv run python manage.py runserver        # http://127.0.0.1:8000
 ```
 
@@ -161,8 +161,10 @@ catalogue élargi (règles logicielles et processus métier). Chacune porte la r
 | Validation d'un document | Table d'états | 6 états, 15 transitions, 4 cas |
 | Cycle de vie d'une commande en ligne | Diagramme d'états | 8 états, 9 transitions dont une boucle sur soi et un retour, 5 cas |
 | Paiement par carte d'une commande | Diagramme de séquence | 4 acteurs, 3 cas dont un message perdu |
+| Renouvellement d'un abonnement | Table de trace (conseillée) | 3 cas dont 2 paramétrés, soit 7 situations |
+| Circuit de validation d'un document | Graphe en couches (conseillée) | 4 cas, et des règles d'atelier : 3 briques, 8 règles |
 
-`uv run python manage.py seed_demo` crée ou met à jour ces douze études ; la rejouer ne crée ni doublon ni
+`uv run python manage.py seed_demo` crée ou met à jour ces quatorze études ; la rejouer ne crée ni doublon ni
 révision de cas.
 
 Le catalogue est importé depuis `core/demo/catalogue_lancelot.json`, copie fidèle des données de
@@ -191,6 +193,102 @@ Ce qu'un jeton ne peut pas faire : rendre un avis (403 `human_only`), partager d
 une confirmation dans **Étude › Partage**), remplacer la représentation qu'un humain a choisie pour l'étude
 (409 `human_choice`), dépasser le rôle de son titulaire, sortir des études auxquelles il est limité. Tout ce
 qu'il fait est inscrit au journal de l'étude sous son nom.
+
+## Atelier : construire une situation et voir ce que les règles en font
+
+L'onglet « Atelier » d'une étude part d'une **page vide**. On y pose des briques du vocabulaire de l'étude, on
+les relie, on règle leurs options, on provoque un évènement (un échec, un refus), et le site montre ce qui se
+passe, pas après pas. **Aucun cas déposé n'y est affiché** : le résultat vient des règles que l'étude déclare,
+que le site applique à la situation construite.
+
+| L'étude déclare | L'atelier offre |
+|---|---|
+| des types de briques, avec leurs options | une palette ; chaque brique posée a sa fiche, son nom et ses options |
+| des évènements par type de brique | des cases « il lui arrive » : échoue, refuse… |
+| des types de liens et ce qu'ils relient | « Relier à… » sur chaque fiche, dans les deux sens de lecture |
+| des réglages de la situation | des réglages communs à toutes les briques |
+| une table de règles « quand telle condition, alors tel état » | le déroulé pas à pas, avec la règle appliquée à chaque pas |
+| un résultat d'ensemble | la ligne « Résultat », redessinée à chaque changement |
+
+Le site applique la table à chaque brique, pas après pas, jusqu'à ce que plus rien ne bouge : chaque brique suit
+la première règle qui lui correspond, et toutes les règles lisent l'état du pas précédent. Les conditions sont
+un **vocabulaire fermé** (état, option, évènement, réglage, voisins directs ou de proche en proche, tous / au
+moins un / aucun, et / ou / non) : **aucun code fourni par l'étude n'est exécuté**. Le déroulé est dessiné par la
+représentation de l'étude, comme un cas ; on le suit au clavier, par les boutons, ou en le laissant défiler.
+
+**À la souris, le schéma est le plan de travail.** On y glisse une brique de la palette ; déposée sur une
+brique, elle s'y enchaîne par le lien que l'étude permet. On tire un lien d'une brique à une autre ; on clique
+un lien pour le retirer ; on clique une brique pour aller à sa fiche. Le site place les briques lui-même : on ne
+les déplace pas à la main. Un lien que l'étude ne permet pas n'est pas posé, et le site dit pourquoi. Ces gestes
+sont des raccourcis : les boutons de la palette et la liste « Relier à… » de chaque fiche font la même chose au
+clavier, au doigt et sans script.
+
+Tout l'état tient dans l'adresse : une situation se partage par son lien, et la page marche sans script. Le
+résultat dit toujours qu'il vient des règles déclarées, et que rien ne prouve que le système réel se comporte
+ainsi.
+
+- **Deux études de démonstration ont leur atelier.** « Catalogue des runs Lancelot » déclare onze règles
+  d'ordonnancement des Tasks (options `active`, `always_run`, `ignore_on_error`, réglage `stop_on_error`) ; elles
+  redonnent à l'identique les états finaux et l'issue de 35 scénarios du catalogue (test
+  `test_the_catalogue_rules_replay_its_task_scenarios`). « Circuit de validation d'un document » déclare d'autres
+  briques (relecture, signature, publication), un autre lien et huit autres règles. Le site ne connaît ni l'une
+  ni l'autre : le même moteur et le même écran servent les deux.
+- **Sans règles, pas d'atelier.** Une étude qui ne déclare pas de règles l'affiche et renvoie vers ses cas.
+- **Deux familles d'atelier.** Ce qui précède décrit la famille « éléments reliés ». Une étude peut déclarer à
+  la place la famille « périodes » (`"family": "periods"`), décrite ci-dessous.
+- **De l'atelier à la revue.** Un humain peut enregistrer la situation construite comme un cas : il arrive « à
+  analyser », dans la famille « Atelier ». Une IA ne peut pas le faire à sa place, et une situation de l'atelier
+  ne reçoit jamais d'avis.
+- **API.** `GET …/workshop` (ce que l'étude déclare) et `POST …/workshop/run` (dérouler une situation, lecture
+  seule) ; le champ `workshop` de l'étude porte la déclaration ; chapitre `atelier` du mode d'emploi.
+
+Ce que le vocabulaire ne dit pas reste hors de l'atelier : un calcul de montants, un délai, une relance, une
+limite au nombre de briques actives en même temps, l'action d'une brique sur une autre. Pour l'étude Lancelot,
+cela écarte le nombre de places d'exécution et les actions d'une Task sur une autre. Ces règles restent décrites
+par des cas.
+
+### Famille « périodes » : poser des périodes datées, voir l'historique obtenu
+
+Pour une étude où des versions datées de plusieurs sources se combinent (une historisation, un tarif qui dépend
+d'un contrat et d'une remise). L'étude ne déclare pas de table de règles : elle déclare **comment une image se
+compose**, et le site calcule.
+
+| L'étude déclare | L'atelier offre |
+|---|---|
+| un axe du temps et son pas | deux champs par période : « Début » et « Fin, exclue » |
+| des sources de périodes, avec leurs champs | une palette de sources ; chaque période posée a sa fiche |
+| la source de base et les sources rattachées (gardée ou non quand elle manque, rattachement par un champ, départage quand plusieurs sont en vigueur) | le tableau « Historique obtenu » et la représentation de l'étude, redessinés à chaque changement |
+| les champs restitués, et si les images identiques qui se suivent se réunissent | les règles que cette déclaration revient à poser, écrites en phrases par le site |
+| le sort d'une période invalide (durée nulle, borne absente, bornes inversées) | l'encadré « Le traitement est bloqué » et sa raison |
+
+Le site calcule une image par pas de l'axe — les périodes en vigueur à la fin du pas, bornes [début, fin[ —
+puis réunit les pas qui donnent la même image. Le déroulé avance d'un pas chaque fois qu'une image commence,
+qu'un trou s'ouvre ou qu'une période posée change d'état. Une borne vidée est une borne absente : on peut ainsi
+voir ce qu'une période invalide provoque. Ici, pas de liens à tirer : des périodes ne se relient pas, et une
+frise n'offre pas les gestes à la souris du schéma en graphe.
+
+- **Généricité.** Le moteur (`core/periods.py`) ne nomme aucune étude ; ses tests portent sur une étude d'essai
+  sans rapport (le tarif d'un contrat). Les deux familles offrent la même interface (`core/families.py`) :
+  l'écran, l'API et les services ne connaissent qu'elle.
+- **Aucune étude de démonstration ne déclare cette famille pour l'instant.** Elle a été mise au point sur une
+  étude d'historisation déposée par l'API dans une base locale : onze situations de son catalogue (trois
+  sources, jointure gardée ou non, fusion, borne de minuit, image de fin de journée, champs surveillés,
+  périodes invalides, priorité entre deux liens) y redonnent les périodes cibles annoncées par les cas. Cette
+  comparaison a été faite à la main, par l'API ; elle n'est pas un test du dépôt.
+- **Hors de la famille** : un traitement incrémental (reprise, correction rétroactive, relance), une publication
+  en plusieurs temps, un calcul sur les valeurs.
+
+## Cas paramétré et accord avec le jeu de règles
+
+- **Cas paramétré.** Un cas peut déclarer des paramètres et poser une condition sur certaines étapes
+  (`params`, `steps[].when`, `outcome` en liste). Le vocabulaire des conditions est fermé (égalité, comparaison,
+  et / ou / non) : aucun code n'est exécuté. Le site rejoue le cas pour chaque combinaison au dépôt, 64 au plus,
+  et le refuse si une seule est invalide. L'avis du relecteur porte sur le cas entier ; la couverture le compte
+  pour toutes les combinaisons qu'il illustre et marque ces cases « paramétré ». Dans l'onglet « Cas », le
+  panneau liste les variantes ; chacune se lit par son lien.
+- **Écart jeu de règles / cas.** Un cas qui annonce un sort des lignes que le jeu de règles ne donne pas est
+  accepté avec l'avertissement `model_mismatch`, repris dans les contrôles de l'étude. C'est un avertissement,
+  jamais un refus.
 
 ## Représentations par briques
 
@@ -247,7 +345,8 @@ Une étude a une représentation : celle que l'IA en charge de l'étude fixe en 
 
 À l'affichage, le choix pour le cas l'emporte sur le choix personnel, qui l'emporte sur la représentation de
 l'étude. Le conseil (`GET …/representations/recommended`) tient compte des données que portent les cas : pour
-chacune des douze études de démonstration, la première représentation conseillée est celle qui convient, et un
+chacune des douze études de démonstration d'origine, la première représentation conseillée est celle qui convient,
+et un
 test le vérifie.
 
 La zone d'avis, le déroulé du cas (liste des étapes et, pour l'étape affichée, ce qui change d'état) et la
@@ -325,7 +424,9 @@ uv run ruff check .
   ni script tiers dans l'interface.
 - `docs/captures/` — captures des écrans principaux, produites par les tests de bout en bout ; `19` à `27` :
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
-  la page Briques ; `30` : diagramme de séquence sur petit écran.
+  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `45` : l'onglet « Atelier » (page vide,
+  situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
+  de périodes sur l'étude d'essai des tests).
 
 ## Architecture en bref
 
@@ -336,6 +437,11 @@ core/views/          interface (gabarits Django + JavaScript natif, sans cadre c
 core/casemodel.py    format de cas, validation, rejeu des étapes, empreinte du déroulé
 core/extensions.py   format étendu : tranches, jeu de règles, cycles de vie, montants, champs, messages
 core/coverage.py     couverture par combinaisons de dimensions, contrôles de structure
+core/workshop.py     atelier, famille « éléments reliés » : règles déclarées, situation construite, déroulé (pur)
+core/periods.py      atelier, famille « périodes » : périodes posées, combinées en un historique (pur)
+core/families.py     les familles d'atelier et leur interface commune (pur)
+core/rulecheck.py    accord entre le sort des lignes annoncé par un cas et le jeu de règles de l'étude (pur)
+core/parametric.py   cas paramétré : paramètres, étapes conditionnelles, rejeu de chaque combinaison (pur)
 core/bricks.py       catalogue de briques, schéma JSON, validation et fusion des documents
 core/render.py       dessin SVG/HTML des représentations (aucun code tiers exécuté)
 core/render_ext.py   dessin des neuf représentations du catalogue élargi
@@ -415,7 +521,8 @@ Choix du POC :
 - **Jetons personnels uniquement** pour l'API : pas d'OAuth. Le SSO ne sert qu'à la connexion au site.
 - **Un avis par relecteur et par cas** ; pas de règle de consensus entre relecteurs.
 - Vérification de niveau « A renforcé » seulement : structure, rejeu, couverture sur dimensions déclarées,
-  doublons. Pas de vérification formelle des tables de décision ni de modèle à états simulé.
+  doublons. L'atelier applique les règles **déclarées par l'étude** : il dit ce que ces règles donnent, il ne
+  prouve ni qu'elles sont complètes ni que le système réel s'y conforme.
 - Disposition des graphes calculée par le site en Python ; ni dagre ni ELK.
 - Le niveau de preuve d'un cas se limite à « affirmé » ou « constaté ».
 - Non réalisés : avis en lot, commentaires ancrés à une étape ou à un nœud, comparaison avant/après d'un cas

@@ -12,7 +12,8 @@ Usage :
     uv run python scripts/empreinte_rendu.py ecrire test-results/empreinte-avant.json
     uv run python scripts/empreinte_rendu.py comparer test-results/empreinte-avant.json
 
-« comparer » recalcule tout et liste les clés qui diffèrent ; code de sortie 1 s'il y en a.
+« comparer » recalcule tout et dit ce qui diffère : lignes changées, absentes, nouvelles (comptées par
+étude) ; code de sortie 1 s'il y en a. Après un ajout, seules des lignes nouvelles sont attendues.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import hashlib
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +35,7 @@ django.setup()
 
 from core import casemodel
 from core import services as svc
-from core.demo import catalogue, decision, elargi, temporal
+from core.demo import catalogue, circuit, decision, elargi, parametre, temporal
 from core.models import Case, Representation, Study
 from core.recommend import recommend
 from core.render import render
@@ -52,19 +54,29 @@ def _report(report: casemodel.Report) -> list:
     return [i.as_dict() for i in report.issues]
 
 
+def _definition(out: dict, slug: str, definition: dict) -> None:
+    """La définition sur sa ligne, la déclaration d'atelier sur la sienne : déclarer un atelier ajoute une
+    ligne et ne masque pas un changement du reste de la définition."""
+    out[f"demo | {slug} | definition"] = _h({k: v for k, v in definition.items() if k != "workshop"})
+    if definition.get("workshop"):
+        out[f"demo | {slug} | atelier"] = _h(definition["workshop"])
+
+
 def demo_empreinte() -> dict:
     """Ce que les modules de démonstration produisent, indépendamment de la base."""
     out: dict[str, str] = {}
     data = catalogue.load()
-    out["demo | catalogue | definition"] = _h(catalogue.study_definition(data))
+    _definition(out, "catalogue", catalogue.study_definition(data))
     out["demo | catalogue | cases"] = _h(catalogue.cases(data))
-    out["demo | decision | definition"] = _h(decision.DEFINITION)
-    out["demo | decision | cases"] = _h(decision.cases())
-    out["demo | temporal | definition"] = _h(temporal.DEFINITION)
-    out["demo | temporal | cases"] = _h(temporal.cases())
+    for slug, module in (("decision", decision), ("temporal", temporal)):
+        _definition(out, slug, module.DEFINITION)
+        out[f"demo | {slug} | cases"] = _h(module.cases())
     for slug, definition, build in elargi.STUDIES:
-        out[f"demo | {slug} | definition"] = _h(definition)
+        _definition(out, slug, definition)
         out[f"demo | {slug} | cases"] = _h(build())
+    for slug, module in (("parametre", parametre), ("circuit", circuit)):
+        _definition(out, slug, module.DEFINITION)
+        out[f"demo | {slug} | cases"] = _h(module.cases())
     return out
 
 
@@ -123,11 +135,18 @@ def main(argv: list[str]) -> int:
         print(f"{len(current)} empreintes écrites dans {path}")
         return 0
     before = json.loads(path.read_text(encoding="utf-8"))
-    diff = sorted(k for k in set(before) | set(current) if before.get(k) != current.get(k))
-    if diff:
-        print(f"{len(diff)} différence(s) sur {len(before)} empreintes :")
-        for key in diff[:60]:
-            print("  ", key, "(absente)" if key not in current else "(nouvelle)" if key not in before else "")
+    new = sorted(k for k in current if k not in before)
+    gone = sorted(k for k in before if k not in current)
+    changed = sorted(k for k in current if k in before and before[k] != current[k])
+    if new or gone or changed:
+        print(f"{len(new) + len(gone) + len(changed)} différence(s) sur {len(before)} empreintes :")
+        print(f"   {len(changed)} changée(s), {len(gone)} absente(s), {len(new)} nouvelle(s)")
+        for key in changed[:60]:
+            print("   changée  :", key)
+        for key in gone[:60]:
+            print("   absente  :", key)
+        for study, count in sorted(Counter(k.split(" | ")[0] for k in new).items()):
+            print(f"   nouvelles : {count:5d}  {study}")
         return 1
     print(f"identique : {len(current)} empreintes")
     return 0

@@ -12,6 +12,7 @@ from django.shortcuts import redirect
 from .. import casemodel
 from .. import services as svc
 from ..models import Role, ShareRequest, Study
+from ..render import attribute_info, attribute_value
 
 DECISION_KEYS = {"accepted": "v", "rejected": "r", "to_analyze": "a"}
 
@@ -130,6 +131,30 @@ def _steps_context(case: dict, frames: list[dict], statuses: list[dict], smap: d
         "step_n": step + 1,
         "n_steps": len(steps),
     }
+
+
+def case_facts(study: Study, content: dict) -> dict[str, tuple[str, str]]:
+    """Ce qui distingue un cas d'un autre, pour une comparaison : dimensions, réglages, options des entités,
+    résultat."""
+    dims = {d["key"]: d for d in study.dimensions}
+    facts = {}
+    for key, value in (content.get("dimensions") or {}).items():
+        dim = dims.get(key)
+        label = next((v["label"] for v in dim["values"] if v["value"] == value), value) if dim else value
+        facts[f"dim:{key}"] = ((dim or {}).get("label") or key, str(label))
+    for key, value in (content.get("config") or {}).items():
+        facts[f"cfg:{key}"] = (key, str(_raw(value)))
+    for ent in content.get("entities", []):
+        for key, value in (ent.get("attrs") or {}).items():
+            label, _ = attribute_info(study.attributes, key)
+            facts[f"attr:{ent['id']}:{key}"] = (
+                f"{label} ({ent['id']})",
+                attribute_value(study.attributes, key, value),
+            )
+    outcome = content.get("outcome") or {}
+    if outcome.get("label"):
+        facts["outcome"] = ("Résultat attendu", outcome["label"])
+    return facts
 
 
 def legend_of(frames: list[dict], statuses: list[dict]) -> list[dict]:

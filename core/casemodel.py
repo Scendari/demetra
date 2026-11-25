@@ -615,6 +615,7 @@ KNOWN_CASE_FIELDS = {
     "proof",
     "question",
     "compare_with",
+    "params",
 }
 
 
@@ -631,9 +632,22 @@ def _warn_unknown_fields(raw: dict, report: Report, path: str):
 def normalize_case(raw: Any, ctx: StudyContext, path: str = "case") -> tuple[dict | None, Report]:
     """Valide un cas et renvoie sa forme normalisée (ou None si des erreurs le rendent inutilisable).
 
-    Chaque partie du cas est lue par une fonction `_case_*` ; l'ordre des appels est l'ordre des messages
-    rendus à l'IA, du plus structurant (clé, titre, entités) au plus accessoire (question, comparaison).
-    """
+    Un cas paramétré est rejoué pour chacune de ses combinaisons (`parametric`). Pour un cas ordinaire, le
+    site signale en plus, sans refuser, un sort des lignes que le jeu de règles de l'étude ne donne pas."""
+    from . import extensions as ext
+    from . import parametric
+
+    if isinstance(raw, dict) and raw.get("params") not in (None, []):
+        return parametric.normalize(raw, ctx, path)
+    case, report = _plain_case(raw, ctx, path)
+    if case is not None:
+        ext.check_ruleset_agreement(case, ctx.ruleset, ctx.dimensions, report, path)
+    return case, report
+
+
+def _plain_case(raw: Any, ctx: StudyContext, path: str) -> tuple[dict | None, Report]:
+    """Chaque partie du cas est lue par une fonction `_case_*` ; l'ordre des appels est l'ordre des messages
+    rendus à l'IA, du plus structurant (clé, titre, entités) au plus accessoire (question, comparaison)."""
     report = Report()
     if not isinstance(raw, dict):
         report.error(
@@ -1664,6 +1678,10 @@ def semantic_hash(case: dict) -> str:
     extras = semantic_extras(case)
     if extras:  # absent pour les cas qui n'utilisent aucune extension : leur empreinte ne change pas
         material["extras"] = extras
+    if case.get("params") and isinstance(case.get("source"), dict):
+        from . import parametric
+
+        material["parametric"] = parametric.semantic_material(case, semantic_hash)
     blob = json.dumps(material, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 

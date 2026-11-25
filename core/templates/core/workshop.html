@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Atelier — {{ study.title }}{% endblock %}
+{% block content %}
+{% include "core/_study_head.html" %}
+<div class="page">
+  {% if not declared %}
+  <section class="empty">
+    <h2>Cette étude ne déclare pas de règles : l'atelier n'a rien à exécuter</h2>
+    <p>Dans l'atelier, on pose des briques, on les relie, et le site applique les <strong>règles que l'étude déclare</strong> pour montrer ce qui se passe. Cette étude ne décrit ses règles que par ses cas : ils restent la référence.</p>
+    <p><a class="btn btn-primary" href="{% url 'workspace' study.public_id %}">Voir les cas de l'étude</a></p>
+    {% if can_edit %}<p class="hint">Pour ouvrir l'atelier, l'étude déclare ses briques et sa table de règles (champ « workshop »). Votre IA sait le faire : <a class="link" href="{% url 'guide_topic' 'atelier' %}">chapitre « atelier » du mode d'emploi</a>.</p>{% endif %}
+  </section>
+  {% else %}
+  <div class="atelier" data-atelier>{% include "core/_workshop.html" %}</div>
+  {% endif %}
+</div>
+{% endblock %}

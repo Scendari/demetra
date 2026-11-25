@@ -1,0 +1,150 @@
+{# Atelier : à gauche on construit (palette, réglages, briques posées), à droite le site montre ce que les règles de l'étude en font. Un seul formulaire GET : tout l'état tient dans l'adresse, la page marche sans script. #}
+<div class="at-grid">
+  <form class="at-build" id="at-form" method="get" action="{% url 'study_workshop' study.public_id %}" novalidate data-atelier-form data-at-links="{{ palette.links }}" aria-labelledby="at-build-title">
+    {# Bouton par défaut du formulaire : la touche Entrée dans un champ met à jour le résultat, elle ne pose pas de brique. #}
+    <button type="submit" hidden tabindex="-1"></button>
+    <input type="hidden" name="f" value="1">
+    {% for name, value in hidden %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+    <header class="at-build-head">
+      <h2 id="at-build-title" tabindex="-1">Construire la situation</h2>
+      {% if cards %}<a class="link" href="{{ reset_url }}" data-atelier-link>Tout effacer</a>{% endif %}
+    </header>
+    {% if cards %}<a class="link at-jump" href="#at-result-title">Voir le résultat</a>{% endif %}
+
+    <section class="at-palette" aria-labelledby="at-palette-title">
+      <h3 id="at-palette-title">{{ words.palette }}</h3>
+      <div class="at-palette-list">
+        {% for b in palette.bricks %}<button type="submit" class="btn at-add" name="add" value="{{ b.type }}"{% if palette.full %} disabled{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>{{ b.label }}</button>{% endfor %}
+      </div>
+      {% if palette.full %}<p class="hint">{{ palette.max }} briques au plus par situation.</p>{% endif %}
+    </section>
+
+    {% if palette.settings %}
+    <section class="at-settings" aria-labelledby="at-settings-title">
+      <h3 id="at-settings-title">Réglages de la situation</h3>
+      <div class="at-settings-list">{% for s in palette.settings %}{% include "core/_workshop_choice.html" with c=s %}{% endfor %}</div>
+    </section>
+    {% endif %}
+
+    <section class="at-placed" aria-labelledby="at-placed-title">
+      <h3 id="at-placed-title">{{ words.placed }}{% if cards %} <span class="count">{{ cards|length }}</span>{% endif %}</h3>
+      {% if not cards %}<p class="hint">{{ words.none }}</p>{% endif %}
+      <ol class="at-cards">
+        {% for c in cards %}
+        <li class="at-card" data-brick="{{ c.id }}" data-kind="{{ c.kind }}">
+          <div class="at-card-head">
+            <span class="at-id" aria-hidden="true">{{ c.id }}</span>
+            <label class="sr-only" for="at-name-{{ c.id }}">Nom de la brique {{ c.id }} ({{ c.brick }})</label>
+            <input id="at-name-{{ c.id }}" class="at-name" type="text" name="n.{{ c.id }}" value="{{ c.label }}" maxlength="40" placeholder="{{ c.placeholder }}" autocomplete="off">
+            <button type="submit" class="icon-btn" name="del" value="{{ c.id }}" aria-label="Retirer {{ c.label }}" title="Retirer cette brique"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button>
+          </div>
+          {% if c.bounds %}
+          <div class="at-bounds" role="group" aria-label="Bornes de {{ c.label }} sur l'axe « {{ c.bounds.axis }} »">
+            <label for="at-de-{{ c.id }}"><span>Début</span><input id="at-de-{{ c.id }}" type="number" inputmode="decimal" name="de.{{ c.id }}" value="{{ c.bounds.start }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
+            <label for="at-a-{{ c.id }}"><span>Fin, exclue</span><input id="at-a-{{ c.id }}" type="number" inputmode="decimal" name="a.{{ c.id }}" value="{{ c.bounds.end }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
+          </div>
+          {% endif %}
+          {% if c.final.key %}<p class="at-final" data-final="{{ c.final.key }}"><span class="at-final-tx">À la fin</span><span class="st" data-role="{{ c.final.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.final.role }}"/></svg><span class="st-tx">{{ c.final.label }}</span></span></p>{% endif %}
+          {% if c.options %}<div class="at-row" role="group" aria-label="Options de {{ c.label }}">{% for o in c.options %}{% include "core/_workshop_choice.html" with c=o %}{% endfor %}</div>{% endif %}
+          {% if c.events %}<div class="at-row" role="group" aria-label="Ce qui arrive à {{ c.label }}"><span class="at-row-name">Il lui arrive</span>{% for e in c.events %}<label class="tick tick-event"><input type="checkbox" name="ev" value="{{ e.value }}"{% if e.on %} checked{% endif %}><span>{{ e.label }}</span></label>{% endfor %}</div>{% endif %}
+          {% if c.links or c.link_choices %}
+          <div class="at-links">
+            {% if c.links %}<ul>{% for l in c.links %}<li><span>{{ l.text }} <b>{{ l.other }}</b></span><button type="submit" class="icon-btn" name="unlink" value="{{ l.value }}" aria-label="Retirer le lien : {{ l.text }} {{ l.other }}" title="Retirer ce lien"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button></li>{% endfor %}</ul>{% endif %}
+            {% if c.link_choices %}
+            <label class="sr-only" for="at-link-{{ c.id }}">Relier {{ c.label }} à une autre brique</label>
+            <select id="at-link-{{ c.id }}" name="lk.{{ c.id }}">
+              <option value="">Relier à…</option>
+              {% for g in c.link_choices %}<optgroup label="{{ g.label }}">{% for o in g.options %}<option value="{{ o.value }}">{{ g.label }} {{ o.label }}</option>{% endfor %}</optgroup>{% endfor %}
+            </select>
+            {% endif %}
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    <p class="at-build-foot"><button type="submit" class="btn" data-atelier-apply>Mettre à jour le résultat</button></p>
+  </form>
+
+  <div class="at-out" aria-live="polite">
+    {% if not cards %}
+    <section class="at-empty">
+      <h2>{% if title %}{{ title }}{% else %}La page est vide : à vous de construire{% endif %}</h2>
+      <p>{{ words.empty }}</p>
+      <p class="at-drop" data-at-plan>{{ words.drop }}</p>
+    </section>
+    {% else %}
+    <section class="at-result" aria-labelledby="at-result-title">
+      <h2 id="at-result-title">Résultat</h2>
+      {% if result.label %}<p class="at-result-value" data-result>{{ result.label }}{% if result.status %} <span class="st" data-role="{{ result.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ result.role }}"/></svg><span class="st-tx">{{ result.status }}</span></span>{% endif %}</p>{% endif %}
+      <ul class="at-counts" aria-label="{{ words.counts }}">
+        {% for c in result.counts %}<li><b>{{ c.n }}</b><span class="st" data-role="{{ c.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.role }}"/></svg><span class="st-tx">{{ c.label }}</span></span></li>{% endfor %}
+      </ul>
+      <p class="at-source"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>{% if result.history %}Obtenu en combinant les périodes posées comme l'étude le déclare.{% elif result.steps %}Obtenu en {{ result.steps }} pas, en appliquant les règles que l'étude déclare.{% else %}Aucune règle de l'étude ne s'applique à cette situation : rien ne bouge.{% endif %} Rien ne prouve que le système réel se comporte ainsi.</span></p>
+      {% if result.blocking %}<div class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><div><p>Le traitement est bloqué : rien n'est publié.</p><ul class="at-blocking">{% for reason in result.blocking %}<li>{{ reason }}</li>{% endfor %}</ul></div></div>{% endif %}
+      {% if result.history %}
+      <div class="at-history-wrap">
+      <table class="at-history">
+        <caption>Historique obtenu{% if result.blocking %} s'il était publié{% endif %}</caption>
+        <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th></tr></thead>
+        <tbody>
+          {% for row in result.history.rows %}<tr><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>
+          {% empty %}<tr><td colspan="{{ result.history.fields|length|add:3 }}">Aucune ligne : ces périodes ne donnent aucune image.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
+      {% if result.end %}<p class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><span>{{ result.end }}</span></p>{% endif %}
+    </section>
+
+    {% if shown %}{% with p=shown %}
+    <article class="at-walk" data-panel data-step="{{ p.step }}" data-steps="{{ p.steps_json }}">
+      {% if p.drew %}
+      <section class="cp-rep at-plan" aria-label="Schéma de la situation" data-at-plan>
+        <div class="cp-rep-head">
+          <p>Représentation : <strong>{{ p.rep.name }}</strong></p>
+          <a class="link" href="{% url 'study_representations' study.public_id %}">Changer</a>
+          <button type="button" class="fold-btn" data-fold-btn="legend" aria-expanded="false" aria-controls="at-legend"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg>Légende des statuts</button>
+        </div>
+        <div id="at-legend" data-fold-region="legend">{% include "core/_legend.html" with legend=p.legend %}</div>
+        {{ p.rep_html }}
+        <p class="at-plan-hint" data-at-hint role="status"><span data-at-hint-text>Tirez d'une brique à une autre pour les relier. Cliquez un lien pour le retirer.</span><span class="at-plan-hint-fine"> Glissez ici une brique de la palette pour l'ajouter ; déposée sur une brique, elle s'y enchaîne.</span></p>
+      </section>
+      {% endif %}
+
+      <header class="at-walk-head">
+        <h3>Déroulé</h3>
+        <nav class="at-player" aria-label="Avancer dans le déroulé">
+          <a class="btn btn-quiet" href="{{ steps_urls|first }}" data-at-step="first">Départ</a>
+          <a class="icon-btn" href="{{ prev_url }}" data-at-step="prev" aria-label="Pas précédent" title="Pas précédent"><svg class="ic" aria-hidden="true"><use href="#ui-prev"/></svg></a>
+          <span class="at-player-n">Pas <b data-step-n>{{ p.step_n }}</b> sur {{ p.n_steps }}</span>
+          <a class="icon-btn" href="{{ next_url }}" data-at-step="next" aria-label="Pas suivant" title="Pas suivant"><svg class="ic" aria-hidden="true"><use href="#ui-next"/></svg></a>
+          <a class="btn btn-quiet" href="{{ steps_urls|last }}" data-at-step="last">Fin</a>
+          <button type="button" class="btn at-play" data-atelier-play hidden><svg class="ic" aria-hidden="true"><use href="#ui-play"/></svg><span>Dérouler</span></button>
+        </nav>
+      </header>
+
+      {% include "core/_steps.html" with p=p %}
+
+    </article>
+    {% endwith %}{% endif %}
+
+    {% if can_edit and shown %}
+    <form method="post" action="{% url 'study_workshop' study.public_id %}" class="at-save">{% csrf_token %}
+      <input type="hidden" name="etat" value="{{ state_qs }}">
+      <label for="at-title">Garder cette situation comme cas à relire</label>
+      <div class="at-save-row"><input id="at-title" name="title" type="text" maxlength="200" placeholder="Titre du cas"><button type="submit" class="btn">Enregistrer comme cas</button></div>
+      <p class="hint">Le cas rejoint l'onglet Cas et attend un avis. Seul un humain peut l'enregistrer.</p>
+    </form>
+    {% endif %}
+    {% endif %}
+
+    <details class="at-rules" data-keep="rules"{% if not cards %} open{% endif %}>
+      <summary>Les {{ rules|length }} {{ words.rules }}</summary>
+      <p class="hint">{{ words.rules_hint }}</p>
+      <ol>
+        {% for r in rules %}<li{% if r.used %} class="is-used"{% endif %}><b>{{ r.key }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
+      </ol>
+    </details>
+  </div>
+</div>

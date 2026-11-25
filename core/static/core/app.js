@@ -227,6 +227,302 @@
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) show(false); else play();
   }
 
+  /* ---------------------------------------------------------------- Atelier */
+  // La page marche sans script (formulaire GET, liens). Ici, on redemande seulement le fragment quand la
+  // situation change : tout l'état reste dans l'adresse, et le serveur reste le seul à appliquer les règles.
+  const atelier = $("[data-atelier]");
+  if (atelier) {
+    let turn = 0;
+    let playing = null;
+    atelier.classList.add("is-live");
+    const walk = () => $("[data-panel]", atelier);
+    const focusKey = (el) => {
+      if (!el || !atelier.contains(el)) return null;
+      if (el.id) return { id: el.id };
+      if (el.name) return { name: el.name, value: el.type === "text" ? null : el.value };
+      return { text: el.textContent.trim() };
+    };
+    const refocus = (key) => {
+      if (!key) return;
+      let el = null;
+      if (key.id) el = doc.getElementById(key.id);
+      else if (key.name) el = $$("[name]", atelier).find((f) => f.name === key.name && (key.value === null || f.value === key.value));
+      else el = $$("a", atelier).find((a) => a.textContent.trim() === key.text);
+      if (!el || el.disabled) el = $("#at-build-title", atelier);
+      if (el) el.focus({ preventScroll: true });
+    };
+    // Le pas affiché suit dans l'adresse ; le dernier pas est celui qu'on voit par défaut, il ne s'écrit pas.
+    const writeStep = () => {
+      const panel = walk();
+      if (!panel) return;
+      const url = new URL(location.href);
+      const last = (panel._steps || []).length - 1;
+      if (stepOf(panel) < last) url.searchParams.set("etape", String(stepOf(panel) + 1)); else url.searchParams.delete("etape");
+      history.replaceState(history.state, "", url);
+    };
+    const stop = () => {
+      if (!playing) return;
+      clearInterval(playing);
+      playing = null;
+      const button = $("[data-atelier-play]", atelier);
+      if (button) { $("use", button).setAttribute("href", "#ui-play"); $("span", button).textContent = "Dérouler"; }
+    };
+    const play = () => {
+      const panel = walk();
+      const button = $("[data-atelier-play]", atelier);
+      if (!panel || !button) return;
+      if (playing) return stop();
+      setStep(panel, 0);
+      $("use", button).setAttribute("href", "#ui-pause");
+      $("span", button).textContent = "Arrêter";
+      playing = setInterval(() => {
+        if (stepOf(panel) >= (panel._steps || []).length - 1) return stop();
+        setStep(panel, stepOf(panel) + 1);
+        writeStep();
+      }, 900);
+    };
+    const ready = () => {
+      $$("[data-panel]", atelier).forEach((panel) => setStep(panel, stepOf(panel), { quiet: true }));
+      const button = $("[data-atelier-play]", atelier);
+      if (button) button.hidden = (walk()._steps || []).length < 2;
+      const hint = $("[data-at-hint]", atelier);   // un schéma sans nœuds (une table) ne se relie pas à la souris
+      if (hint) hint.hidden = !$("[data-at-plan] .n[data-e]", atelier);
+    };
+    const load = (url) => {
+      const mine = ++turn;
+      const key = focusKey(doc.activeElement);
+      const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
+      stop();
+      closePop();
+      atelier.setAttribute("aria-busy", "true");
+      fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
+        .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.text().then((html) => [html, response.url]); })
+        .then(([html, landed]) => {
+          if (mine !== turn) return;   // une réponse plus récente est attendue
+          atelier.innerHTML = html;
+          atelier.removeAttribute("aria-busy");
+          open.forEach((name) => { const d = $('details[data-keep="' + name + '"]', atelier); if (d) d.open = true; });
+          ready();
+          history.replaceState(history.state, "", landed || url);   // le serveur a rangé l'adresse : on garde la sienne
+          refocus(key);
+        })
+        .catch(() => { location.href = url; });   // le serveur répondra par la page entière, ou par son erreur
+    };
+    // L'adresse de la situation telle que le formulaire la porte, plus un geste (poser, relier, délier).
+    const asked = (form, extra) => {
+      const query = new URLSearchParams();
+      // Une borne vide se garde : c'est une borne absente, pas un champ qu'on n'a pas rempli.
+      new FormData(form).forEach((value, name) => { if (value !== "" || /^(de|a)\./.test(name)) query.append(name, value); });
+      Object.keys(extra || {}).forEach((name) => query.append(name, extra[name]));
+      return form.action + "?" + query.toString();
+    };
+    const submit = (form, submitter) => {
+      const extra = {};
+      if (submitter && submitter.name) extra[submitter.name] = submitter.value;
+      load(asked(form, extra));
+    };
+
+    /* Glisser-déposer. Deux gestes sur le schéma : y déposer une brique de la palette, et tirer un lien d'une
+       brique à une autre. Ce sont des raccourcis : chacun revient à une adresse que la page sait déjà
+       demander (« add », « lk.<brique> », « unlink »), et le serveur revérifie ce que l'étude permet. Les
+       boutons et les listes restent là pour le clavier. */
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    let drag = null;
+    let pop = null;
+    let swallow = false;   // le clic qui suit un glisser ne vaut pas un clic sur le bouton
+    const build = () => $("[data-atelier-form]", atelier);
+    const gesture = (extra) => load(asked(build(), extra));
+    const nameOf = (id) => { const field = doc.getElementById("at-name-" + id); return field ? field.value || field.placeholder : id; };
+    const kindOf = (id) => { const card = $('.at-card[data-brick="' + id + '"]', atelier); return card ? card.dataset.kind : ""; };
+    const linkTypes = () => JSON.parse(build().dataset.atLinks || "[]");
+    const permitted = (from, kind) => linkTypes().filter((link) => link.from.includes(kindOf(from)) && link.to.includes(kind));
+    const missing = (from, to) => {   // les liens permis de l'une à l'autre qui ne sont pas encore posés
+      const placed = $$('input[name="l"]', build()).map((field) => field.value);
+      return permitted(from, kindOf(to)).filter((link) => !placed.includes(from + ":" + link.type + ":" + to));
+    };
+    const say = (text) => { const hint = $("[data-at-hint-text]", atelier); if (hint) hint.textContent = text; };
+    const mark = (el, name) => {
+      $$("." + name, atelier).forEach((old) => { if (old !== el) old.classList.remove(name); });
+      if (el) el.classList.add(name);
+    };
+    const under = (event, selector) => { const el = doc.elementFromPoint(event.clientX, event.clientY); return el ? el.closest(selector) : null; };
+    const inSvg = (svg, x, y) => { const point = svg.createSVGPoint(); point.x = x; point.y = y; return point.matrixTransform(svg.getScreenCTM().inverse()); };
+    const closePop = () => { if (pop) pop.remove(); pop = null; mark(null, "is-picked"); };
+    const openPop = (plan, event, title, choices) => {
+      closePop();
+      pop = doc.createElement("div");
+      pop.className = "at-pop";
+      pop.setAttribute("role", "group");
+      pop.setAttribute("aria-label", title);
+      choices.forEach((choice) => {
+        const button = doc.createElement("button");
+        button.type = "button";
+        button.className = "btn";
+        button.textContent = choice.label;
+        button.addEventListener("click", () => { closePop(); gesture(choice.extra); });
+        pop.appendChild(button);
+      });
+      plan.appendChild(pop);
+      const box = plan.getBoundingClientRect();
+      pop.style.left = Math.max(0, Math.min(event.clientX - box.left, box.width - pop.offsetWidth)) + "px";
+      pop.style.top = event.clientY - box.top + 10 + "px";
+      pop.firstChild.focus({ preventScroll: true });
+    };
+    const showCard = (id) => {   // un clic sur une brique du schéma mène à sa fiche
+      const field = doc.getElementById("at-name-" + id);
+      if (!field) return;
+      field.closest(".at-card").scrollIntoView({ block: "nearest" });
+      field.focus({ preventScroll: true });
+      mark(field.closest(".at-card"), "is-shown");
+    };
+    const begin = () => {
+      drag.live = true;
+      closePop();
+      stop();
+      atelier.classList.add("is-dragging");
+      if (drag.type) {
+        drag.ghost = doc.createElement("div");
+        drag.ghost.className = "at-ghost";
+        drag.ghost.textContent = drag.label;
+        doc.body.appendChild(drag.ghost);
+        return;
+      }
+      const box = drag.node.getBoundingClientRect();
+      drag.svg = drag.node.ownerSVGElement;
+      drag.from = inSvg(drag.svg, box.left + box.width / 2, box.top + box.height / 2);
+      drag.wire = doc.createElementNS(SVG_NS, "g");
+      drag.wire.setAttribute("class", "at-wire");
+      drag.wire.appendChild(doc.createElementNS(SVG_NS, "line"));
+      drag.wire.appendChild(doc.createElementNS(SVG_NS, "circle")).setAttribute("r", "4.5");
+      drag.svg.appendChild(drag.wire);
+      drag.node.classList.add("is-source");
+    };
+    const move = (event) => {
+      const node = under(event, "[data-at-plan] .n[data-e]");
+      if (drag.type) {
+        drag.ghost.style.transform = "translate(" + (event.clientX + 12) + "px," + (event.clientY + 14) + "px)";
+        mark(under(event, "[data-at-plan]"), "is-over");
+        return mark(node && permitted(node.dataset.e, drag.type).length ? node : null, "is-target");
+      }
+      const at = inSvg(drag.svg, event.clientX, event.clientY);
+      const line = drag.wire.firstChild;
+      line.setAttribute("x1", drag.from.x);
+      line.setAttribute("y1", drag.from.y);
+      line.setAttribute("x2", at.x);
+      line.setAttribute("y2", at.y);
+      drag.wire.lastChild.setAttribute("cx", at.x);
+      drag.wire.lastChild.setAttribute("cy", at.y);
+      const other = node && node !== drag.node ? node : null;
+      const ok = other && missing(drag.id, other.dataset.e).length > 0;
+      mark(ok ? other : null, "is-target");
+      mark(other && !ok ? other : null, "is-refused");
+    };
+    const drop = (done, event) => {
+      const node = under(event, "[data-at-plan] .n[data-e]");
+      const plan = under(event, "[data-at-plan]");
+      if (done.type) {
+        if (!plan) return;
+        const extra = { add: done.type };
+        if (node && permitted(node.dataset.e, done.type).length) extra.on = node.dataset.e;
+        return gesture(extra);
+      }
+      if (!node || node === done.node) return;
+      const to = node.dataset.e;
+      const links = missing(done.id, to);
+      const lk = (link) => { const extra = {}; extra["lk." + to] = "in:" + link.type + ":" + done.id; return extra; };
+      if (links.length === 1) return gesture(lk(links[0]));
+      if (links.length) return openPop(plan, event, "Quel lien poser ?", links.map((link) => ({ label: nameOf(done.id) + " " + link.label + " " + nameOf(to), extra: lk(link) })));
+      say(permitted(done.id, kindOf(to)).length
+        ? nameOf(done.id) + " et " + nameOf(to) + " sont déjà reliées ainsi."
+        : "L'étude ne permet pas de lien de " + nameOf(done.id) + " vers " + nameOf(to) + ".");
+    };
+    const finish = (event, cancelled) => {
+      const done = drag;
+      drag = null;
+      if (!done) return;
+      if (!done.live) { if (!done.type && !cancelled) showCard(done.id); return; }
+      swallow = true;
+      setTimeout(() => { swallow = false; }, 80);
+      atelier.classList.remove("is-dragging");
+      if (done.ghost) done.ghost.remove();
+      if (done.wire) done.wire.remove();
+      ["is-over", "is-target", "is-refused", "is-source"].forEach((name) => mark(null, name));
+      if (!cancelled) drop(done, event);
+    };
+    atelier.addEventListener("pointerdown", (event) => {
+      if (event.button || !event.isPrimary) return;
+      const add = event.target.closest(".at-add");
+      const node = event.target.closest("[data-at-plan] .n[data-e]");
+      const at = { x: event.clientX, y: event.clientY };
+      // Au doigt, glisser depuis la palette ferait défiler la page : on y touche la brique pour la poser.
+      if (add && !add.disabled && event.pointerType !== "touch" && $("[data-at-plan]", atelier)) drag = Object.assign(at, { type: add.value, label: add.textContent.trim() });
+      else if (node) drag = Object.assign(at, { id: node.dataset.e, node: node });
+    });
+    doc.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      if (!drag.live) {
+        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 6) return;
+        begin();
+      }
+      move(event);
+    });
+    doc.addEventListener("pointerup", (event) => finish(event, false));
+    doc.addEventListener("pointercancel", (event) => finish(event, true));
+    doc.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      finish(event, true);
+      closePop();
+    });
+    atelier.addEventListener("click", (event) => {
+      if (!swallow) return;
+      swallow = false;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    atelier.addEventListener("click", (event) => {
+      const link = event.target.closest("[data-at-plan] .lk[data-l]");
+      if (!link) { if (pop && !pop.contains(event.target)) closePop(); return; }
+      const [from, type, to] = link.dataset.l.split(":");
+      const kind = linkTypes().find((item) => item.type === type) || { label: "→" };
+      openPop(link.closest("[data-at-plan]"), event, "Lien", [{ label: "Retirer le lien : " + nameOf(from) + " " + kind.label + " " + nameOf(to), extra: { unlink: link.dataset.l } }]);
+      mark(link, "is-picked");
+    });
+    atelier.addEventListener("change", (event) => {
+      const form = event.target.form;
+      if (form && form.matches("[data-atelier-form]")) submit(form);
+    });
+    atelier.addEventListener("submit", (event) => {
+      if (!event.target.matches("[data-atelier-form]")) return;
+      event.preventDefault();
+      submit(event.target, event.submitter);
+    });
+    atelier.addEventListener("click", (event) => {
+      if (event.target.closest("[data-atelier-play]")) return play();
+      const link = event.target.closest("a[data-atelier-link], a[data-at-step]");
+      if (link && !(event.metaKey || event.ctrlKey || event.shiftKey || event.button)) {
+        event.preventDefault();
+        if (link.matches("[data-atelier-link]")) return load(link.href);
+        const panel = walk();
+        const last = (panel._steps || []).length - 1;
+        stop();
+        setStep(panel, { first: 0, prev: stepOf(panel) - 1, next: stepOf(panel) + 1, last: last }[link.dataset.atStep]);
+      } else if (!event.target.closest(".stop-btn, [data-step-is]")) return;
+      else stop();
+      setTimeout(writeStep, 0);   // après le gestionnaire commun, qui change de pas
+    });
+    doc.addEventListener("keydown", (event) => {
+      if (event.target.matches("input, textarea, select") || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      const panel = walk();
+      if (!panel) return;
+      event.preventDefault();
+      stop();
+      setStep(panel, stepOf(panel) + (event.key === "ArrowRight" ? 1 : -1));
+      writeStep();
+    });
+    if (walk()) ready();
+  }
+
   /* ---------------------------------------------------------------- Espace de revue */
   const ws = $("[data-workspace]");
   if (!ws) return;

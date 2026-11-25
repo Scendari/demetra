@@ -8,6 +8,7 @@
   <nav class="tabs" aria-label="Sections de l'étude">
     <a href="{% url 'workspace' study.public_id %}"{% if active == "cases" %} aria-current="page"{% endif %}>Cas</a>
     <a href="{% url 'study_coverage' study.public_id %}"{% if active == "coverage" %} aria-current="page"{% endif %}>Couverture</a>
+    <a href="{% url 'study_workshop' study.public_id %}"{% if active == "workshop" %} aria-current="page"{% endif %}>Atelier</a>
     <a href="{% url 'study_representations' study.public_id %}"{% if active == "representations" %} aria-current="page"{% endif %}>Représentation{% if open_proposals %} <span class="count" title="{{ open_proposals }} proposition(s) à examiner">{{ open_proposals }}</span>{% endif %}</a>
     <a href="{% url 'study_sharing' study.public_id %}"{% if active == "sharing" %} aria-current="page"{% endif %}>Partage{% if pending_shares %} <span class="count" title="{{ pending_shares }} demande(s) à confirmer">{{ pending_shares }}</span>{% endif %}</a>
     <a href="{% url 'study_history' study.public_id %}"{% if active == "history" %} aria-current="page"{% endif %}>Historique</a>

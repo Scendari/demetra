@@ -3,18 +3,32 @@
 from __future__ import annotations
 
 import time
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.safestring import mark_safe
 from django.views.decorators.http import require_GET, require_POST
 
+from .. import parametric
 from .. import services as svc
 from ..models import Case, Decision, Role, Study, Verdict
 from ..render import attribute_info, attribute_value, flag_classes, status_map
-from .commun import _raw, _step_arg, _steps_context, actor, body_of, legend_of, study_nav, wants_json, web
+from .commun import (
+    _raw,
+    _step_arg,
+    _steps_context,
+    actor,
+    body_of,
+    case_facts,
+    legend_of,
+    study_nav,
+    wants_json,
+    web,
+)
 
 
 def _list_rows(study: Study, user) -> tuple[list[dict], dict]:
@@ -82,28 +96,31 @@ def _list_rows(study: Study, user) -> tuple[list[dict], dict]:
     return rows, counts
 
 
-def _case_facts(study: Study, content: dict) -> dict[str, tuple[str, str]]:
-    """Ce qui distingue un cas d'un autre, pour la comparaison : dimensions, réglages, options des entités,
-    résultat."""
-    dims = {d["key"]: d for d in study.dimensions}
-    facts = {}
-    for key, value in (content.get("dimensions") or {}).items():
-        dim = dims.get(key)
-        label = next((v["label"] for v in dim["values"] if v["value"] == value), value) if dim else value
-        facts[f"dim:{key}"] = ((dim or {}).get("label") or key, str(label))
-    for key, value in (content.get("config") or {}).items():
-        facts[f"cfg:{key}"] = (key, str(_raw(value)))
-    for ent in content.get("entities", []):
-        for key, value in (ent.get("attrs") or {}).items():
-            label, _ = attribute_info(study.attributes, key)
-            facts[f"attr:{ent['id']}:{key}"] = (
-                f"{label} ({ent['id']})",
-                attribute_value(study.attributes, key, value),
-            )
-    outcome = content.get("outcome") or {}
-    if outcome.get("label"):
-        facts["outcome"] = ("Résultat attendu", outcome["label"])
-    return facts
+BOOLEANS = {"true": "Oui", "false": "Non"}
+
+
+def _variants(study: Study, case: Case, shown: int) -> list[dict]:
+    """Les variantes d'un cas paramétré, chacune avec le lien qui la montre dans l'espace de revue."""
+    if not parametric.is_parametric(case.content):
+        return []
+    base = reverse("workspace", args=[study.public_id])
+    names = {p["key"]: p["label"] for p in case.content["params"]}
+    values = {
+        (d["key"], v["value"]): v.get("label") or v["value"] for d in study.dimensions for v in d["values"]
+    }
+
+    def text(key: str, value) -> str:
+        raw = parametric.shown(value)
+        return f"{names.get(key, key)} : {values.get((key, value)) or BOOLEANS.get(raw, raw)}"
+
+    return [
+        {
+            "label": ", ".join(text(k, v) for k, v in combo.items()),
+            "url": f"{base}?{urlencode({'cas': case.key, 'variante': n + 1})}",
+            "current": n == shown,
+        }
+        for n, combo in enumerate(parametric.combos(case.content["params"]))
+    ]
 
 
 def _compare_rows(study: Study, case: Case) -> list[dict]:
@@ -112,14 +129,14 @@ def _compare_rows(study: Study, case: Case) -> list[dict]:
     if not keys:
         return []
     others = {c.key: c for c in study.cases.filter(key__in=keys, retired_at__isnull=True)}
-    mine = _case_facts(study, case.content)
+    mine = case_facts(study, case.content)
     rows = []
     for key in keys:
         other = others.get(key)
         if other is None:
             rows.append({"key": key, "missing": True})
             continue
-        theirs = _case_facts(study, other.content)
+        theirs = case_facts(study, other.content)
         diffs, seen = [], set()
         for k in dict.fromkeys([*mine, *theirs]):
             here, there = (mine.get(k) or ("", "—"))[1], (theirs.get(k) or ("", "—"))[1]
@@ -207,11 +224,25 @@ def _proof_of(case: Case, content: dict) -> tuple[str, str]:
     return proof, proof_help
 
 
+def _variant_arg(request, case: Case) -> int:
+    """La variante d'un cas paramétré que l'adresse demande (« variante=2 ») ; la première par défaut."""
+    if not parametric.is_parametric(case.content):
+        return 0
+    try:
+        wanted = int(request.GET.get("variante", "1")) - 1
+    except ValueError:
+        return 0
+    return wanted if 0 <= wanted < len(parametric.combos(case.content["params"])) else 0
+
+
 def _panel_context(request, study: Study, case: Case, step: int = 0) -> dict:
+    variant = _variant_arg(request, case)
     content = case.content
+    if variant:
+        content = parametric.resolve(content, parametric.combos(content["params"])[variant])
     rep = svc.current_representation(request.user, study, case)
     rep_for_case = case.preferences.filter(user=request.user, representation=rep).exists()
-    html, summary, frames = svc.render_case(study, case, svc.resolved_spec(rep), step=step)
+    html, summary, frames = svc.render_content(study, content, svc.resolved_spec(rep), step=step)
     step = max(0, min(step, len(frames) - 1))
     smap = status_map(study.statuses)
     verdict = Verdict.objects.filter(case=case, reviewer=request.user).first()
@@ -262,6 +293,8 @@ def _panel_context(request, study: Study, case: Case, step: int = 0) -> dict:
         "comment": verdict.comment if verdict else "",
         "highlight_rows": _highlight_rows(study, content, highlights, facts, config),
         "compare": _compare_rows(study, case),
+        "variants": _variants(study, case, variant),
+        "variant": variant + 1 if variant else 0,
         "other_rows": dimension_rows
         + [row for key, row in config.items() if key not in highlights or key in facts],
     }
