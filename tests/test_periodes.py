@@ -543,6 +543,14 @@ def test_the_page_says_where_each_line_comes_from(atelier, web, users):
     assert 'data-sig="3|Base|10|Tarif remisé" data-text="du 2 au 3 · Base · 10 · Tarif remisé"' in page
     assert 'data-sig="2|Base||Plein tarif" data-text="du 1 au 2 · Base · vide · Plein tarif"' in page
     assert '<p class="at-delta-note" data-at-delta role="status"></p>' in page and "at-delta-new" not in page
+    # De quoi manier la frise : l'échelle de l'axe sur le dessin, deux bords par barre, et le pas de l'axe sur
+    # le champ (le geste s'y cale ; le champ garde sa finesse). Sept barres : A, B, C, Z et trois images.
+    assert re.findall(r'data-span="(\S+ \S+) ', page) == ["0 14"]  # l'axe déclaré (1 à 13) et ses marges
+    assert "Glissez une période pour la déplacer" in page
+    assert (page.count('data-grip="start"'), page.count('data-grip="end"')) == (7, 7)
+    assert re.findall(r'name="de.A" value="1" ([^>]*?) autocomplete', page) == [
+        'min="1" max="13" step="0.5" data-grain="1"'
+    ]
     assert (
         "<b>Du 2 au 3</b> — Contrat : Contrat A ; Remise : Remise B ; Barème : Barème C. Règle P1.</li>"
         in page

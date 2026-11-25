@@ -938,8 +938,8 @@ def test_atelier_periodes(site, browser):
     expect(rows).to_have_count(1)
     expect(rows.first).to_contain_text("Tarif remisé")
     expect(page.locator(".at-plan .rep-timeline")).to_be_visible()
-    # Une frise n'a pas de briques à relier : son aide parle de la provenance des lignes.
-    expect(page.locator("[data-at-hint]")).to_contain_text("ses périodes sources se détachent ici")
+    # Une frise n'a pas de briques à relier : son aide parle de déplacer et d'étirer une période.
+    expect(page.locator("[data-at-hint]")).to_contain_text("Glissez une période pour la déplacer")
 
     # Changer une borne au clavier : Entrée met à jour le résultat et ne pose rien.
     page.fill('input[name="a.A"]', "6")
@@ -1101,6 +1101,54 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     page.select_option('select[name="o.A.caisse"]', "v2")
     expect(note).to_have_text("Votre dernier geste n'a pas changé l'historique.")
     expect(page.locator(".at-delta")).to_have_count(0)
+    assert writes == []
+
+    # La frise se manie : tirer le bord droit de la nomination B d'un peu plus d'un jour la fait finir au
+    # jour 4 (calée sur le pas de l'axe) ; pendant le geste l'aide dit les bornes et le schéma garde ses
+    # dimensions ; au lâcher, le champ « Fin, exclue » et l'historique suivent.
+    geo = """(id) => {
+      const svg = document.querySelector('[data-at-plan] svg[data-span]');
+      const [lo, hi, , w] = svg.dataset.span.split(' ').map(Number);
+      const bar = document.querySelector('[data-at-plan] .tl-bar[data-p="' + id + '"] .n-shape');
+      const box = bar.getBoundingClientRect();
+      const all = svg.getBoundingClientRect();
+      return {unit: w / (hi - lo) * svg.getScreenCTM().a, x: box.x, y: box.y, w: box.width, h: box.height,
+              svg: [all.width, all.height]};
+    }"""
+    hint = page.locator("[data-at-hint-text]")
+    expect(hint).to_have_text(re.compile(r"^Glissez une période pour la déplacer"))
+    page.locator('[data-at-plan] .tl-bar[data-p="B"]').scroll_into_view_if_needed()
+    was = page.evaluate(geo, "B")
+    page.mouse.move(was["x"] + was["w"] - 2, was["y"] + was["h"] / 2)
+    page.mouse.down()
+    page.mouse.move(was["x"] + was["w"] - 2 + 1.3 * was["unit"], was["y"] + was["h"] / 2 + 2, steps=6)
+    expect(hint).to_have_text("Nomination B : du 1 au 4, fin exclue.")
+    now = page.evaluate(geo, "B")
+    assert now["svg"] == was["svg"] and round(now["w"] - was["w"]) == round(was["unit"])
+    expect(page.locator('input[name="a.B"]')).to_have_value("3")  # rien n'est décidé avant de lâcher
+    page.mouse.up()
+    expect(page.locator('input[name="a.B"]')).to_have_value("4")
+    expect(note).to_have_text("Votre dernier geste : 1 ligne modifiée, 1 ligne disparue.")
+    expect(rows).to_have_count(2)
+    # Déplacer la nomination C : sa durée ne change pas. Échap pendant le geste ne change rien.
+    was = page.evaluate(geo, "C")
+    page.mouse.move(was["x"] + was["w"] / 2, was["y"] + was["h"] / 2)
+    page.mouse.down()
+    page.mouse.move(was["x"] + was["w"] / 2 + 3 * was["unit"], was["y"] + was["h"] / 2, steps=6)
+    expect(hint).to_have_text("Nomination C : du 7 au 10, fin exclue.")
+    page.keyboard.press("Escape")
+    page.mouse.up()
+    assert round(page.evaluate(geo, "C")["x"]) == round(was["x"])
+    expect(page.locator('input[name="de.C"]')).to_have_value("4")
+    page.mouse.move(was["x"] + was["w"] / 2, was["y"] + was["h"] / 2)
+    page.mouse.down()
+    page.mouse.move(was["x"] + was["w"] / 2 + 0.9 * was["unit"], was["y"] + was["h"] / 2, steps=6)
+    expect(hint).to_have_text("Nomination C : du 5 au 8, fin exclue.")
+    shot(page, "48-atelier-frise", full_page=True)
+    page.mouse.up()
+    expect(page.locator('input[name="de.C"]')).to_have_value("5")
+    expect(page.locator('input[name="a.C"]')).to_have_value("8")
+    expect(rows).to_have_count(3)
     assert writes == []
 
     page.select_option('select[name="r.sans_responsable"]', "retirés")

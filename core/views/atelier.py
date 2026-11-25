@@ -54,7 +54,8 @@ WORDS = {
         "counts": "Périodes posées par état final",
         "rules": "règles que la déclaration de l'étude revient à poser",
         "rules_hint": "Le site les applique dans cet ordre à chaque pas de l'axe du temps.",
-        "hint": "Survolez ou choisissez une ligne de l'historique : ses périodes sources se détachent ici.",
+        "hint": "Glissez une période pour la déplacer ; tirez un de ses bords pour changer son début ou sa "
+        "fin.",
         "hint_fine": "",
     },
 }
@@ -237,6 +238,7 @@ def _bounds(decl: dict, element: dict) -> dict | None:
         "min": workshop.text_of(axis["min"]),
         "max": workshop.text_of(axis["max"]),
         "step": workshop.text_of(axis["step"]),
+        "grain": workshop.text_of(axis.get("grain", axis["step"])),
         "axis": axis["label"],
     }
 

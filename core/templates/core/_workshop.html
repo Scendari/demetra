@@ -40,7 +40,7 @@
           </div>
           {% if c.bounds %}
           <div class="at-bounds" role="group" aria-label="Bornes de {{ c.label }} sur l'axe « {{ c.bounds.axis }} »">
-            <label for="at-de-{{ c.id }}"><span>Début</span><input id="at-de-{{ c.id }}" type="number" inputmode="decimal" name="de.{{ c.id }}" value="{{ c.bounds.start }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
+            <label for="at-de-{{ c.id }}"><span>Début</span><input id="at-de-{{ c.id }}" type="number" inputmode="decimal" name="de.{{ c.id }}" value="{{ c.bounds.start }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" data-grain="{{ c.bounds.grain }}" autocomplete="off"></label>
             <label for="at-a-{{ c.id }}"><span>Fin, exclue</span><input id="at-a-{{ c.id }}" type="number" inputmode="decimal" name="a.{{ c.id }}" value="{{ c.bounds.end }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
           </div>
           {% endif %}

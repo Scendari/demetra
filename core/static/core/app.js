@@ -289,6 +289,8 @@
       if (hint) hint.hidden = !$("[data-at-plan] .n[data-e], [data-at-plan] .tl-bar[data-p]", atelier);
       if (!historyRow(pinned)) pinned = null;
       trace(historyRow(pinned));
+      // Sur une frise, seules les périodes posées se déplacent : une ligne de l'historique n'a pas de bornes à soi.
+      $$("[data-at-plan] .tl-bar[data-p]", atelier).forEach((bar) => bar.classList.toggle("is-movable", !!boundsOf(bar.dataset.p)));
     };
     /* D'où vient une ligne de l'historique (atelier de périodes) : la survoler ou la choisir fait ressortir ses
        périodes sources sur la frise et dans les fiches, et ses règles dans la liste. Le serveur a écrit la
@@ -443,6 +445,70 @@
     const under = (event, selector) => { const el = doc.elementFromPoint(event.clientX, event.clientY); return el ? el.closest(selector) : null; };
     const inSvg = (svg, x, y) => { const point = svg.createSVGPoint(); point.x = x; point.y = y; return point.matrixTransform(svg.getScreenCTM().inverse()); };
     const closePop = () => { if (pop) pop.remove(); pop = null; mark(null, "is-picked"); };
+    /* Frise : déplacer une période, ou en tirer un bord. Le geste revient à changer ses deux champs de bornes ;
+       il se cale sur le pas des champs et reste dans l'axe. Pendant le geste, seule la barre bouge. */
+    const boundsOf = (id) => {
+      const start = doc.getElementById("at-de-" + id);
+      const end = doc.getElementById("at-a-" + id);
+      const fine = start && end && start.value !== "" && end.value !== "" && Number(start.value) < Number(end.value);
+      return fine ? { start: start, end: end } : null;
+    };
+    const tidy = (value) => Math.round(value * 1e6) / 1e6;
+    const within = (value, low, high) => Math.min(Math.max(value, low), high);
+    const drawBar = (bar, x1, x2) => {
+      const width = Math.max(4, x2 - x1);
+      const shape = $(".n-shape", bar);
+      const halo = $(".n-halo", bar);
+      shape.setAttribute("x", x1);
+      shape.setAttribute("width", width);
+      halo.setAttribute("x", x1 - 3);
+      halo.setAttribute("width", width + 6);
+    };
+    const beginPeriod = () => {
+      const fields = boundsOf(drag.period);
+      const svg = drag.node.ownerSVGElement;
+      const [low, high, origin, width] = svg.dataset.span.split(" ").map(Number);
+      drag.fields = fields;
+      drag.was = { start: Number(fields.start.value), end: Number(fields.end.value) };
+      drag.now = drag.was;
+      drag.step = Number(fields.start.dataset.grain) || Number(fields.start.step) || 1;   // le pas de l'axe
+      drag.min = Number(fields.start.min);
+      drag.max = Number(fields.start.max);
+      drag.unit = width / (high - low) * svg.getScreenCTM().a;   // pixels d'écran par unité de l'axe
+      drag.xOf = (value) => origin + (value - low) / (high - low) * width;
+      drag.hint = ($("[data-at-hint-text]", atelier) || {}).textContent;
+      drag.hintBox = $("[data-at-hint]", atelier);   // l'aide dit les bornes pendant le geste : sa hauteur ne bouge pas
+      if (drag.hintBox) drag.hintBox.style.minHeight = drag.hintBox.getBoundingClientRect().height + "px";
+      drag.node.classList.add("is-moving");
+    };
+    const movePeriod = (event) => {
+      const raw = (event.clientX - drag.x) / drag.unit;
+      const snap = (value) => drag.min + Math.round((value - drag.min) / drag.step) * drag.step;   // sur la grille de l'axe
+      let start = drag.was.start;
+      let end = drag.was.end;
+      if (drag.grip === "start") {
+        start = within(snap(start + raw), drag.min, drag.max);
+        while (start >= end) start -= drag.step;
+        if (start < drag.min) start = drag.was.start;
+      } else if (drag.grip === "end") {
+        end = within(snap(end + raw), drag.min, drag.max);
+        while (end <= start) end += drag.step;
+        if (end > drag.max) end = drag.was.end;
+      } else {   // déplacée d'un nombre entier de pas : la durée ne change pas
+        const by = within(Math.round(raw / drag.step) * drag.step, drag.min - start, drag.max - end);
+        start += by;
+        end += by;
+      }
+      drag.now = { start: tidy(start), end: tidy(end) };
+      drawBar(drag.node, drag.xOf(start), drag.xOf(end));
+      say(nameOf(drag.period) + " : du " + drag.now.start + " au " + drag.now.end + ", fin exclue.");
+    };
+    const dropPeriod = (done) => {
+      if (done.now.start === done.was.start && done.now.end === done.was.end) return say(done.hint);
+      done.fields.start.value = String(done.now.start);
+      done.fields.end.value = String(done.now.end);
+      submit(build());
+    };
     const openPop = (plan, event, title, choices) => {
       closePop();
       pop = doc.createElement("div");
@@ -482,6 +548,7 @@
         doc.body.appendChild(drag.ghost);
         return;
       }
+      if (drag.period) return beginPeriod();
       const box = drag.node.getBoundingClientRect();
       drag.svg = drag.node.ownerSVGElement;
       drag.from = inSvg(drag.svg, box.left + box.width / 2, box.top + box.height / 2);
@@ -493,6 +560,7 @@
       drag.node.classList.add("is-source");
     };
     const move = (event) => {
+      if (drag.period) return movePeriod(event);
       const node = under(event, "[data-at-plan] .n[data-e]");
       if (drag.type) {
         drag.ghost.style.transform = "translate(" + (event.clientX + 12) + "px," + (event.clientY + 14) + "px)";
@@ -513,6 +581,7 @@
       mark(other && !ok ? other : null, "is-refused");
     };
     const drop = (done, event) => {
+      if (done.period) return dropPeriod(done);
       const node = under(event, "[data-at-plan] .n[data-e]");
       const plan = under(event, "[data-at-plan]");
       if (done.type) {
@@ -535,12 +604,17 @@
       const done = drag;
       drag = null;
       if (!done) return;
-      if (!done.live) { if (!done.type && !cancelled) showCard(done.id); return; }
+      if (!done.live) { if (!done.type && !cancelled) showCard(done.id || done.period); return; }
       swallow = true;
       setTimeout(() => { swallow = false; }, 80);
       atelier.classList.remove("is-dragging");
       if (done.ghost) done.ghost.remove();
       if (done.wire) done.wire.remove();
+      if (done.period) {
+        done.node.classList.remove("is-moving");
+        if (done.hintBox) done.hintBox.style.minHeight = "";
+        if (cancelled) { drawBar(done.node, done.xOf(done.was.start), done.xOf(done.was.end)); say(done.hint); }
+      }
       ["is-over", "is-target", "is-refused", "is-source"].forEach((name) => mark(null, name));
       if (!cancelled) drop(done, event);
     };
@@ -548,10 +622,12 @@
       if (event.button || !event.isPrimary) return;
       const add = event.target.closest(".at-add");
       const node = event.target.closest("[data-at-plan] .n[data-e]");
+      const bar = event.target.closest("[data-at-plan] .tl-bar.is-movable");
       const at = { x: event.clientX, y: event.clientY };
       // Au doigt, glisser depuis la palette ferait défiler la page : on y touche la brique pour la poser.
       if (add && !add.disabled && event.pointerType !== "touch" && $("[data-at-plan]", atelier)) drag = Object.assign(at, { type: add.value, label: add.textContent.trim() });
       else if (node) drag = Object.assign(at, { id: node.dataset.e, node: node });
+      else if (bar) drag = Object.assign(at, { period: bar.dataset.p, node: bar, grip: event.target.dataset.grip || "move" });
     });
     doc.addEventListener("pointermove", (event) => {
       if (!drag) return;

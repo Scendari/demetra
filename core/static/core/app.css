@@ -858,6 +858,12 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .atelier.is-tracing .at-plan .tl-bar.is-traced { opacity: 1; }
 .at-plan .tl-bar.is-traced .n-halo { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
 .at-plan .tl-grip { fill: transparent; pointer-events: none; }
+/* Une période posée se déplace sur la frise, ou s'étire par un bord ; ses champs de bornes disent la même chose. */
+.atelier.is-live .at-plan .tl-bar.is-movable { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.atelier.is-live .at-plan .tl-bar.is-movable .tl-grip { pointer-events: all; cursor: ew-resize; }
+.atelier.is-live .at-plan .tl-bar.is-movable:hover .n-shape, .at-plan .tl-bar.is-moving .n-shape { stroke: var(--accent); stroke-width: 2; }
+.atelier.is-dragging .at-plan .tl-bar.is-moving, .atelier.is-dragging .at-plan .tl-bar.is-moving .tl-grip { cursor: grabbing; }
+.atelier.is-dragging .at-plan .tl-bar[data-p] { transition: none; }
 .at-card.is-traced { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 /* Ce que le dernier geste a changé : un mot et une icône par ligne (jamais la couleur seule), une ligne
    disparue reste lisible, barrée. Le navigateur compare l'historique d'avant et d'après ; le serveur ne garde

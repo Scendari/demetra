@@ -262,6 +262,13 @@ compose**, et le site calcule.
 | les champs restitués, et si les images identiques qui se suivent se réunissent | les règles que cette déclaration revient à poser, écrites en phrases par le site |
 | le sort d'une période invalide (durée nulle, borne absente, bornes inversées) | l'encadré « Le traitement est bloqué » et sa raison |
 
+**La frise se manie.** Sur la frise, on glisse une période posée pour la déplacer (sa durée ne change pas)
+et on tire un de ses bords pour changer son début ou sa fin. Le geste se cale sur le pas de l'axe et reste dans
+l'axe ; pendant qu'on glisse, seule la barre bouge — le schéma garde ses dimensions — et l'aide sous la frise
+dit les bornes. Au lâcher, les champs « Début » et « Fin, exclue » de la fiche prennent ces valeurs et le
+résultat suit ; Échap annule. Les champs restent le moyen de tout faire au clavier, et de poser une borne plus
+fine que le pas. Les lignes de l'historique, elles, ne se déplacent pas : elles se déduisent.
+
 **Ce que le dernier geste a changé.** Après chaque geste, l'historique marque ses lignes d'un mot et d'une
 icône : « nouvelle », « modifiée » (avec ce qu'elle disait avant), « disparue » (la ligne reste lisible,
 barrée, à sa place) ; une phrase les compte, ou dit que le geste n'a rien changé — c'est ainsi qu'on voit qu'un
@@ -443,10 +450,10 @@ uv run ruff check .
   ni script tiers dans l'interface.
 - `docs/captures/` — captures des écrans principaux, produites par les tests de bout en bout ; `19` à `27` :
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
-  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `47` : l'onglet « Atelier » (page vide,
+  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `48` : l'onglet « Atelier » (page vide,
   situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
   de périodes de l'étude « Responsable d'un magasin au fil du temps », provenance d'une ligne de l'historique,
-  ce que le dernier geste a changé).
+  ce que le dernier geste a changé, période déplacée sur la frise).
 
 ## Architecture en bref
 
