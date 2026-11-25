@@ -538,6 +538,11 @@ def test_the_page_says_where_each_line_comes_from(atelier, web, users):
     )
     assert rows == [("1", "I1", "A", "P1 P5 P6"), ("2", "I2", "A B C", "P1"), ("3", "I3", "A", "P1 P5 P6")]
     assert page.count('data-at-why aria-pressed="false"') == 3
+    # De quoi comparer deux historiques dans le navigateur : la ligne dit ce qui la fait « la même » et ce
+    # qu'on en dira si elle disparaît. Le serveur, lui, ne garde rien : la zone du changement arrive vide.
+    assert 'data-sig="3|Base|10|Tarif remisé" data-text="du 2 au 3 · Base · 10 · Tarif remisé"' in page
+    assert 'data-sig="2|Base||Plein tarif" data-text="du 1 au 2 · Base · vide · Plein tarif"' in page
+    assert '<p class="at-delta-note" data-at-delta role="status"></p>' in page and "at-delta-new" not in page
     assert (
         "<b>Du 2 au 3</b> — Contrat : Contrat A ; Remise : Remise B ; Barème : Barème C. Règle P1.</li>"
         in page

@@ -323,8 +323,67 @@
       trace(historyRow(pinned));
     });
 
+    /* Ce que le dernier geste a changé dans l'historique. Les lignes d'avant sont lues dans la page au moment
+       du geste, puis comparées aux nouvelles par leur début : le serveur ne garde rien d'une situation. */
+    const historyNow = () => {
+      const table = $(".at-history", atelier);
+      return table ? $$("tbody tr[data-start]", table).map((tr) => ({ start: tr.dataset.start, sig: tr.dataset.sig, text: tr.dataset.text })) : null;
+    };
+    const deltaBadge = (kind, word) => {
+      const badge = doc.createElement("span");
+      const icon = badge.appendChild(doc.createElementNS(SVG_NS, "svg"));
+      badge.className = "at-delta at-delta-" + kind;
+      icon.setAttribute("class", "ic");
+      icon.setAttribute("aria-hidden", "true");
+      icon.appendChild(doc.createElementNS(SVG_NS, "use")).setAttribute("href", "#ui-" + { new: "plus", changed: "changed", gone: "close" }[kind]);
+      badge.appendChild(doc.createTextNode(word));
+      return badge;
+    };
+    const goneRow = (table, was) => {   // une ligne disparue reste lisible, barrée, à sa place parmi les débuts
+      const tr = doc.createElement("tr");
+      const text = tr.appendChild(doc.createElement("td"));
+      const end = tr.appendChild(doc.createElement("td"));
+      tr.className = "is-gone";
+      text.colSpan = table.tHead.rows[0].cells.length - 1;
+      text.appendChild(doc.createElement("del")).textContent = was.text;
+      end.className = "at-row-end";
+      end.appendChild(deltaBadge("gone", "disparue"));
+      const next = $$("tbody tr[data-start]", table).find((row) => Number(row.dataset.start) > Number(was.start));
+      table.tBodies[0].insertBefore(tr, next || null);
+    };
+    const showDelta = (before) => {
+      const table = $(".at-history", atelier);
+      const note = $("[data-at-delta]", atelier);
+      if (!table || !note || !before) return;
+      const old = new Map(before.map((row) => [row.start, row]));
+      const counts = { new: 0, changed: 0, gone: 0 };
+      $$("tbody tr[data-start]", table).forEach((tr) => {
+        const was = old.get(tr.dataset.start);
+        old.delete(tr.dataset.start);
+        if (was && was.sig === tr.dataset.sig) return;
+        const kind = was ? "changed" : "new";
+        const cell = $("[data-delta-cell]", tr);
+        counts[kind] += 1;
+        tr.classList.add("is-" + kind);
+        cell.insertBefore(deltaBadge(kind, was ? "modifiée" : "nouvelle"), cell.firstChild);
+        if (!was) return;
+        cell.firstChild.title = "Avant ce geste : " + was.text;
+        const said = cell.appendChild(doc.createElement("span"));
+        said.className = "sr-only";
+        said.textContent = " Avant ce geste : " + was.text + ".";
+      });
+      old.forEach((was) => { counts.gone += 1; goneRow(table, was); });
+      const parts = [];
+      const count = (n, one, many) => { if (n) parts.push(n + " " + (n > 1 ? many : one)); };
+      count(counts.new, "ligne nouvelle", "lignes nouvelles");
+      count(counts.changed, "ligne modifiée", "lignes modifiées");
+      count(counts.gone, "ligne disparue", "lignes disparues");
+      note.textContent = parts.length ? "Votre dernier geste : " + parts.join(", ") + "." : "Votre dernier geste n'a pas changé l'historique.";
+    };
+
     const load = (url) => {
       const mine = ++turn;
+      const before = historyNow();
       const key = focusKey(doc.activeElement);
       const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
       stop();
@@ -338,6 +397,7 @@
           atelier.removeAttribute("aria-busy");
           open.forEach((name) => { const d = $('details[data-keep="' + name + '"]', atelier); if (d) d.open = true; });
           ready();
+          showDelta(before);
           history.replaceState(history.state, "", landed || url);   // le serveur a rangé l'adresse : on garde la sienne
           refocus(key);
         })

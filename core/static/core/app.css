@@ -837,7 +837,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-feeds > span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 /* D'où vient une ligne : on la survole ou on la choisit, ses périodes sources se détachent sur la frise, dans
    les fiches et dans la liste des règles. Sans script, la liste « D'où vient chaque ligne » dit la même chose. */
-.at-history .at-row-end { width: 1%; padding-right: 0; text-align: right; white-space: nowrap; }
+/* La dernière colonne reste en vue quand le tableau défile dans son cadre : le mot du changement et le bouton
+   de provenance ne sortent jamais de l'écran. */
+.at-history .at-row-end { position: sticky; right: 0; width: 1%; padding-right: 0; padding-left: var(--s-2); background: var(--surface); text-align: right; white-space: nowrap; }
 .at-why-btn { display: none; }
 .atelier.is-live .at-why-btn { display: inline-grid; }
 .at-why-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
@@ -857,6 +859,18 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-plan .tl-bar.is-traced .n-halo { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
 .at-plan .tl-grip { fill: transparent; pointer-events: none; }
 .at-card.is-traced { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Ce que le dernier geste a changé : un mot et une icône par ligne (jamais la couleur seule), une ligne
+   disparue reste lisible, barrée. Le navigateur compare l'historique d'avant et d'après ; le serveur ne garde
+   rien. */
+.at-delta-note { display: none; }
+.atelier.is-live .at-delta-note { display: block; min-height: 1.5em; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }
+.at-delta { display: inline-flex; align-items: center; gap: 0.25rem; margin-right: var(--s-2); padding: 0.1rem 0.45rem; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--raised); color: var(--ink); font-size: var(--t-xs); font-weight: 640; vertical-align: middle; }
+.at-delta .ic { width: 0.85rem; height: 0.85rem; }
+.at-delta-new { border-color: var(--accent); color: var(--accent); }
+.at-delta-gone { border-style: dashed; color: var(--ink-2); }
+.at-history tbody tr.is-new > td:first-child, .at-history tbody tr.is-changed > td:first-child { box-shadow: inset 3px 0 0 var(--accent); padding-left: var(--s-2); }
+.at-history tbody tr.is-gone > td { color: var(--ink-3); }
+.at-history tbody tr.is-gone > td:first-child { padding-left: var(--s-2); box-shadow: inset 3px 0 0 var(--line-strong); }
 .at-rules li.is-traced { background: var(--accent-soft); color: var(--ink); }
 .at-blocking { margin-top: var(--s-1); padding-left: 1.1em; list-style: disc; }
 .at-source { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }

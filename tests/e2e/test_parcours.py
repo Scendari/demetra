@@ -919,7 +919,7 @@ def test_atelier_periodes(site, browser):
     )
     login(page, site, "demo")
     page.goto(f"{site}/etudes/{sid}/atelier/")
-    rows = page.locator(".at-history tbody tr")
+    rows = page.locator(".at-history tbody tr[data-start]")
 
     # Page vide : les sources de l'étude, les règles que sa déclaration revient à poser, aucune période.
     expect(page.locator(".at-empty h2")).to_have_text("Composer un tarif")
@@ -1033,7 +1033,7 @@ def test_atelier_etude_de_periodes_semee(site, browser):
         "&de.A=1&a.A=7&de.B=1&a.B=3&de.C=5&a.C=7&o.C.agent=A2&de.D=1&a.D=7"
         "&de.E=1&a.E=7&o.E.matricule=A2&o.E.nom=Bruno"
     )
-    rows = page.locator(".at-history tbody tr")
+    rows = page.locator(".at-history tbody tr[data-start]")
     expect(rows).to_have_count(3)
     cells = [rows.nth(n).locator("td").all_inner_texts()[:4] for n in range(3)]
     assert cells == [
@@ -1076,6 +1076,32 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     expect(page.locator('.at-card[data-brick="A"] .at-feeds')).to_contain_text(
         "du 1 au 3, du 3 au 5, du 5 au 7"
     )
+
+    # Ce que le dernier geste a changé : la seconde nomination commence un jour plus tôt. Une ligne est
+    # modifiée, une autre nouvelle, une troisième disparaît et reste lisible, barrée ; chacune porte un mot.
+    note = page.locator("[data-at-delta]")
+    expect(note).to_have_text("")
+    writes: list[str] = []
+    page.on("request", lambda request: writes.append(request.url) if request.method != "GET" else None)
+    page.fill('input[name="de.C"]', "4")
+    page.locator('input[name="de.C"]').blur()
+    expect(note).to_have_text("Votre dernier geste : 1 ligne nouvelle, 1 ligne modifiée, 1 ligne disparue.")
+    expect(rows.nth(0).locator(".at-delta")).to_have_count(0)
+    expect(rows.nth(1).locator(".at-delta")).to_have_text("modifiée")
+    expect(rows.nth(1).locator(".at-delta")).to_have_attribute(
+        "title", "Avant ce geste : du 3 au 5 · Halle du Port · vide · Publiée sans responsable"
+    )
+    expect(rows.nth(2).locator(".at-delta")).to_have_text("nouvelle")
+    gone = page.locator(".at-history tbody tr.is-gone")
+    expect(gone.locator("del")).to_have_text("du 5 au 7 · Halle du Port · Bruno · Publiée")
+    expect(gone.locator(".at-delta")).to_have_text("disparue")
+    shot(page, "47-atelier-changement", full_page=True)
+    # Un champ que l'historique ne restitue pas ne change rien, et l'écran le dit. Rien n'est écrit au
+    # serveur.
+    page.select_option('select[name="o.A.caisse"]', "v2")
+    expect(note).to_have_text("Votre dernier geste n'a pas changé l'historique.")
+    expect(page.locator(".at-delta")).to_have_count(0)
+    assert writes == []
 
     page.select_option('select[name="r.sans_responsable"]', "retirés")
     expect(rows).to_have_count(2)

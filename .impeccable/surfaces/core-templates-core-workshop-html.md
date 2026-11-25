@@ -32,6 +32,6 @@ Demande de l'utilisateur après la première version, le 24 novembre 2026 : « a
 
 Demande de l'utilisateur, le 24 novembre 2026 : « C'est généralisable maintenant sur tous les autres type de représentation ? Tu peux faire l'atelier "Historique" en démo ? ». Fait : une seconde famille d'atelier, « périodes », sur le même écran — fiches à deux bornes, tableau « Historique obtenu », encadré de blocage. Non fait : tirer ou étirer une période directement sur la frise.
 
-Demande de l'utilisateur, le 25 novembre 2026 : « tu peux tout faire » (les améliorations proposées). Fait pour l'atelier de périodes : le déroulé va au bout de l'axe ; chaque ligne de l'historique dit d'où elle vient (survol, clic, clavier), et chaque fiche dit les lignes qu'elle alimente.
+Demande de l'utilisateur, le 25 novembre 2026 : « tu peux tout faire » (les améliorations proposées). Fait pour l'atelier de périodes : le déroulé va au bout de l'axe ; chaque ligne de l'historique dit d'où elle vient (survol, clic, clavier), et chaque fiche dit les lignes qu'elle alimente ; après chaque geste, l'historique marque ses lignes nouvelles, modifiées et disparues.
 
 FINISH : unreviewed and undocumented is unfinished; la revue de finition (`impeccable-finish-reviewer`) n'a pas été passée sur cet écran.

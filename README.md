@@ -262,6 +262,12 @@ compose**, et le site calcule.
 | les champs restitués, et si les images identiques qui se suivent se réunissent | les règles que cette déclaration revient à poser, écrites en phrases par le site |
 | le sort d'une période invalide (durée nulle, borne absente, bornes inversées) | l'encadré « Le traitement est bloqué » et sa raison |
 
+**Ce que le dernier geste a changé.** Après chaque geste, l'historique marque ses lignes d'un mot et d'une
+icône : « nouvelle », « modifiée » (avec ce qu'elle disait avant), « disparue » (la ligne reste lisible,
+barrée, à sa place) ; une phrase les compte, ou dit que le geste n'a rien changé — c'est ainsi qu'on voit qu'un
+champ non restitué ne pèse pas. La comparaison se fait dans le navigateur, entre la page d'avant et celle
+d'après : le serveur ne garde rien d'une situation. Sans script, la page se recharge sans ces marques.
+
 **D'où vient une ligne.** Survoler une ligne de l'historique, ou la choisir par son bouton (au clavier aussi),
 fait ressortir ses périodes sources sur la frise et dans les fiches, et les règles en cause dans la liste des
 règles ; une phrase sous le tableau dit laquelle a été retenue pour chaque source, laquelle elle a devancée, et
@@ -437,9 +443,10 @@ uv run ruff check .
   ni script tiers dans l'interface.
 - `docs/captures/` — captures des écrans principaux, produites par les tests de bout en bout ; `19` à `27` :
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
-  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `46` : l'onglet « Atelier » (page vide,
+  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `47` : l'onglet « Atelier » (page vide,
   situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
-  de périodes de l'étude « Responsable d'un magasin au fil du temps », provenance d'une ligne de l'historique).
+  de périodes de l'étude « Responsable d'un magasin au fil du temps », provenance d'une ligne de l'historique,
+  ce que le dernier geste a changé).
 
 ## Architecture en bref
 
