@@ -341,6 +341,14 @@
       badge.appendChild(doc.createTextNode(word));
       return badge;
     };
+    const markRow = (table, tr, badge) => {   // petit écran : le mot a sa ligne, au-dessus de celle qu'il qualifie
+      const mark = doc.createElement("tr");
+      const cell = mark.appendChild(doc.createElement("td"));
+      mark.className = "at-run-mark";
+      cell.colSpan = table.tHead.rows[0].cells.length;
+      cell.appendChild(badge);
+      tr.parentNode.insertBefore(mark, tr);
+    };
     const goneRow = (table, was) => {   // une ligne disparue reste lisible, barrée, à sa place parmi les débuts
       const tr = doc.createElement("tr");
       const text = tr.appendChild(doc.createElement("td"));
@@ -351,7 +359,9 @@
       end.className = "at-row-end";
       end.appendChild(deltaBadge("gone", "disparue"));
       const next = $$("tbody tr[data-start]", table).find((row) => Number(row.dataset.start) > Number(was.start));
-      table.tBodies[0].insertBefore(tr, next || null);
+      const above = next && next.previousElementSibling;
+      table.tBodies[0].insertBefore(tr, (above && above.classList.contains("at-run-mark") ? above : next) || null);
+      markRow(table, tr, deltaBadge("gone", "disparue"));
     };
     const showDelta = (before) => {
       const table = $(".at-history", atelier);
@@ -368,8 +378,9 @@
         counts[kind] += 1;
         tr.classList.add("is-" + kind);
         cell.insertBefore(deltaBadge(kind, was ? "modifiée" : "nouvelle"), cell.firstChild);
+        if (was) cell.firstChild.title = "Avant ce geste : " + was.text;
+        markRow(table, tr, cell.firstChild.cloneNode(true));
         if (!was) return;
-        cell.firstChild.title = "Avant ce geste : " + was.text;
         const said = cell.appendChild(doc.createElement("span"));
         said.className = "sr-only";
         said.textContent = " Avant ce geste : " + was.text + ".";

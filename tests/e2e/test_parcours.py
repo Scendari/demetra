@@ -1219,6 +1219,16 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     expect(gone.locator("del")).to_have_text("du 5 au 7 · Halle du Port · Bruno · Publiée")
     expect(gone.locator(".at-delta")).to_have_text("disparue")
     shot(page, "47-atelier-changement", full_page=True)
+    # Sur un téléphone, chaque mot passe au-dessus de sa ligne : le tableau tient dans la fenêtre.
+    marks = page.locator(".at-history .at-run-mark .at-delta")
+    expect(marks.first).to_be_hidden()
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(marks).to_have_text(["modifiée", "nouvelle", "disparue"])
+    expect(rows.nth(1).locator(".at-delta")).to_be_hidden()
+    assert page.evaluate(
+        "[...document.querySelectorAll('.at-history-wrap')].every(e => e.scrollWidth <= e.clientWidth)"
+    )
+    page.set_viewport_size({"width": 1280, "height": 900})
     # Un champ que l'historique ne restitue pas ne change rien, et l'écran le dit. Rien n'est écrit au
     # serveur.
     page.select_option('select[name="o.A.caisse"]', "v2")

@@ -235,6 +235,41 @@ def test_a_situation_that_never_settles_stops():
     assert result["end"] == "limit" and len(result["steps"]) == 3
 
 
+def test_a_run_that_does_not_settle_announces_no_outcome():
+    """Le résultat d'ensemble ne se dit que d'une situation qui a abouti : un déroulé arrêté par la limite de
+    pas ou par une boucle n'en annonce pas, ni dans la réponse ni dans le cas qu'on en tirerait."""
+    raw = {
+        "bricks": [{"type": "lampe", "label": "Lampe"}],
+        "rules": [
+            {"key": "L1", "title": "Un", "when": {"status": "ATTENTE"}, "then": "EN_COURS"},
+            {"key": "L2", "title": "Deux", "when": {"status": "EN_COURS"}, "then": "OK"},
+        ],
+        "outcome": [{"label": "Toujours dit"}],
+    }
+    situation = {"elements": [{"id": "A", "type": "lampe"}]}
+    settled = declared(raw)
+    result = workshop.run(settled, built(settled, situation), "ATTENTE")
+    assert result["end"] == "stable" and workshop.outcome(settled, result) == {"label": "Toujours dit"}
+    assert workshop.to_case(settled, built(settled, situation), result, "ATTENTE")["outcome"] == {
+        "label": "Toujours dit"
+    }
+    cut = declared({**raw, "max_steps": 1})
+    result = workshop.run(cut, built(cut, situation), "ATTENTE")
+    assert result["end"] == "limit" and workshop.outcome(cut, result) is None
+    assert "outcome" not in workshop.to_case(cut, built(cut, situation), result, "ATTENTE")
+    loop = declared(
+        {
+            **raw,
+            "rules": [
+                *raw["rules"],
+                {"key": "L3", "title": "Trois", "when": {"status": "OK"}, "then": "ATTENTE"},
+            ],
+        }
+    )
+    result = workshop.run(loop, built(loop, situation), "ATTENTE")
+    assert result["end"] == "loop" and workshop.outcome(loop, result) is None
+
+
 def test_a_closed_circuit_of_links_does_not_loop_forever():
     decl = declared()
     raw = {
@@ -572,6 +607,30 @@ def test_a_brick_dropped_on_another_is_chained_to_it(atelier, web):
     assert client.get(base + "?e=A:sas&add=porte&on=A")["Location"] == base + "?e=A%3Asas&e=B%3Aporte"
     # Une cible qui n'existe pas ne change rien à la pose.
     assert client.get(base + "?e=A:porte&add=sas&on=Z")["Location"] == base + "?e=A%3Aporte&e=B%3Asas"
+
+
+def test_the_screen_and_the_api_announce_no_result_when_the_run_does_not_settle(api, web):
+    """Une lampe qui s'allume puis s'éteint sans fin : l'écran titre « Situation non stabilisée » au lieu du
+    résultat que l'étude déclare, et l'API rend `outcome: null` avec `end: "loop"`."""
+    flip = {
+        "bricks": [{"type": "lampe", "label": "Lampe"}],
+        "rules": [
+            {"key": "L1", "title": "S'allume", "when": {"status": "ATTENTE"}, "then": "OK"},
+            {"key": "L2", "title": "S'éteint", "when": {"status": "OK"}, "then": "ATTENTE"},
+        ],
+        "outcome": [{"label": "Lampe allumée", "status": "OK"}],
+    }
+    status, data = api.post("/studies", {**STUDY, "workshop": flip})
+    assert status == 201, data
+    sid = data["id"]
+    status, data = api.post(
+        f"/studies/{sid}/workshop/run", {"situation": {"elements": [{"id": "A", "type": "lampe"}]}}
+    )
+    assert status == 200, data
+    assert data["end"] == "loop" and data["outcome"] is None
+    page = web("ana").get(f"/etudes/{sid}/atelier/?e=A%3Alampe").content.decode()
+    assert "Situation non stabilisée" in page and "Lampe allumée" not in page
+    assert "elle ne se stabilise pas" in page
 
 
 def test_the_schema_can_be_grabbed_in_the_workshop_and_nowhere_else(atelier, web):

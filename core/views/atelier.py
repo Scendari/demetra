@@ -31,7 +31,7 @@ YES_NO = {"true": "Oui", "false": "Non"}
 WORDS = {
     "linked": {
         "palette": "Briques de l'étude",
-        "drop": "Glissez ici une brique de la palette, ou cliquez-la.",
+        "drop": "Glissez ici une brique de la palette, ou choisissez-la.",
         "placed": "Briques posées",
         "name": "Nom de la brique",
         "remove": "Retirer cette brique",
@@ -43,13 +43,13 @@ WORDS = {
         "rules": "règles que l'étude déclare",
         "rules_hint": "Chaque brique suit, à chaque pas, la première règle de cette liste qui lui "
         "correspond.",
-        "hint": "Tirez d'une brique à une autre pour les relier. Cliquez un lien pour le retirer.",
+        "hint": "Tirez d'une brique à une autre pour les relier. Choisissez un lien pour le retirer.",
         "hint_fine": "Glissez ici une brique de la palette pour l'ajouter ; déposée sur une brique, elle s'y "
         "enchaîne.",
     },
     "periods": {
         "palette": "Sources de l'étude",
-        "drop": "Glissez ici une source de la palette, ou cliquez-la : une période se pose.",
+        "drop": "Glissez ici une source de la palette, ou choisissez-la : une période se pose.",
         "placed": "Périodes posées",
         "name": "Nom de la période",
         "remove": "Retirer cette période",
@@ -303,6 +303,7 @@ def _drawn(request, study: Study, content: dict, step: int) -> dict:
     }
 
 
+UNSETTLED = "Situation non stabilisée"  # le titre du résultat quand le déroulé s'arrête sans aboutir
 CHANGE_ICONS = {"added": "plus", "closed": "lock", "changed": "changed", "same": "check", "removed": "close"}
 CHANGE_ROWS = {"added": "is-new", "closed": "is-changed", "changed": "is-changed", "removed": "is-gone"}
 
@@ -365,7 +366,7 @@ def _result(study: Study, run: dict, sit: dict) -> dict:
     outcome = run["outcome"] or {}
     status = smap.get(outcome.get("status"), {}).get("label", "")  # tu quand le libellé le dit déjà
     return {
-        "label": outcome.get("label", ""),
+        "label": outcome.get("label", "") if run["end"] == "stable" else UNSETTLED,
         "role": smap.get(outcome.get("status"), {}).get("role", ""),
         "status": status if status.lower() not in outcome.get("label", "").lower() else "",
         "counts": [

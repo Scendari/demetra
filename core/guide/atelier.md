@@ -195,7 +195,7 @@ Réponse :
 ```
 
 - `steps[0]` est la situation de départ ; chaque pas suivant donne les états et, pour chaque changement, la règle appliquée.
-- `outcome` vaut `null` si l'étude ne déclare pas de résultat d'ensemble, ou si aucun ne correspond.
+- `outcome` vaut `null` si l'étude ne déclare pas de résultat d'ensemble, si aucun ne correspond, ou si le déroulé ne s'est pas stabilisé (`end` vaut `"loop"` ou `"limit"`) : un résultat d'ensemble ne se dit que d'une situation qui a abouti. Dites alors que la situation ne se stabilise pas, et ne concluez rien de `final`.
 - `web_url` ouvre l'atelier sur cette situation : donnez ce lien à l'utilisateur pour qu'il la voie et la modifie. Tout l'état tient dans l'adresse.
 - `case` vaut `null` si la situation ne donne pas un cas que le site sait valider (par exemple un changement d'état qu'un cycle de vie de l'étude interdit).
 

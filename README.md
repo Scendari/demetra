@@ -209,7 +209,7 @@ que le site applique à la situation construite.
 | des types de liens et ce qu'ils relient | « Relier à… » sur chaque fiche, dans les deux sens de lecture |
 | des réglages de la situation | des réglages communs à toutes les briques |
 | une table de règles « quand telle condition, alors tel état » | le déroulé pas à pas, avec la règle appliquée à chaque pas |
-| un résultat d'ensemble | la ligne « Résultat », redessinée à chaque changement |
+| un résultat d'ensemble | la ligne « Résultat », redessinée à chaque changement ; « Situation non stabilisée » quand le déroulé boucle ou atteint sa limite de pas |
 
 Le site applique la table à chaque brique, pas après pas, jusqu'à ce que plus rien ne bouge : chaque brique suit
 la première règle qui lui correspond, et toutes les règles lisent l'état du pas précédent. Les conditions sont

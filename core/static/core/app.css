@@ -860,6 +860,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-why ol { display: grid; gap: var(--s-2); margin-top: var(--s-2); color: var(--ink-2); }
 .at-why li b { color: var(--ink); font-weight: 680; font-variant-numeric: tabular-nums; }
 .at-plan .tl-bar[data-p] { transition: opacity 120ms var(--ease); }
+/* Une période écartée reste un objet qu'on saisit : son contour pointillé garde un contraste lisible, là où le
+   rôle « désactivé » s'efface ailleurs. */
+.at-plan .tl-bar[data-p][data-role="disabled"] .n-shape { stroke: var(--fg); }
 .atelier.is-tracing .at-plan .tl-bar[data-p] { opacity: 0.3; }
 .atelier.is-tracing .at-plan .tl-bar.is-traced { opacity: 1; }
 .at-plan .tl-bar.is-traced .n-halo { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
@@ -979,6 +982,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
   .atelier.is-live .at-history [data-delta-cell] { min-width: 0; }
   .at-history-run .at-row-start { display: none; }
   .at-history .at-run-mark { display: table-row; }
+  /* Le tableau principal fait de même après un geste : le mot au-dessus de la ligne, plus dans la dernière cellule. */
+  .at-history [data-delta-cell] > .at-delta, .at-history tr.is-gone > .at-row-end > .at-delta { display: none; }
+  .at-history .at-run-mark:has(+ tr.is-traced) > td { background: var(--accent-soft); }
   .at-history .at-run-mark > td { padding-top: var(--s-2); padding-bottom: 0; border-bottom: 0; }
   .at-history .at-run-mark .at-delta { margin-right: 0; }
   .at-history-run tr[data-change] > td { padding-top: 0.2rem; }

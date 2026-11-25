@@ -843,7 +843,9 @@ def outcome_of(decl: dict, world: World) -> dict | None:
 
 
 def outcome(decl: dict, result: dict) -> dict | None:
-    return outcome_of(decl, result["world"])
+    """Le résultat d'ensemble d'un déroulé : aucun tant que la situation ne s'est pas stabilisée (le dernier
+    pas n'est alors qu'un arrêt, pas un aboutissement)."""
+    return outcome_of(decl, result["world"]) if result["end"] == "stable" else None
 
 
 def plan(decl: dict) -> dict:
@@ -904,7 +906,7 @@ def to_case(decl: dict, situation: dict, result: dict, default_status: str) -> d
         "initial": {key: status for key, status in first.items() if status != default_status},
         "steps": steps,
     }
-    outcome = outcome_of(decl, result["world"])
-    if outcome:
-        case["outcome"] = outcome
+    found = outcome(decl, result)
+    if found:
+        case["outcome"] = found
     return case
