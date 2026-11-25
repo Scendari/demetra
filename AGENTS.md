@@ -58,7 +58,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `sante.py` | Sonde `/sante/`, traitée avant la vérification d'hôte | |
 | `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule | Le contenu des études n'y est pas modifiable |
 | `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown |
-| `demo/` | Données des 15 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
+| `demo/` | Données des 15 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP` (qui déclare aussi des exécutions successives)) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 

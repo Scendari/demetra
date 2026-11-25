@@ -48,7 +48,19 @@ SEVERAL = ("latest_start", "earliest_start", "block")
 TIES = ("block", "first")
 STATES = ("active", "past", "ignored", "invalid", "blocked")
 INVALID = {"zero": "ignore", "missing": "block", "inverted": "block"}
-FIELDS = {"family", "title", "axis", "bricks", "settings", "image", "merge", "invalid", "states", "outcome"}
+WRITES = ("differences", "all")
+MAX_RUNS = 6
+CHANGES = {
+    "added": "ajoutée",
+    "closed": "fermée",
+    "changed": "modifiée",
+    "same": "inchangée",
+    "removed": "retirée",
+}
+FIELDS = {
+    *("family", "title", "axis", "bricks", "settings", "image", "merge", "invalid", "states", "outcome"),
+    "runs",
+}
 EPSILON = 1e-9
 __all__ = ["LETTERS", "MAX_ELEMENTS", "next_id", "same", "text_of"]  # ce que l'écran lit dans toute famille
 
@@ -351,6 +363,30 @@ def _outcomes(raw, statuses: set[str], report: Report, p: str) -> list[dict]:
     return out
 
 
+def _whole(value, low: int, high: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and low <= value <= high
+
+
+def _runs(raw, report: Report, p: str) -> dict | None:
+    """Les exécutions successives que l'étude déclare : leur nom, leur nombre au plus, et ce qu'une exécution
+    écrit par rapport à ce qui était publié. None quand l'étude n'en déclare pas."""
+    if raw is None:
+        return None
+    example = {"label": "Exécution", "max": 3, "write": "differences"}
+    if not isinstance(raw, dict) or set(raw) - set(example):
+        report.error(p, "type", "« runs » est un objet {label, max, write}.", example=example)
+        return None
+    most = raw.get("max", 3)
+    if not _whole(most, 2, MAX_RUNS):
+        report.error(f"{p}.max", "out_of_range", f"De 2 à {MAX_RUNS} exécutions.", received=most)
+        most = 3
+    write = raw.get("write", "differences")
+    if write not in WRITES:
+        report.error(f"{p}.write", "enum", "Valeur inconnue.", received=write, expected=list(WRITES))
+        write = "differences"
+    return {"label": _label(raw, report, p, "Exécution", 40), "max": most, "write": write}
+
+
 def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "workshop") -> dict:
     """La déclaration d'un atelier de périodes, validée."""
     if set(raw) - FIELDS:
@@ -384,6 +420,11 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
         "states": _states(raw.get("states"), status_keys, report, f"{path}.states"),
         "outcome": _outcomes(raw.get("outcome"), status_keys, report, f"{path}.outcome"),
     }
+    runs = _runs(raw.get("runs"), report, f"{path}.runs")
+    if (
+        runs
+    ):  # la clé n'existe que si l'étude en déclare : une déclaration sans exécutions reste ce qu'elle était
+        decl["runs"] = runs
     decl["rules"] = principles(decl) if declared(decl) else []
     return decl
 
@@ -408,6 +449,11 @@ HOW_INVALID = {
     "zero": "une période de durée nulle",
     "missing": "une période dont une borne manque",
     "inverted": "une période qui finit avant de commencer",
+}
+NOTHING_WRITTEN = "rien n'est écrit"
+HOW_WRITE = {
+    "differences": "Seules les lignes qui diffèrent sont écrites ; sans différence, rien n'est écrit.",
+    "all": "Tout l'historique est réécrit à chaque exécution, même sans différence.",
 }
 
 
@@ -469,6 +515,14 @@ def principles(decl: dict) -> list[dict]:
     )
     apart = "Tout changement de période source ouvre une image."
     out.append(("merge", f"Champs restitués : {fields}. {merged if decl['merge'] else apart}"))
+    if decl.get("runs"):
+        successive = (
+            f"Exécutions successives (« {decl['runs']['label']} ») : chacune recalcule l'historique avec les "
+            "périodes connues à ce moment et le compare à ce qui était publié. "
+            f"{HOW_WRITE[decl['runs']['write']]} Une exécution bloquée ne publie rien : ce qui était publié "
+            "reste."
+        )
+        out.append(("runs", successive))
     return [{"key": f"P{n}", "role": role, "title": title} for n, (role, title) in enumerate(out, 1)]
 
 
@@ -496,6 +550,36 @@ def _bound(value, axis: dict, report: Report, p: str):
     return _neat(value)
 
 
+def _known_of(item: dict, count: int, report: Report, p: str) -> dict:
+    """Les exécutions où une période est connue : à partir de `known_from` (la première, par défaut) et
+    jusqu'à `known_until` comprise (toujours, par défaut)."""
+    first, last = item.get("known_from", 1), item.get("known_until")
+    if not _whole(first, 1, count):
+        report.error(f"{p}.known_from", "out_of_range", f"Une exécution de 1 à {count}.", received=first)
+        first = 1
+    if last is not None and not _whole(last, first, count):
+        report.error(
+            f"{p}.known_until", "out_of_range", f"Une exécution de {first} à {count}, ou rien.", received=last
+        )
+        last = None
+    return {"known_from": first, "known_until": last}
+
+
+def _run_count(decl: dict, raw: dict, report: Report, p: str) -> int | None:
+    """Le nombre d'exécutions d'une situation ; None quand l'étude n'en déclare pas."""
+    runs, asked = decl.get("runs"), raw.get("runs")
+    if not runs:
+        if asked is not None:
+            report.error(p, "unknown_field", "Cette étude ne déclare pas d'exécutions successives.")
+        return None
+    if asked is None:
+        return 1
+    if not _whole(asked, 1, runs["max"]):
+        report.error(p, "out_of_range", f"De 1 à {runs['max']} exécutions.", received=asked)
+        return 1
+    return asked
+
+
 def situation(decl: dict, raw: Any, report: Report, path: str = "situation") -> dict:
     """Des périodes posées, vérifiées contre ce que l'étude déclare. L'invalide est signalé et écarté :
     l'API refuse alors la demande, l'interface garde le reste."""
@@ -508,6 +592,9 @@ def situation(decl: dict, raw: Any, report: Report, path: str = "situation") -> 
     if raw.get("links"):
         report.error(f"{path}.links", "unknown_field", "Des périodes ne se relient pas : pas de « links ».")
     out["settings"] = _chosen(decl["settings"], raw.get("settings"), report, f"{path}.settings")
+    count = _run_count(decl, raw, report, f"{path}.runs")
+    if count:
+        out["runs"] = count
     items = raw.get("elements") or []
     if not isinstance(items, list) or len(items) > MAX_ELEMENTS:
         report.error(
@@ -542,6 +629,10 @@ def situation(decl: dict, raw: Any, report: Report, path: str = "situation") -> 
                 "end": _bound(item.get("end"), decl["axis"], report, f"{p}.end"),
             }
         )
+        if count:
+            out["elements"][-1].update(_known_of(item, count, report, p))
+        elif "known_from" in item or "known_until" in item:
+            report.error(p, "unknown_field", "Cette étude ne déclare pas d'exécutions successives.")
     return out
 
 
@@ -551,6 +642,26 @@ def _parsed(text: str):
     except ValueError:
         return None
     return _neat(value) if math.isfinite(value) and abs(value) < 1e9 else None
+
+
+def _asked_run(query: dict[str, list[str]], name: str, low: int, high: int) -> int | None:
+    """Un numéro d'exécution lu dans une adresse, ramené entre `low` et `high` ; None s'il n'y est pas."""
+    text = (query.get(name) or [""])[-1].strip()
+    return min(max(int(text), low), high) if text.isdigit() else None
+
+
+def _query_runs(decl: dict, query: dict[str, list[str]], out: dict) -> dict:
+    """`x=3` : trois exécutions ; `c.A=2` : la période A n'est connue qu'à partir de la deuxième ; `j.A=2` :
+    elle ne l'est plus après."""
+    if not decl.get("runs"):
+        return out
+    out["runs"] = _asked_run(query, "x", 1, decl["runs"]["max"]) or 1
+    for element in out["elements"]:
+        first = _asked_run(query, f"c.{element['id']}", 1, out["runs"]) or 1
+        last = _asked_run(query, f"j.{element['id']}", first, out["runs"])
+        # « Jusqu'à la dernière » ne dit rien de plus que « toujours » : l'adresse ne le garde pas.
+        element.update({"known_from": first} | ({"known_until": last} if last and last < out["runs"] else {}))
+    return out
 
 
 def from_query(decl: dict, query: dict[str, list[str]]) -> dict:
@@ -582,7 +693,7 @@ def from_query(decl: dict, query: dict[str, list[str]]) -> dict:
         value = _typed(decl["settings"], item["key"], (query.get(f"r.{item['key']}") or [""])[-1])
         if value is not None:
             settings[item["key"]] = value
-    return {"elements": elements, "settings": settings}
+    return _query_runs(decl, query, {"elements": elements, "settings": settings})
 
 
 def to_query(decl: dict, sit: dict) -> list[tuple[str, str]]:
@@ -600,12 +711,16 @@ def to_query(decl: dict, sit: dict) -> list[tuple[str, str]]:
             for o in brick["options"]
             if not same(element["options"][o["key"]], o["default"])
         ]
+        if element.get("known_from", 1) != 1:
+            out.append((f"c.{key}", str(element["known_from"])))
+        if element.get("known_until"):
+            out.append((f"j.{key}", str(element["known_until"])))
     out += [
         (f"r.{item['key']}", text_of(sit["settings"][item["key"]]))
         for item in decl["settings"]
         if not same(sit["settings"][item["key"]], item["default"])
     ]
-    return out
+    return out + ([("x", str(sit["runs"]))] if sit.get("runs", 1) != 1 else [])
 
 
 def placed(decl: dict, query: dict[str, list[str]], letter: str, kind: str) -> list[str]:
@@ -806,11 +921,98 @@ def _ties(decl: dict, images: list[dict]) -> list[str]:
     ]
 
 
+def _known(situation: dict, n: int) -> list[dict]:
+    """Les périodes que l'exécution `n` connaît."""
+    return [
+        e
+        for e in situation["elements"]
+        if e.get("known_from", 1) <= n and (e.get("known_until") is None or n <= e["known_until"])
+    ]
+
+
+def _compare(before: list[dict], after: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Ce qu'une exécution change à ce qui était publié. Une ligne se reconnaît à son début : elle est
+    ajoutée, fermée (mêmes valeurs, fin avancée), modifiée ou inchangée ; celles qui n'ont plus lieu d'être
+    sont retirées."""
+    old = {line["start"]: line for line in before}
+    lines = []
+    for line in after:
+        was = old.pop(line["start"], None)
+        if was is None:
+            change = "added"
+        elif was == line:
+            change = "same"
+        elif (was["fields"], was["status"]) == (line["fields"], line["status"]) and line["end"] < was["end"]:
+            change = "closed"
+        else:
+            change = "changed"
+        lines.append({**line, "change": change} | ({"was": was} if change in ("closed", "changed") else {}))
+    return lines, [{**line, "change": "removed"} for line in old.values()]
+
+
+def _run_text(decl: dict, entry: dict) -> str:
+    """Une exécution, en une phrase : ce qu'elle change, puis ce qu'elle écrit."""
+    name = f"{decl['runs']['label']} {entry['run']}"
+    if not entry["published"]:
+        return f"{name} : traitement bloqué, rien n'est publié ; ce qui était publié reste."
+    changes = [line["change"] for line in entry["lines"] + entry["removed"]]
+    if not changes:
+        return f"{name} : aucune ligne à publier."
+
+    def lines(n: int, word: str) -> str:
+        return f"{n} ligne{'s' if n > 1 else ''} {word}{'s' if n > 1 else ''}"
+
+    said = [lines(changes.count(key), word) for key, word in CHANGES.items() if key in changes]
+    deleted, appended = entry["written"]["deleted"], entry["written"]["appended"]
+    wrote = [lines(n, word) for n, word in ((deleted, "supprimée"), (appended, "écrite")) if n]
+    return f"{name} : {_listed(said)} ; {_listed(wrote) if wrote else NOTHING_WRITTEN}."
+
+
+def successive(decl: dict, situation: dict) -> list[dict]:
+    """Les exécutions l'une après l'autre : chacune recalcule l'historique avec les périodes qu'elle connaît
+    et le compare à ce qui était publié. Une exécution bloquée ne publie rien : ce qui était publié reste."""
+    published: list[dict] = []
+    out = []
+    for n in range(1, situation.get("runs", 1) + 1):
+        known = _known(situation, n)
+        usable, _, refused = _sorted(decl, {**situation, "elements": known})
+        images = _images(decl, _grains(decl, usable, situation["settings"]), set())
+        blocking = list(dict.fromkeys(refused + _ties(decl, images)))
+        lines, removed = [{**line, "change": "same"} for line in published], []
+        written = {"deleted": 0, "appended": 0}
+        if not blocking:
+            after = [{k: image[k] for k in ("start", "end", "fields", "status")} for image in images]
+            lines, removed = _compare(published, after)
+            touched = sum(line["change"] in ("closed", "changed") for line in lines)
+            added = sum(line["change"] == "added" for line in lines)
+            written = {"deleted": touched + len(removed), "appended": touched + added}
+            if decl["runs"]["write"] == "all":
+                written = {"deleted": len(published), "appended": len(after)}
+            published = after
+        entry = {
+            "run": n,
+            "known": [e["id"] for e in known],
+            "new": [e["id"] for e in known if e.get("known_from", 1) == n],
+            "withdrawn": [e["id"] for e in situation["elements"] if n > 1 and e.get("known_until") == n - 1],
+            "published": not blocking,
+            "blocking": blocking,
+            "lines": lines,
+            "removed": removed,
+            "written": written,
+        }
+        out.append({**entry, "text": _run_text(decl, entry)})
+    return out
+
+
 def run(decl: dict, situation: dict, default_status: str) -> dict:
     """Combine les périodes posées. Rend les périodes d'historique (`images`), ce qui bloque le traitement
     (`blocking`), et le déroulé : un pas chaque fois qu'une image commence ou qu'une période posée change
-    d'état, jusqu'au bout de l'axe — une période finie avant la fin de l'axe finit donc « passée »."""
-    usable, fixed, refused = _sorted(decl, situation)
+    d'état, jusqu'au bout de l'axe — une période finie avant la fin de l'axe finit donc « passée ». Quand
+    l'étude déclare des exécutions successives, l'historique est celui de la dernière : une période qu'elle ne
+    connaît pas (ou plus) est écartée, et `runs` dit ce que chaque exécution a publié."""
+    seen = _known(situation, situation.get("runs", 1))
+    apart = [e for e in situation["elements"] if e not in seen]
+    usable, fixed, refused = _sorted(decl, {**situation, "elements": seen})
     grains = _grains(decl, usable, situation["settings"])
     images = _images(decl, grains, {e["id"] for e in situation["elements"]})
     for image in images:
@@ -835,7 +1037,8 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
             steps.append({"states": dict(current), "changes": moved, "at": at, "kind": kind, **more})
 
     invalid = {key: (states[state], _rule(decl, "invalid")) for key, state in fixed.items()}
-    step(invalid, None, "check", reasons=refused)
+    invalid.update({e["id"]: (states["ignored"], _rule(decl, "runs")) for e in apart})
+    step(invalid, None, "check", reasons=refused, apart=[e["label"] for e in apart])
     by_start = {image["start"]: image for image in images}
     shown = None
     for start, row, absent in grains:
@@ -853,7 +1056,11 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
         step(changes, moment, kind, image=shown, row=row, absent=absent)
     used = [_rule(decl, "grain"), _rule(decl, "bounds")] if images else []
     used += [_rule(decl, "merge")] if any(image["steps"] > 1 for image in images) else []
-    return {"steps": steps, "end": "stable", "images": images, "blocking": blocking, "used": used}
+    result = {"steps": steps, "end": "stable", "images": images, "blocking": blocking, "used": used}
+    if decl.get("runs"):
+        result["runs"] = successive(decl, situation)
+        result["used"] += [_rule(decl, "runs")] if len(result["runs"]) > 1 else []
+    return result
 
 
 def _image_role(image: dict) -> str:
@@ -888,7 +1095,8 @@ def extra(decl: dict, result: dict) -> dict:
     """Ce que cette famille ajoute à la réponse : les périodes d'historique, d'où vient chacune, et ce qui
     bloque."""
     fields = decl["image"]["fields"]
-    return {
+    runs = {"runs": result["runs"]} if "runs" in result else {}
+    return runs | {
         "images": [
             {
                 "id": image["id"],
@@ -938,6 +1146,8 @@ def _step(decl: dict, situation: dict, step: dict, blocking: list[str]) -> dict:
     if step["kind"] == "check":
         reasons = step["reasons"]
         note = "Bloque le traitement : " + " ; ".join(reasons) + "." if reasons else "Elles ne comptent pas."
+        if step.get("apart"):
+            note += " Inconnues de la dernière exécution : " + _listed(step["apart"]) + "."
         return {"title": "Contrôle des périodes posées", "note": note[:1900], "changes": changes}
     when = f"{decl['axis']['label']} {text_of(step['at'])}"
     if step["kind"] == "gap":

@@ -257,6 +257,7 @@ Vous ne déclarez **pas de table de règles** : vous déclarez comment une image
 | `invalid` | Le sort d'une période de durée nulle (`zero`), sans l'une de ses bornes (`missing`) ou qui finit avant de commencer (`inverted`) : `"ignore"` ou `"block"` | — |
 | `states` | Le statut de l'étude qui dit chaque état d'une période posée : `active` (en vigueur), `past` (finie), `ignored` (devancée par une autre, ou ignorée), `invalid` (invalide et bloquante), `blocked` (statut des images quand le traitement est bloqué) | les cinq sont requis |
 | `outcome` | Le résultat d'ensemble : `when` (facultatif), `label`, `status` | 12 |
+| `runs` | Facultatif : des exécutions successives (`label`, `max`, `write`), voir plus bas | 2 à 6 exécutions |
 
 Une source rattachée (toute source après la première) :
 
@@ -320,7 +321,64 @@ La réponse a la forme de l'autre famille (`steps`, `final`, `outcome`, `rules_a
 - `steps` : un pas chaque fois qu'une image commence, qu'un trou s'ouvre ou qu'une période posée change d'état ; `at` y donne la position sur l'axe. Le déroulé va jusqu'au bout de l'axe : `final` est l'état des périodes posées à ce moment (`{"A": "FINIE", "B": "FINIE"}` ici, les deux périodes finissant avant la fin de l'axe ; une période qui court jusqu'au bout de l'axe reste `states.active`). Un pas sans image dit quelle source manque.
 - `case` : les périodes posées (groupe « Périodes posées ») et les images (groupe « Historique obtenu »), avec `attrs.start` et `attrs.end` : la représentation de l'étude les dessine telles quelles. Une frise convient le mieux.
 
-Ne s'y disent pas : un traitement incrémental (reprise, correction rétroactive, relance), une publication en plusieurs temps, un calcul sur les valeurs. Pour ces règles, déposez des cas.
+### Exécutions successives : ce qu'un traitement publie, passage après passage
+
+Pour une étude où le traitement **repasse** sur des sources qui ont bougé : un premier lancement, une relance sans changement, une période arrivée plus tard, une correction rétroactive. L'étude le déclare d'un champ de plus :
+
+```json
+"runs": {"label": "Exécution", "max": 3, "write": "differences"}
+```
+
+| Champ | Contenu |
+|---|---|
+| `label` | Le nom d'une exécution à l'écran (« Exécution », « Passage », « Lot »…) ; 40 caractères |
+| `max` | Le nombre d'exécutions qu'une situation peut compter : de 2 à 6 (3 par défaut) |
+| `write` | Ce qu'une exécution écrit par rapport à ce qui était publié : `"differences"` (par défaut : seules les lignes qui diffèrent ; sans différence, rien n'est écrit) ou `"all"` (tout l'historique est réécrit à chaque exécution) |
+
+Le site en tire une règle de plus (rôle `runs`, la dernière de `rules`). Dans une situation, trois champs s'ajoutent alors ; une étude qui ne déclare pas `runs` les refuse (`unknown_field`) :
+
+- `runs` (à côté de `elements`) : le nombre d'exécutions, de 1 à `max` ; 1 par défaut.
+- `known_from` sur une période : la première exécution qui la connaît (1 par défaut).
+- `known_until` sur une période : la dernière exécution qui la connaît, comprise (par défaut : toutes). Une **correction** se dit ainsi : l'ancienne période avec `known_until: 2`, la nouvelle avec `known_from: 3`.
+
+Avec la déclaration donnée plus haut et ce champ `runs`, une remise qui n'arrive qu'à la troisième exécution :
+
+```json
+{"situation": {"runs": 3, "elements": [
+  {"id": "A", "type": "contrat", "start": 1, "end": 6, "options": {"offre": "A"}},
+  {"id": "B", "type": "remise", "start": 3, "end": 5, "options": {"taux": 10}, "known_from": 3}]}}
+```
+
+La réponse porte un champ `runs` de plus, une entrée par exécution :
+
+```json
+{"runs": [
+ {"run": 1, "known": ["A"], "new": ["A"], "withdrawn": [], "published": true, "blocking": [],
+  "lines": [{"start": 1, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "added"}],
+  "removed": [], "written": {"deleted": 0, "appended": 1},
+  "text": "Exécution 1 : 1 ligne ajoutée ; 1 ligne écrite."},
+ {"run": 2, "known": ["A"], "new": [], "withdrawn": [], "published": true, "blocking": [],
+  "lines": [{"start": 1, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "same"}],
+  "removed": [], "written": {"deleted": 0, "appended": 0},
+  "text": "Exécution 2 : 1 ligne inchangée ; rien n'est écrit."},
+ {"run": 3, "known": ["A", "B"], "new": ["B"], "withdrawn": [], "published": true, "blocking": [],
+  "lines": [{"start": 1, "end": 3, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "closed",
+             "was": {"start": 1, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE"}},
+            {"start": 3, "end": 5, "fields": {"offre": "A", "taux": 10}, "status": "REMISE", "change": "added"},
+            {"start": 5, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "added"}],
+  "removed": [], "written": {"deleted": 1, "appended": 3},
+  "text": "Exécution 3 : 2 lignes ajoutées et 1 ligne fermée ; 1 ligne supprimée et 3 lignes écrites."}]}
+```
+
+- Chaque exécution **recalcule tout l'historique** avec les périodes qu'elle connaît (`known` ; `new` : celles qu'elle découvre ; `withdrawn` : celles qu'elle ne connaît plus), puis le compare à ce qui était publié. Une ligne se reconnaît à son **début**.
+- `lines[].change` : `"added"` (ajoutée : aucun début pareil n'était publié), `"closed"` (fermée : mêmes valeurs, fin avancée), `"changed"` (modifiée : valeurs ou statut différents, ou fin reculée), `"same"` (inchangée). `was` donne la ligne d'avant pour `closed` et `changed`. `removed` : les lignes publiées dont le début n'existe plus (`"change": "removed"`, retirées).
+- `written` : ce que l'exécution écrit selon `write` — avec `"differences"`, elle supprime les lignes fermées, modifiées et retirées, et écrit les lignes ajoutées, fermées et modifiées ; avec `"all"`, elle supprime et réécrit tout.
+- Une exécution **bloquée** (`published: false`, `blocking` dit pourquoi) ne publie rien : `lines` rend ce qui était publié, inchangé, et l'exécution suivante repart de là.
+- `text` : la même chose en une phrase, celle que l'écran affiche. Citez-la.
+- `images`, `final`, `outcome`, `steps` et `case` décrivent la **dernière** exécution ; une période qu'elle ne connaît pas (ou plus) y prend le statut `states.ignored`.
+- `web_url` garde tout : `x=3` (le nombre d'exécutions), `c.B=3` (`known_from`), `j.A=2` (`known_until`).
+
+Ne s'y disent pas : une publication en plusieurs temps qui échoue en chemin (suppression faite, écriture non), le périmètre d'un recalcul (quelles clés, quelles colonnes), plusieurs entités à la fois (un lien qui passe d'un parent à un autre), un calcul sur les valeurs. Pour ces règles, déposez des cas.
 
 ## Ce qui reste réservé aux humains
 

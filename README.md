@@ -263,6 +263,17 @@ compose**, et le site calcule.
 | les champs restitués, et si les images identiques qui se suivent se réunissent | les règles que cette déclaration revient à poser, écrites en phrases par le site |
 | le sort d'une période invalide (durée nulle, borne absente, bornes inversées) | l'encadré « Le traitement est bloqué » et sa raison |
 
+**Exécutions successives.** Une étude de périodes peut déclarer que son traitement repasse (`runs` : le nom
+d'une exécution, leur nombre au plus, et ce qu'une exécution écrit — les seules différences, ou tout). L'écran
+gagne alors un réglage « Exécutions successives » ; dès qu'il vaut 2 ou plus, chaque fiche dit à partir de
+quelle exécution sa période est connue, et jusqu'à laquelle (une correction : l'ancienne période connue jusqu'à
+la 2, la nouvelle à partir de la 3). Sous le déroulé, une section montre chaque exécution : une phrase (« 1 ligne
+ajoutée et 1 ligne fermée ; 1 ligne supprimée et 2 lignes écrites »), les périodes qu'elle découvre ou ne
+connaît plus, et l'historique qu'elle publie, chaque ligne marquée d'un mot et d'une icône — ajoutée, fermée,
+modifiée, inchangée, retirée — par rapport à ce qui était publié. Une exécution bloquée ne publie rien. Le
+résultat, la frise et le déroulé sont ceux de la dernière exécution. Ce qui ne s'y dit pas : une publication
+qui échoue à mi-chemin, le périmètre d'un recalcul, plusieurs entités à la fois.
+
 **La frise se manie.** Sur la frise, on glisse une période posée pour la déplacer (sa durée ne change pas)
 et on tire un de ses bords pour changer son début ou sa fin. Le geste se cale sur le pas de l'axe et reste dans
 l'axe ; pendant qu'on glisse, seule la barre bouge — le schéma garde ses dimensions — et l'aide sous la frise
@@ -302,8 +313,9 @@ frise n'offre pas les gestes à la souris du schéma en graphe.
   inversées, borne absente), priorité entre deux nominations (début le plus récent, même début). Elles ont
   d'abord été vérifiées à la main sur une étude réelle de même mécanique, restée hors du dépôt ; les lignes
   attendues sont écrites à la main.
-- **Hors de la famille** : un traitement incrémental (reprise, correction rétroactive, relance), une publication
-  en plusieurs temps, un calcul sur les valeurs.
+- **Hors de la famille** : une publication en plusieurs temps qui échoue en chemin, le périmètre d'un recalcul,
+  plusieurs entités à la fois, un calcul sur les valeurs. Une relance, une période arrivée plus tard ou une
+  correction rétroactive se disent par les exécutions successives.
 
 ## Cas paramétré et accord avec le jeu de règles
 
@@ -451,10 +463,10 @@ uv run ruff check .
   ni script tiers dans l'interface.
 - `docs/captures/` — captures des écrans principaux, produites par les tests de bout en bout ; `19` à `27` :
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
-  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `48` : l'onglet « Atelier » (page vide,
+  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `49` : l'onglet « Atelier » (page vide,
   situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
   de périodes de l'étude « Responsable d'un magasin au fil du temps », provenance d'une ligne de l'historique,
-  ce que le dernier geste a changé, période déplacée sur la frise).
+  ce que le dernier geste a changé, période déplacée sur la frise, exécutions successives).
 
 ## Architecture en bref
 

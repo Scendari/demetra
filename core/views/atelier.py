@@ -19,7 +19,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.safestring import mark_safe
 
-from .. import families, workshop
+from .. import families, periods, workshop
 from .. import services as svc
 from ..casemodel import Report
 from ..models import Role, Study
@@ -104,7 +104,8 @@ def _asked(request, decl: dict) -> dict[str, list[str]]:
         if raw not in query.get("unlink", []) and not removed & {raw.split(":")[0], raw.split(":")[-1]}
     ]
     query["ev"] = [raw for raw in query.get("ev", []) if raw.partition(":")[0] not in removed]
-    for key in [name for name in query if name.startswith(("o.", "n.")) and name.split(".")[1] in removed]:
+    gone = [n for n in query if n.startswith(("o.", "n.", "c.", "j.")) and n.split(".")[1] in removed]
+    for key in gone:
         del query[key]
     for key in taken:
         side, _, rest = (query.get(f"lk.{key}") or [""])[-1].partition(":")
@@ -204,6 +205,7 @@ def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> l
                 "id": key,
                 "feeds": (feeds or {}).get(key),
                 "bounds": _bounds(decl, element),
+                "known": _known(decl, sit, element),
                 "kind": element["type"],
                 "label": element["label"],
                 "placeholder": f"{brick['label']} {key}",
@@ -243,9 +245,26 @@ def _bounds(decl: dict, element: dict) -> dict | None:
     }
 
 
+def _known(decl: dict, sit: dict, element: dict) -> dict | None:
+    """Quand la situation compte plusieurs exécutions : à partir de laquelle la période est connue, et jusqu'à
+    laquelle. None sinon : une seule exécution connaît tout."""
+    count = sit.get("runs", 1)
+    if count < 2:
+        return None
+    name, first, last = decl["runs"]["label"], element["known_from"], element["known_until"]
+    return {
+        "from": [{"value": n, "label": f"{name} {n}", "selected": n == first} for n in range(1, count + 1)],
+        "until": [{"value": "", "label": "la dernière", "selected": last is None or last >= count}]
+        + [{"value": n, "label": f"{name} {n}", "selected": n == last} for n in range(first, count)],
+    }
+
+
 def _palette(decl: dict, sit: dict) -> dict:
     full = workshop.next_id([e["id"] for e in sit["elements"]]) is None
+    most = (decl.get("runs") or {}).get("max", 0)
+    count = {"label": "Exécutions successives", "values": list(range(1, most + 1))}
     return {
+        "runs": _choice(count, "x", sit.get("runs", 1)) if most else None,
         "bricks": [{"type": b["type"], "label": b["label"]} for b in decl["bricks"]],
         "full": full,
         "max": workshop.MAX_ELEMENTS,
@@ -278,7 +297,59 @@ def _drawn(request, study: Study, content: dict, step: int) -> dict:
     }
 
 
-def _result(study: Study, run: dict) -> dict:
+CHANGE_ICONS = {"added": "plus", "closed": "lock", "changed": "changed", "same": "check", "removed": "close"}
+CHANGE_ROWS = {"added": "is-new", "closed": "is-changed", "changed": "is-changed", "removed": "is-gone"}
+
+
+def _line(line: dict, smap: dict) -> dict:
+    """Une ligne publiée par une exécution, et ce que cette exécution lui a fait."""
+    start, end = workshop.text_of(line["start"]), workshop.text_of(line["end"])
+    values = ["" if v is None else workshop.text_of(v) for v in line["fields"].values()]
+    status = smap.get(line["status"], {}).get("label", line["status"] or "")
+    change = line.get("change", "")
+    return {
+        "start": start,
+        "end": end,
+        "values": values,
+        "status": status,
+        "role": smap.get(line["status"], {}).get("role", "neutral"),
+        "text": " · ".join([f"du {start} au {end}", *(v or "vide" for v in values), status]),
+        "change": change,
+        "word": periods.CHANGES.get(change, ""),
+        "icon": CHANGE_ICONS.get(change, ""),
+        "row": CHANGE_ROWS.get(change, ""),
+        "was": _line(line["was"], smap)["text"] if "was" in line else "",
+    }
+
+
+def _runs(study: Study, extra: dict, sit: dict) -> list[dict]:
+    """Pour un atelier à exécutions successives : ce que chacune a publié, ligne par ligne. Rien tant que la
+    situation n'en compte qu'une."""
+    runs = extra.get("runs") or []
+    if len(runs) < 2:
+        return []
+    smap, name = status_map(study.statuses), study.workshop["runs"]["label"]
+    names = {e["id"]: e["label"] for e in sit["elements"]}
+    out = []
+    for entry in runs:
+        said = entry["text"].partition(" : ")[2]
+        out.append(
+            {
+                "n": entry["run"],
+                "title": f"{name} {entry['run']}",
+                "text": said[:1].upper() + said[1:],
+                "blocked": not entry["published"],
+                "blocking": entry["blocking"],
+                "news": [names[key] for key in entry["new"]],
+                "gone": [names[key] for key in entry["withdrawn"]],
+                "lines": [_line(line, smap) for line in entry["lines"]],
+                "removed": [_line(line, smap) for line in entry["removed"]],
+            }
+        )
+    return out
+
+
+def _result(study: Study, run: dict, sit: dict) -> dict:
     """Le résultat d'ensemble, et le compte des briques par état final."""
     smap = status_map(study.statuses)
     counts: dict[str, int] = {}
@@ -302,6 +373,7 @@ def _result(study: Study, run: dict) -> dict:
         ],
         "end": END_TEXT.get(run["end"], ""),
         "steps": len(run["steps"]) - 1,
+        "runs": _runs(study, run["extra"], sit),
         **_history(study, run["extra"]),
     }
 
@@ -425,7 +497,7 @@ def study_workshop(request, sid: str):
         step=step,
     )
     if run:
-        context["result"] = _result(study, run)
+        context["result"] = _result(study, run, sit)
         if run["content"]:
             context["shown"] = _drawn(request, study, run["content"], step)
     template = "core/_workshop.html" if wants_json(request) else "core/workshop.html"

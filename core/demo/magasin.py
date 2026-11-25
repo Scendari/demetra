@@ -66,6 +66,7 @@ WORKSHOP = {
         ],
     },
     "merge": True,
+    "runs": {"label": "Exécution", "max": 4, "write": "differences"},
     "invalid": {"zero": "ignore", "missing": "block", "inverted": "block"},
     "states": {
         "active": "EN_VIGUEUR",

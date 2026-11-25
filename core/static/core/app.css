@@ -878,6 +878,23 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-history tbody tr.is-gone > td { color: var(--ink-3); }
 .at-history tbody tr.is-gone > td:first-child { padding-left: var(--s-2); box-shadow: inset 3px 0 0 var(--line-strong); }
 .at-rules li.is-traced { background: var(--accent-soft); color: var(--ink); }
+/* Exécutions successives : ce que chacune a publié, avec le même vocabulaire de marques que le dernier geste
+   (un mot et une icône par ligne, jamais la couleur seule). */
+.at-delta-added { border-color: var(--accent); color: var(--accent); }
+.at-delta-removed { border-style: dashed; color: var(--ink-2); }
+.at-delta-same { border-color: transparent; background: none; color: var(--ink-3); font-weight: 560; }
+.at-known select { width: 100%; }
+.at-runs-jump { font-size: var(--t-sm); }
+.at-runs { display: grid; gap: var(--s-3); min-width: 0; }
+.at-runs > h3 { font-size: var(--t-md); }
+.at-runs > .hint { max-width: 72ch; }
+.at-runs-list { display: grid; gap: var(--s-4); }
+.at-run { display: grid; gap: var(--s-2); min-width: 0; padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.at-run h4 { font-size: var(--t-sm); font-weight: 700; }
+.at-run-text { max-width: 72ch; color: var(--ink); font-size: var(--t-sm); }
+.at-run-known { max-width: 72ch; color: var(--ink-2); font-size: var(--t-xs); }
+.at-run .at-blocking { color: var(--ink-2); font-size: var(--t-sm); }
+.at-history-run { width: 100%; }
 .at-blocking { margin-top: var(--s-1); padding-left: 1.1em; list-style: disc; }
 .at-source { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }
 .at-source .ic { flex: none; margin-top: 0.2em; }

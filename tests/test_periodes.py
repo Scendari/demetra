@@ -588,6 +588,238 @@ def test_a_human_saves_the_built_history_as_a_case(atelier, web):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Exécutions successives
+# ---------------------------------------------------------------------------
+
+RUNS = {"label": "Passage", "max": 4, "write": "differences"}
+
+
+def successive(elements: list, runs: int, **more) -> tuple[dict, list]:
+    """Le résultat, et pour chaque exécution : sa phrase, ses lignes (début, fin, offre, changement), ce
+    qu'elle écrit."""
+    decl = declaration(runs={**RUNS, **more})
+    report = Report()
+    sit = periods.situation(decl, {"elements": elements, "runs": runs}, report)
+    assert report.ok, [(i.path, i.code) for i in report.errors]
+    result = periods.run(decl, sit, "A_VENIR")
+    told = [
+        (
+            entry["text"],
+            [
+                (x["start"], x["end"], x["fields"]["offre"], x["change"])
+                for x in entry["lines"] + entry["removed"]
+            ],
+            (entry["written"]["deleted"], entry["written"]["appended"]),
+        )
+        for entry in result["runs"]
+    ]
+    return result, told
+
+
+def test_runs_are_declared_in_a_closed_vocabulary():
+    plain = declaration()
+    assert "runs" not in plain and plain["rules"][-1]["role"] == "merge"
+    decl = declaration(runs={"max": 2})
+    assert decl["runs"] == {"label": "Exécution", "max": 2, "write": "differences"}
+    rule = decl["rules"][-1]
+    assert (rule["key"], rule["role"]) == (f"P{len(decl['rules'])}", "runs")
+    assert "Seules les lignes qui diffèrent sont écrites" in rule["title"]
+    assert "Une exécution bloquée ne publie rien" in rule["title"]
+    assert "Tout l'historique est réécrit" in declaration(runs={"write": "all"})["rules"][-1]["title"]
+    for wrong, path, code in (
+        ({"max": 9}, "workshop.runs.max", "out_of_range"),
+        ({"max": True}, "workshop.runs.max", "out_of_range"),
+        ({"write": "merge"}, "workshop.runs.write", "enum"),
+        ({"policy": "x"}, "workshop.runs", "type"),
+        ([], "workshop.runs", "type"),
+    ):
+        report = Report()
+        families.normalize({**WORKSHOP, "runs": wrong}, STATUSES, report)
+        assert [(i.path, i.code) for i in report.errors] == [(path, code)], wrong
+
+
+def test_a_first_run_a_run_without_change_then_a_correction():
+    """Le contrat est publié, une exécution sans rien de neuf n'écrit rien, puis sa valeur est corrigée depuis
+    le début : la ligne est modifiée, et la période d'origine n'entre plus dans le calcul."""
+    old = {**contrat("A", 1, 7), "known_until": 2}
+    new = {**contrat("B", 1, 7, offre="Plus"), "known_from": 3}
+    result, told = successive([old, new], 3)
+    assert told == [
+        ("Passage 1 : 1 ligne ajoutée ; 1 ligne écrite.", [(1, 7, "Base", "added")], (0, 1)),
+        ("Passage 2 : 1 ligne inchangée ; rien n'est écrit.", [(1, 7, "Base", "same")], (0, 0)),
+        (
+            "Passage 3 : 1 ligne modifiée ; 1 ligne supprimée et 1 ligne écrite.",
+            [(1, 7, "Plus", "changed")],
+            (1, 1),
+        ),
+    ]
+    last = result["runs"][2]
+    assert (last["known"], last["new"], last["withdrawn"]) == (["B"], ["B"], ["A"])
+    assert last["lines"][0]["was"]["fields"]["offre"] == "Base"
+    # L'historique obtenu est celui de la dernière exécution ; la période qu'elle ne connaît plus est écartée.
+    assert [(i["start"], i["end"], i["fields"]["offre"]) for i in result["images"]] == [(1, 7, "Plus")]
+    final = result["steps"][-1]["states"]
+    assert (final["A"], final["B"]) == ("DEVANCEE", "FINIE")
+    assert result["steps"][1]["changes"][0] == {"id": "A", "from": "A_VENIR", "to": "DEVANCEE", "rule": "P8"}
+    assert "P8" in result["used"]
+
+
+def test_a_run_adds_closes_and_removes_lines():
+    """Un second contrat connu plus tard ferme la ligne du premier et en ajoute une ; un troisième, qui le
+    remplace et commence plus tôt, ferme encore la première, ajoute la sienne et retire celle du second."""
+    first = contrat("A", 1, 7)
+    second = {**contrat("B", 4, 7, offre="Plus"), "known_from": 2, "known_until": 2}
+    third = {**contrat("C", 2, 7, offre="Plus"), "known_from": 3}
+    _, told = successive([first, second, third], 3)
+    assert told[1] == (
+        "Passage 2 : 1 ligne ajoutée et 1 ligne fermée ; 1 ligne supprimée et 2 lignes écrites.",
+        [(1, 4, "Base", "closed"), (4, 7, "Plus", "added")],
+        (1, 2),
+    )
+    assert told[2] == (
+        (
+            "Passage 3 : 1 ligne ajoutée, 1 ligne fermée et 1 ligne retirée ; 2 lignes supprimées et "
+            "2 lignes écrites."
+        ),
+        [(1, 2, "Base", "closed"), (2, 7, "Plus", "added"), (4, 7, "Plus", "removed")],
+        (2, 2),
+    )
+
+
+def test_a_blocked_run_publishes_nothing_and_the_next_one_repairs():
+    broken = {**contrat("B", 3, None), "known_from": 2, "known_until": 2}
+    result, told = successive([contrat("A", 1, 7), broken], 3)
+    assert told[1] == (
+        "Passage 2 : traitement bloqué, rien n'est publié ; ce qui était publié reste.",
+        [(1, 7, "Base", "same")],
+        (0, 0),
+    )
+    blocked = result["runs"][1]
+    assert blocked["published"] is False and blocked["blocking"] == [
+        "Contrat B : une période dont une borne manque"
+    ]
+    assert told[2] == ("Passage 3 : 1 ligne inchangée ; rien n'est écrit.", [(1, 7, "Base", "same")], (0, 0))
+    assert result["blocking"] == []  # la dernière exécution, elle, publie
+
+
+def test_the_study_declares_what_a_run_writes():
+    _, told = successive([contrat("A", 1, 7)], 2, write="all")
+    assert told[1] == (
+        "Passage 2 : 1 ligne inchangée ; 1 ligne supprimée et 1 ligne écrite.",
+        [(1, 7, "Base", "same")],
+        (1, 1),
+    )
+
+
+def test_runs_are_refused_where_the_study_declares_none_and_checked_where_it_does():
+    def issues(decl, raw):
+        report = Report()
+        periods.situation(decl, raw, report)
+        return [(i.path, i.code) for i in report.errors]
+
+    plain, decl = declaration(), declaration(runs=RUNS)
+    assert issues(plain, {"runs": 2, "elements": [contrat("A", 1, 7)]}) == [
+        ("situation.runs", "unknown_field")
+    ]
+    known = {**contrat("A", 1, 7), "known_from": 1}
+    assert issues(plain, {"elements": [known]}) == [("situation.elements[0]", "unknown_field")]
+    assert issues(decl, {"runs": 5, "elements": []}) == [("situation.runs", "out_of_range")]
+    late = {**contrat("A", 1, 7), "known_from": 3}
+    assert issues(decl, {"runs": 2, "elements": [late]}) == [
+        ("situation.elements[0].known_from", "out_of_range")
+    ]
+    short = {**contrat("A", 1, 7), "known_from": 2, "known_until": 1}
+    assert issues(decl, {"runs": 2, "elements": [short]}) == [
+        ("situation.elements[0].known_until", "out_of_range")
+    ]
+    # Sans rien dire : une exécution, et chaque période connue depuis la première, pour toujours.
+    report = Report()
+    sit = periods.situation(decl, {"elements": [contrat("A", 1, 7)]}, report)
+    assert sit["runs"] == 1 and (sit["elements"][0]["known_from"], sit["elements"][0]["known_until"]) == (
+        1,
+        None,
+    )
+    assert "runs" not in periods.situation(plain, {"elements": [contrat("A", 1, 7)]}, Report())
+
+
+def test_an_address_holds_the_runs():
+    decl = declaration(runs=RUNS)
+    raw = {
+        "runs": 3,
+        "elements": [{**contrat("A", 1, 7), "known_until": 2}, {**contrat("B", 1, 7), "known_from": 3}],
+    }
+    sit = periods.situation(decl, raw, Report())
+    query = periods.to_query(decl, sit)
+    assert [pair for pair in query if pair[0][0] in "cjx"] == [("j.A", "2"), ("c.B", "3"), ("x", "3")]
+    asked: dict[str, list[str]] = {}
+    for name, value in query:
+        asked.setdefault(name, []).append(value)
+    assert periods.situation(decl, periods.from_query(decl, asked), Report()) == sit
+    # Ce que l'adresse dit de trop est ramené dans les bornes ; une étude sans exécutions l'ignore.
+    loose = periods.from_query(decl, {**asked, "x": ["9"], "c.B": ["7"], "j.A": ["zz"]})
+    assert loose["runs"] == 4 and loose["elements"][1]["known_from"] == 4
+    assert "known_until" not in loose["elements"][0]
+    assert "runs" not in periods.from_query(declaration(), asked)
+    # Une situation à une seule exécution garde l'adresse qu'elle avait.
+    one = periods.situation(decl, {"elements": [contrat("A", 1, 7)]}, Report())
+    assert not [pair for pair in periods.to_query(decl, one) if pair[0][0] in "cjx"]
+
+
+def test_the_api_and_the_page_show_each_run(api, web):
+    status, data = api.post("/studies", {**STUDY, "workshop": {**WORKSHOP, "runs": RUNS}})
+    assert status == 201, data
+    sid = data["id"]
+    status, data = api.get(f"/studies/{sid}/workshop")
+    assert data["workshop"]["runs"] == RUNS and data["workshop"]["rules"][-1]["role"] == "runs"
+    raw = {
+        "runs": 3,
+        "elements": [
+            {**contrat("A", 1, 7), "known_until": 2},
+            {**contrat("B", 1, 7, offre="Plus"), "known_from": 3},
+        ],
+    }
+    status, data = api.post(f"/studies/{sid}/workshop/run", {"situation": raw})
+    assert status == 200, data
+    assert [entry["text"].split(" : ")[1] for entry in data["runs"]] == [
+        "1 ligne ajoutée ; 1 ligne écrite.",
+        "1 ligne inchangée ; rien n'est écrit.",
+        "1 ligne modifiée ; 1 ligne supprimée et 1 ligne écrite.",
+    ]
+    line = data["runs"][2]["lines"][0]
+    assert (line["change"], line["was"]["fields"]["offre"], line["fields"]["offre"]) == (
+        "changed",
+        "Base",
+        "Plus",
+    )
+    assert data["final"] == {"A": "DEVANCEE", "B": "FINIE"}
+    assert "P8" in [r["key"] for r in data["rules_applied"]] and data["web_url"].endswith("&x=3")
+    assert data["situation"]["runs"] == 3 and data["situation"]["elements"][1]["known_from"] == 3
+
+    client = web("ana")
+    page = client.get(data["web_url"], follow=True).content.decode()
+    assert "Exécutions successives</h3>" in page and page.count('<li class="at-run"') == 3
+    assert "Historique obtenu à la dernière exécution" in page
+    assert 'data-change="changed"' in page and 'title="Avant : du 1 au 7 · Base · vide · Plein tarif"' in page
+    assert '<option value="3" selected>Passage 3</option>' in page and 'name="j.A"' in page
+    assert (
+        "Ne sont plus connues : Contrat A." in page and "Connues depuis cette exécution : Contrat B." in page
+    )
+    # Une seule exécution : le réglage est là, rien d'autre.
+    page = client.get(f"/etudes/{sid}/atelier/?e=A%3Acontrat&de.A=1&a.A=7", follow=True).content.decode()
+    assert 'name="x"' in page and "at-runs" not in page and 'name="c.A"' not in page
+    # L'API refuse une exécution que l'étude ne permet pas.
+    status, data = api.post(f"/studies/{sid}/workshop/run", {"situation": {**raw, "runs": 7}})
+    assert status == 422 and data["error"]["details"][0]["path"] == "situation.runs"
+
+
+def test_a_study_without_runs_shows_none(atelier, web):
+    page = (
+        web("ana").get(f"/etudes/{atelier}/atelier/?e=A%3Acontrat&de.A=1&a.A=7", follow=True).content.decode()
+    )
+    assert 'name="x"' not in page and "Exécutions successives" not in page
+
+
 GUIDE_STATUSES = [
     {"key": "A_VENIR", "label": "À venir", "role": "waiting", "default": True},
     {"key": "EN_COURS", "label": "En cours", "role": "active"},
@@ -675,6 +907,30 @@ def test_validation_says_what_patch_would_say(api):
     status, data = api.post(f"/studies/{sid}/workshop/validate", {"workshop": {"family": "calcul"}})
     assert data["valid"] is False and data["errors"][0]["path"] == "workshop.family"
     assert svc.Study.objects.get(public_id=sid).workshop == {}
+
+
+def test_the_guide_example_of_successive_runs_gives_what_the_guide_says(api):
+    text = (Path(svc.__file__).parent / "guide" / "atelier.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```json\n(.*?)```", text, flags=re.DOTALL)
+    decl = json.loads("{" + next(b for b in blocks if b.startswith('"workshop"') and '"periods"' in b) + "}")
+    decl["workshop"].update(json.loads("{" + next(b for b in blocks if b.startswith('"runs"')) + "}"))
+    situation = json.loads(next(b for b in blocks if b.startswith('{"situation": {"runs"')))
+    expected = json.loads(next(b for b in blocks if b.startswith('{"runs": [')))
+    study = {"title": "Exemple du guide", "kind": "temporal", "statuses": GUIDE_STATUSES, **decl}
+    status, data = api.post("/studies", study)
+    assert status == 201, data
+    status, data = api.post(f"/studies/{data['id']}/workshop/run", situation)
+    assert status == 200, data
+    assert data["runs"] == expected["runs"]
+    assert data["web_url"].endswith("?e=A%3Acontrat&e=B%3Aremise&de.A=1&a.A=6&de.B=3&a.B=5&c.B=3&x=3")
+    # L'historique rendu est celui de la dernière exécution : le même que sans exécutions.
+    assert [(i["start"], i["end"], i["status"]) for i in data["images"]] == [
+        (1, 3, "SANS_REMISE"),
+        (3, 5, "REMISE"),
+        (5, 6, "SANS_REMISE"),
+    ]
+    for word in (*periods.WRITES, *periods.CHANGES, "known_from", "known_until", "withdrawn", "written"):
+        assert f"`{word}`" in text or f'"{word}"' in text, word
 
 
 def test_the_guide_example_is_valid_and_gives_what_the_guide_says(api):

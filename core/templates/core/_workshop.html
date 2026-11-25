@@ -19,10 +19,10 @@
       {% if palette.full %}<p class="hint">{{ palette.max }} briques au plus par situation.</p>{% endif %}
     </section>
 
-    {% if palette.settings %}
+    {% if palette.settings or palette.runs %}
     <section class="at-settings" aria-labelledby="at-settings-title">
       <h3 id="at-settings-title">Réglages de la situation</h3>
-      <div class="at-settings-list">{% for s in palette.settings %}{% include "core/_workshop_choice.html" with c=s %}{% endfor %}</div>
+      <div class="at-settings-list">{% for s in palette.settings %}{% include "core/_workshop_choice.html" with c=s %}{% endfor %}{% if palette.runs %}{% include "core/_workshop_choice.html" with c=palette.runs %}{% endif %}</div>
     </section>
     {% endif %}
 
@@ -42,6 +42,12 @@
           <div class="at-bounds" role="group" aria-label="Bornes de {{ c.label }} sur l'axe « {{ c.bounds.axis }} »">
             <label for="at-de-{{ c.id }}"><span>Début</span><input id="at-de-{{ c.id }}" type="number" inputmode="decimal" name="de.{{ c.id }}" value="{{ c.bounds.start }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" data-grain="{{ c.bounds.grain }}" autocomplete="off"></label>
             <label for="at-a-{{ c.id }}"><span>Fin, exclue</span><input id="at-a-{{ c.id }}" type="number" inputmode="decimal" name="a.{{ c.id }}" value="{{ c.bounds.end }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
+          </div>
+          {% endif %}
+          {% if c.known %}
+          <div class="at-bounds at-known" role="group" aria-label="Exécutions où {{ c.label }} est connue">
+            <label for="at-c-{{ c.id }}"><span>Connue à partir de</span><select id="at-c-{{ c.id }}" name="c.{{ c.id }}">{% for o in c.known.from %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></label>
+            <label for="at-j-{{ c.id }}"><span>Jusqu'à</span><select id="at-j-{{ c.id }}" name="j.{{ c.id }}">{% for o in c.known.until %}<option value="{{ o.value }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>{% endfor %}</select></label>
           </div>
           {% endif %}
           {% if c.feeds and not c.feeds.apart %}<p class="at-final at-feeds" data-feeds="{{ c.feeds.lines|length }}"><span class="at-final-tx">Dans l'historique</span>{% if c.feeds.lines %}<span>{{ c.feeds.lines|join:", " }}</span>{% else %}<span class="at-void">aucune ligne</span>{% endif %}</p>
@@ -88,7 +94,7 @@
       {% if result.history %}
       <div class="at-history-wrap">
       <table class="at-history">
-        <caption>Historique obtenu{% if result.blocking %} s'il était publié{% endif %}</caption>
+        <caption>Historique obtenu{% if result.runs %} à la dernière exécution{% endif %}{% if result.blocking %} s'il était publié{% endif %}</caption>
         <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th><th scope="col" class="at-row-end"><span class="sr-only">Provenance</span></th></tr></thead>
         <tbody>
           {% for row in result.history.rows %}<tr data-start="{{ row.start }}" data-image="{{ row.id }}" data-from="{{ row.sources }}" data-rules="{{ row.rules }}" data-why="Du {{ row.start }} au {{ row.end }} — {{ row.why }}" data-sig="{{ row.sig }}" data-text="{{ row.text }}"><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td><td class="at-row-end" data-delta-cell><button type="button" class="icon-btn at-why-btn" data-at-why aria-pressed="false" aria-label="D'où vient la ligne du {{ row.start }} au {{ row.end }}" title="D'où vient cette ligne"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg></button></td></tr>
@@ -97,6 +103,7 @@
       </table>
       </div>
       <p class="at-delta-note" data-at-delta role="status"></p>
+      {% if result.runs %}<p class="at-runs-jump"><a class="link" href="#at-runs-title">Voir ce que chacune des {{ result.runs|length }} exécutions a publié</a></p>{% endif %}
       {% if result.history.rows %}
       <p class="at-trace" data-at-trace role="status" data-idle="Survolez une ligne, ou choisissez-la par son bouton, pour voir d'où elle vient."></p>
       <details class="at-why" data-keep="why">
@@ -139,6 +146,36 @@
 
     </article>
     {% endwith %}{% endif %}
+
+    {% if result.runs %}
+    <section class="at-runs" aria-labelledby="at-runs-title">
+      <h3 id="at-runs-title" tabindex="-1">Exécutions successives</h3>
+      <p class="hint">Chaque exécution recalcule l'historique avec les périodes qu'elle connaît et le compare à ce qui était publié. Une ligne se reconnaît à son début.</p>
+      <ol class="at-runs-list">
+        {% for run in result.runs %}
+        <li class="at-run" data-run="{{ run.n }}">
+          <h4>{{ run.title }}</h4>
+          <p class="at-run-text">{{ run.text }}</p>
+          {% if run.news or run.gone %}<p class="at-run-known">{% if run.news %}<span>{% if run.n == 1 %}Périodes connues{% else %}Connues depuis cette exécution{% endif %} : {{ run.news|join:", " }}.</span>{% endif %}{% if run.gone %} <span>Ne sont plus connues : {{ run.gone|join:", " }}.</span>{% endif %}</p>{% endif %}
+          {% if run.blocking %}<ul class="at-blocking">{% for reason in run.blocking %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
+          {% if run.lines or run.removed %}
+          <div class="at-history-wrap">
+          <table class="at-history at-history-run">
+            <caption class="sr-only">Ce qui est publié après {{ run.title }}</caption>
+            <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th><th scope="col" class="at-row-end"><span class="sr-only">Ce que fait cette exécution</span></th></tr></thead>
+            <tbody>
+              {% for row in run.lines %}<tr{% if row.row %} class="{{ row.row }}"{% endif %} data-change="{{ row.change }}"><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td><td class="at-row-end"><span class="at-delta at-delta-{{ row.change }}"{% if row.was %} title="Avant : {{ row.was }}"{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-{{ row.icon }}"/></svg>{{ row.word }}</span>{% if row.was %}<span class="sr-only"> Avant : {{ row.was }}.</span>{% endif %}</td></tr>
+              {% endfor %}{% for row in run.removed %}<tr class="is-gone" data-change="removed"><td colspan="{{ result.history.fields|length|add:3 }}"><del>{{ row.text }}</del></td><td class="at-row-end"><span class="at-delta at-delta-removed"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg>{{ row.word }}</span></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
 
     {% if can_edit and shown %}
     <form method="post" action="{% url 'study_workshop' study.public_id %}" class="at-save">{% csrf_token %}

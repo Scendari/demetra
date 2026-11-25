@@ -1011,6 +1011,65 @@ def watched(page) -> list[str]:
     return problems
 
 
+def test_atelier_executions_successives(site, browser):
+    """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
+    partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Responsable d'un magasin au fil du temps").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    base = page.url.split("?")[0]
+    page.goto(
+        base + "?e=A%3Amagasin&e=B%3Anomination&e=C%3Anomination&e=D%3Aagent&e=E%3Aagent"
+        "&de.A=1&a.A=7&de.B=1&a.B=3&de.C=5&a.C=7&o.C.agent=A2&de.D=1&a.D=7"
+        "&de.E=1&a.E=7&o.E.matricule=A2&o.E.nom=Bruno"
+    )
+    # Une seule exécution : rien de plus à l'écran que le réglage.
+    expect(page.locator(".at-runs")).to_have_count(0)
+    expect(page.locator(".at-known")).to_have_count(0)
+    page.select_option('select[name="x"]', "3")
+    runs = page.locator(".at-run")
+    expect(runs).to_have_count(3)
+    expect(page.locator(".at-known")).to_have_count(5)
+    # La seconde nomination et la fiche de son agent n'arrivent qu'à la deuxième exécution.
+    page.select_option('select[name="c.C"]', "2")
+    page.select_option('select[name="c.E"]', "2")
+    expect(runs.nth(0).locator(".at-run-text")).to_have_text("2 lignes ajoutées ; 2 lignes écrites.")
+    expect(runs.nth(1).locator(".at-run-text")).to_have_text(
+        "1 ligne ajoutée, 1 ligne fermée et 1 ligne inchangée ; 1 ligne supprimée et 2 lignes écrites."
+    )
+    expect(runs.nth(1).locator(".at-run-known")).to_have_text(
+        "Connues depuis cette exécution : Nomination C, Fiche d'agent E."
+    )
+    expect(runs.nth(1).locator(".at-delta")).to_have_text(["inchangée", "fermée", "ajoutée"])
+    expect(runs.nth(1).locator('tr[data-change="closed"] .at-delta')).to_have_attribute(
+        "title", "Avant : du 3 au 7 · Halle du Port · vide · Publiée sans responsable"
+    )
+    expect(runs.nth(2).locator(".at-run-text")).to_have_text("3 lignes inchangées ; rien n'est écrit.")
+    # À la troisième, la première nomination n'est plus connue : sa ligne change, une autre est retirée.
+    page.select_option('select[name="j.B"]', "2")
+    expect(runs.nth(2).locator(".at-run-text")).to_have_text(
+        "1 ligne modifiée, 1 ligne inchangée et 1 ligne retirée ; 2 lignes supprimées et 1 ligne écrite."
+    )
+    expect(runs.nth(2).locator(".at-delta")).to_have_text(["modifiée", "inchangée", "retirée"])
+    expect(runs.nth(2).locator("del")).to_have_text(
+        "du 3 au 5 · Halle du Port · vide · Publiée sans responsable"
+    )
+    expect(page.locator('.at-card[data-brick="B"] .at-final')).to_contain_text("Hors du calcul")
+    expect(page.locator(".at-history caption").first).to_have_text(
+        "Historique obtenu à la dernière exécution"
+    )
+    expect(page.locator(".at-rules li.is-used b")).to_contain_text(["P8"])
+    assert page.url.endswith("&x=3") and "c.C=2" in page.url and "j.B=2" in page.url
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    shot(page, "49-atelier-executions", full_page=True)
+    assert not problems, problems
+    context.close()
+
+
 def test_atelier_etude_de_periodes_semee(site, browser):
     """L'étude de démonstration qui déclare un atelier de périodes : on y arrive par la liste des études, la
     page part vide, et une situation à trois sources donne l'historique attendu, avec des jours sans
@@ -1024,7 +1083,7 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     page.get_by_role("link", name="Atelier", exact=True).click()
     expect(page.locator(".at-empty h2")).to_have_text("Composer l'historique d'un magasin")
     expect(page.locator(".at-add")).to_have_text(["Magasin", "Nomination", "Fiche d'agent"])
-    expect(page.locator(".at-rules li")).to_have_count(7)
+    expect(page.locator(".at-rules li")).to_have_count(8)
 
     # Un magasin, deux nominations séparées par deux jours, les fiches des deux agents.
     base = page.url.split("?")[0]

@@ -115,12 +115,13 @@ def run(elements: list, setting: str) -> dict:
     return periods.run(decl, situation, "A_VENIR")
 
 
-def test_the_declaration_is_valid_and_reads_as_seven_rules():
+def test_the_declaration_is_valid_and_reads_as_eight_rules():
     report = Report()
     statuses = {s["key"] for s in magasin.DEFINITION["statuses"]}
     decl = periods.normalize(magasin.WORKSHOP, statuses, report)
     assert report.ok, [(i.path, i.code) for i in report.errors]
-    assert [r["key"] for r in decl["rules"]] == [f"P{i}" for i in range(1, 8)]
+    assert [r["key"] for r in decl["rules"]] == [f"P{i}" for i in range(1, 9)]
+    assert decl["rules"][7]["role"] == "runs" and decl["runs"]["write"] == "differences"
     assert "sauf quand « Jours sans responsable » vaut « retirés »" in decl["rules"][4]["title"]
     assert "« Matricule » vaut « Agent nommé » de « Nomination »" in decl["rules"][5]["title"]
 
