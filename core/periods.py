@@ -672,8 +672,9 @@ def _pick(source: dict, candidates: list[dict], picked: dict) -> tuple[dict | No
     return tied[0], "several", [c["id"] for c in candidates if c is not tied[0]]
 
 
-def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> dict | None:
-    """L'image d'un pas, dont `edge` est la fin : les périodes en vigueur juste avant. None : rien ne sort."""
+def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> tuple[dict | None, str | None]:
+    """L'image d'un pas, dont `edge` est la fin : les périodes en vigueur juste avant. Quand rien ne sort :
+    (None, la source dont l'absence retire l'image)."""
     picked: dict[str, dict | None] = {}
     how: dict[str, str] = {}
     lost: list[str] = []
@@ -685,7 +686,7 @@ def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> dict | 
         picked[brick], how[brick], beaten = _pick(source, active, picked)
         lost += beaten
         if picked[brick] is None and how[brick] == "missing" and (n == 0 or _inner(source, settings)):
-            return None
+            return None, brick
     missing = [b for b, p in picked.items() if p is None]
     status = None
     for rule in decl["image"]["status"]:
@@ -700,23 +701,23 @@ def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> dict | 
         f["key"]: picked[f["from"][0]]["options"][f["from"][1]] if picked[f["from"][0]] else None
         for f in decl["image"]["fields"]
     }
-    return {
+    row = {
         "picked": {b: p["id"] if p else None for b, p in picked.items()},
         "how": how,
         "lost": lost,
         "fields": fields,
         "status": status,
     }
+    return row, None
 
 
-def _grains(decl: dict, usable: list[dict], settings: dict) -> list[tuple[float, dict | None]]:
-    """Pour chaque pas de l'axe : son début et son image (None quand rien ne sort)."""
+def _grains(decl: dict, usable: list[dict], settings: dict) -> list[tuple[float, dict | None, str | None]]:
+    """Pour chaque pas de l'axe : son début, son image (None quand rien ne sort) et, alors, la source dont
+    l'absence la retire."""
     axis = decl["axis"]
     count = round((axis["max"] - axis["min"]) / axis["grain"])
     starts = [axis["min"] + i * axis["grain"] for i in range(count)]
-    return [
-        (start, _row(decl, usable, settings, start + axis["grain"]) if usable else None) for start in starts
-    ]
+    return [(start, *_row(decl, usable, settings, start + axis["grain"])) for start in starts]
 
 
 def _images(decl: dict, grains: list, taken: set[str]) -> list[dict]:
@@ -725,7 +726,7 @@ def _images(decl: dict, grains: list, taken: set[str]) -> list[dict]:
     grain = decl["axis"]["grain"]
     images: list[dict] = []
     previous = None
-    for start, row in grains:
+    for start, row, _ in grains:
         if row is None:
             previous = None
             continue
@@ -767,7 +768,7 @@ def _ties(decl: dict, images: list[dict]) -> list[str]:
 def run(decl: dict, situation: dict, default_status: str) -> dict:
     """Combine les périodes posées. Rend les périodes d'historique (`images`), ce qui bloque le traitement
     (`blocking`), et le déroulé : un pas chaque fois qu'une image commence ou qu'une période posée change
-    d'état."""
+    d'état, jusqu'au bout de l'axe — une période finie avant la fin de l'axe finit donc « passée »."""
     usable, fixed, refused = _sorted(decl, situation)
     grains = _grains(decl, usable, situation["settings"])
     images = _images(decl, grains, {e["id"] for e in situation["elements"]})
@@ -793,9 +794,8 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
     invalid = {key: (states[state], _rule(decl, "invalid")) for key, state in fixed.items()}
     step(invalid, None, "check", reasons=refused)
     by_start = {image["start"]: image for image in images}
-    last = max((n for n, (_, row) in enumerate(grains) if row), default=-1)
     shown = None
-    for start, row in grains[: last + 1]:
+    for start, row, absent in grains:
         moment = _neat(start)
         shown = by_start.get(moment, shown) if row else None
         changes = {}
@@ -807,7 +807,7 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
         if moment in by_start:
             changes[shown["id"]] = (shown["status"], _rule(decl, _image_role(shown)))
         kind = "image" if moment in by_start else ("inside" if row else "gap")
-        step(changes, moment, kind, image=shown, row=row)
+        step(changes, moment, kind, image=shown, row=row, absent=absent)
     used = [_rule(decl, "grain"), _rule(decl, "bounds")] if images else []
     used += [_rule(decl, "merge")] if any(image["steps"] > 1 for image in images) else []
     return {"steps": steps, "end": "stable", "images": images, "blocking": blocking, "used": used}
@@ -888,7 +888,9 @@ def _step(decl: dict, situation: dict, step: dict, blocking: list[str]) -> dict:
         return {"title": "Contrôle des périodes posées", "note": note[:1900], "changes": changes}
     when = f"{decl['axis']['label']} {text_of(step['at'])}"
     if step["kind"] == "gap":
-        return {"title": f"{when} : aucune image", "note": "", "changes": changes, "at": step["at"]}
+        label = next(b["label"] for b in decl["bricks"] if b["type"] == step["absent"])
+        note = f"Aucune période « {label} » en vigueur."
+        return {"title": f"{when} : aucune image", "note": note, "changes": changes, "at": step["at"]}
     title = f"{when} : {image_label(decl, step['image'])}"
     if step["kind"] == "inside":
         title += " — même image, d'autres périodes"

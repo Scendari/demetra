@@ -270,7 +270,7 @@ La réponse a la forme de l'autre famille (`steps`, `final`, `outcome`, `rules_a
 
 - `images` : l'historique obtenu, période par période ; `from` nomme la période retenue pour chaque source au premier pas de l'image.
 - `blocking` : ce qui bloque le traitement, en phrases ; vide quand rien ne bloque.
-- `steps` : un pas chaque fois qu'une image commence, qu'un trou s'ouvre ou qu'une période posée change d'état ; `at` y donne la position sur l'axe. Le déroulé s'arrête à la dernière image : `final` est l'état des périodes posées à ce moment (`{"A": "EN_COURS", "B": "FINIE"}` ici).
+- `steps` : un pas chaque fois qu'une image commence, qu'un trou s'ouvre ou qu'une période posée change d'état ; `at` y donne la position sur l'axe. Le déroulé va jusqu'au bout de l'axe : `final` est l'état des périodes posées à ce moment (`{"A": "FINIE", "B": "FINIE"}` ici, les deux périodes finissant avant la fin de l'axe ; une période qui court jusqu'au bout de l'axe reste `states.active`). Un pas sans image dit quelle source manque.
 - `case` : les périodes posées (groupe « Périodes posées ») et les images (groupe « Historique obtenu »), avec `attrs.start` et `attrs.end` : la représentation de l'étude les dessine telles quelles. Une frise convient le mieux.
 
 Ne s'y disent pas : un traitement incrémental (reprise, correction rétroactive, relance), une publication en plusieurs temps, un calcul sur les valeurs. Pour ces règles, déposez des cas.

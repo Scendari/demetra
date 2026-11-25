@@ -288,6 +288,7 @@ def test_the_walk_tells_each_period_what_it_becomes():
         "Contrôle des périodes posées",
         "Mois 1 : Base · ∅",
         "Mois 2 : Base · ∅ — même image, d'autres périodes",
+        "Mois 3 : aucune image",
     ]
     assert case["steps"][1]["changes"] == {"Z": "DEVANCEE"} and "ne comptent pas" in case["steps"][1]["note"]
     assert case["steps"][2]["changes"] == {"A": "ACTIVE", "B": "ACTIVE", "I1": "PLEIN"}
@@ -298,13 +299,21 @@ def test_the_walk_tells_each_period_what_it_becomes():
     groups = {e["id"]: e["group"] for e in case["entities"]}
     assert groups["A"] == "Périodes posées" and groups["I1"] == "Historique obtenu"
     assert result["steps"][3]["changes"][0]["rule"] == "P5"  # la règle de la source « Remise »
-    # Un trou dans l'historique est un pas ; la fin de la dernière image n'en est pas un.
+    # Le déroulé va au bout de l'axe : après la dernière image, les périodes finies le sont, l'image reste.
+    assert case["steps"][4]["changes"] == {"A": "FINIE", "B": "FINIE", "C": "FINIE"}
+    assert case["steps"][4]["note"] == "Aucune période « Contrat » en vigueur."
+    assert result["steps"][-1]["states"]["I1"] == "PLEIN"
+    # Une période qui court jusqu'au bout de l'axe y est encore en vigueur.
+    sit = periods.situation(decl, {"elements": [contrat("A", 1, 13)]}, Report())
+    assert periods.run(decl, sit, "A_VENIR")["steps"][-1]["states"] == {"A": "ACTIVE", "I1": "PLEIN"}
+    # Un trou dans l'historique est un pas, la fin de la dernière image aussi.
     sit = periods.situation(decl, {"elements": [contrat("A", 1, 2), contrat("B", 4, 5)]}, Report())
     case = periods.to_case(decl, sit, periods.run(decl, sit, "A_VENIR"), "A_VENIR")
     assert [s["title"] for s in case["steps"][1:]] == [
         "Mois 1 : Base · ∅",
         "Mois 2 : aucune image",
         "Mois 4 : Base · ∅",
+        "Mois 5 : aucune image",
     ]
 
 
@@ -372,8 +381,8 @@ def test_the_api_describes_and_runs_a_periods_workshop(api, atelier):
         },
     ]
     assert data["outcome"] == {"label": "Tarif avec remise", "status": "REMISE"}
-    # À la dernière image : le contrat et le barème courent encore, la remise est finie.
-    assert data["final"] == {"A": "ACTIVE", "B": "FINIE", "C": "ACTIVE"}
+    # Au bout de l'axe, les trois périodes sont finies.
+    assert data["final"] == {"A": "FINIE", "B": "FINIE", "C": "FINIE"}
     assert data["steps"][1]["at"] == 1 and "at" not in data["steps"][0]
     assert {r["key"] for r in data["rules_applied"]} >= {"P1", "P2", "P7"}
     assert data["case"]["kind"] == "temporal" and len(data["case"]["entities"]) == 6
@@ -487,7 +496,7 @@ def test_a_human_saves_the_built_history_as_a_case(atelier, web):
     assert case.title == "Remise d'un mois" and case.content["kind"] == "temporal"
     groups = [e["group"] for e in case.content["entities"]]
     assert groups.count("Périodes posées") == 3 and groups.count("Historique obtenu") == 3
-    assert [s.get("at") for s in case.content["steps"]] == [None, 1, 2, 3]
+    assert [s.get("at") for s in case.content["steps"]] == [None, 1, 2, 3, 4]
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +528,7 @@ def test_the_guide_example_is_valid_and_gives_what_the_guide_says(api):
         (3, 5, {"offre": "A", "taux": 10}, "REMISE"),
         (5, 6, {"offre": "A", "taux": None}, "SANS_REMISE"),
     ]
-    assert data["blocking"] == [] and data["final"] == {"A": "EN_COURS", "B": "FINIE"}
+    assert data["blocking"] == [] and data["final"] == {"A": "FINIE", "B": "FINIE"}
     # Chaque mot du vocabulaire de la famille est nommé dans le chapitre.
     words = (*periods.SEVERAL, *periods.TIES, *periods.STATES, *periods.INVALID, *periods.FIELDS)
     for word in (*words, "missing", "present", "blocked", "empty", "out_of_range", "images", "blocking"):

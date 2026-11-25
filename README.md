@@ -264,7 +264,8 @@ compose**, et le site calcule.
 
 Le site calcule une image par pas de l'axe — les périodes en vigueur à la fin du pas, bornes [début, fin[ —
 puis réunit les pas qui donnent la même image. Le déroulé avance d'un pas chaque fois qu'une image commence,
-qu'un trou s'ouvre ou qu'une période posée change d'état. Une borne vidée est une borne absente : on peut ainsi
+qu'un trou s'ouvre ou qu'une période posée change d'état, jusqu'au bout de l'axe : une période finie avant la
+fin de l'axe y est « passée », et un pas sans image dit quelle source manque. Une borne vidée est une borne absente : on peut ainsi
 voir ce qu'une période invalide provoque. Ici, pas de liens à tirer : des périodes ne se relient pas, et une
 frise n'offre pas les gestes à la souris du schéma en graphe.
 
