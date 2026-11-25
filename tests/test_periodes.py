@@ -646,10 +646,10 @@ def test_a_first_run_a_run_without_change_then_a_correction():
     new = {**contrat("B", 1, 7, offre="Plus"), "known_from": 3}
     result, told = successive([old, new], 3)
     assert told == [
-        ("Passage 1 : 1 ligne ajoutée ; 1 ligne écrite.", [(1, 7, "Base", "added")], (0, 1)),
+        ("Passage 1 : 1 ligne ajoutée ; à l'écriture : 1 ligne écrite.", [(1, 7, "Base", "added")], (0, 1)),
         ("Passage 2 : 1 ligne inchangée ; rien n'est écrit.", [(1, 7, "Base", "same")], (0, 0)),
         (
-            "Passage 3 : 1 ligne modifiée ; 1 ligne supprimée et 1 ligne écrite.",
+            "Passage 3 : 1 ligne modifiée ; à l'écriture : 1 ligne supprimée et 1 ligne écrite.",
             [(1, 7, "Plus", "changed")],
             (1, 1),
         ),
@@ -673,14 +673,17 @@ def test_a_run_adds_closes_and_removes_lines():
     third = {**contrat("C", 2, 7, offre="Plus"), "known_from": 3}
     _, told = successive([first, second, third], 3)
     assert told[1] == (
-        "Passage 2 : 1 ligne ajoutée et 1 ligne fermée ; 1 ligne supprimée et 2 lignes écrites.",
+        (
+            "Passage 2 : 1 ligne ajoutée et 1 ligne fermée ; "
+            "à l'écriture : 1 ligne supprimée et 2 lignes écrites."
+        ),
         [(1, 4, "Base", "closed"), (4, 7, "Plus", "added")],
         (1, 2),
     )
     assert told[2] == (
         (
-            "Passage 3 : 1 ligne ajoutée, 1 ligne fermée et 1 ligne retirée ; 2 lignes supprimées et "
-            "2 lignes écrites."
+            "Passage 3 : 1 ligne ajoutée, 1 ligne fermée et 1 ligne retirée ; "
+            "à l'écriture : 2 lignes supprimées et 2 lignes écrites."
         ),
         [(1, 2, "Base", "closed"), (2, 7, "Plus", "added"), (4, 7, "Plus", "removed")],
         (2, 2),
@@ -706,7 +709,7 @@ def test_a_blocked_run_publishes_nothing_and_the_next_one_repairs():
 def test_the_study_declares_what_a_run_writes():
     _, told = successive([contrat("A", 1, 7)], 2, write="all")
     assert told[1] == (
-        "Passage 2 : 1 ligne inchangée ; 1 ligne supprimée et 1 ligne écrite.",
+        "Passage 2 : 1 ligne inchangée ; à l'écriture : 1 ligne supprimée et 1 ligne écrite.",
         [(1, 7, "Base", "same")],
         (1, 1),
     )
@@ -781,10 +784,10 @@ def test_the_api_and_the_page_show_each_run(api, web):
     }
     status, data = api.post(f"/studies/{sid}/workshop/run", {"situation": raw})
     assert status == 200, data
-    assert [entry["text"].split(" : ")[1] for entry in data["runs"]] == [
-        "1 ligne ajoutée ; 1 ligne écrite.",
+    assert [entry["text"].partition(" : ")[2] for entry in data["runs"]] == [
+        "1 ligne ajoutée ; à l'écriture : 1 ligne écrite.",
         "1 ligne inchangée ; rien n'est écrit.",
-        "1 ligne modifiée ; 1 ligne supprimée et 1 ligne écrite.",
+        "1 ligne modifiée ; à l'écriture : 1 ligne supprimée et 1 ligne écrite.",
     ]
     line = data["runs"][2]["lines"][0]
     assert (line["change"], line["was"]["fields"]["offre"], line["fields"]["offre"]) == (

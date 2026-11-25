@@ -1011,6 +1011,56 @@ def watched(page) -> list[str]:
     return problems
 
 
+def test_atelier_frise_au_doigt(site, browser):
+    """Sur un téléphone, au doigt : glisser une période sur la frise la déplace, sans que le cadre ni la page
+    ne défilent sous elle ; toucher une barre mène à sa fiche."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, locale="fr-FR", has_touch=True, is_mobile=True
+    )
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Responsable d'un magasin au fil du temps").click()
+    page.goto(page.url.split("?")[0] + "atelier/?e=A%3Amagasin&e=B%3Anomination&de.A=1&a.A=7&de.B=1&a.B=3")
+    cdp = context.new_cdp_session(page)
+
+    def finger(kind: str, x: float | None = None, y: float | None = None) -> None:
+        points = [] if x is None else [{"x": x, "y": y, "id": 1}]
+        cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": points})
+
+    bar = page.locator('[data-at-plan] .tl-bar[data-p="B"]')
+    bar.scroll_into_view_if_needed()
+    box = bar.locator(".n-shape").bounding_box()
+    unit = page.evaluate(
+        """() => { const svg = document.querySelector('[data-at-plan] svg[data-span]');
+        const [lo, hi, , w] = svg.dataset.span.split(' ').map(Number);
+        return w / (hi - lo) * svg.getScreenCTM().a; }"""
+    )
+    x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+    offsets = """() => { const all = [scrollY];
+        let e = document.querySelector('[data-at-plan] .tl-bar[data-p="B"]');
+        for (; e; e = e.parentElement) all.push(e.scrollLeft || 0);
+        return all; }"""
+    scrolled = page.evaluate(offsets)
+    finger("touchStart", x, y)
+    for n in range(1, 9):
+        finger("touchMove", x + 2 * unit * n / 8, y)
+        page.wait_for_timeout(20)
+    expect(page.locator("[data-at-hint-text]")).to_have_text("Nomination B : du 3 au 5, fin exclue.")
+    assert page.evaluate(offsets) == scrolled
+    finger("touchEnd")
+    expect(page.locator('input[name="de.B"]')).to_have_value("3")
+    expect(page.locator('input[name="a.B"]')).to_have_value("5")
+    # Toucher sans glisser : la fiche de la période.
+    box = page.locator('[data-at-plan] .tl-bar[data-p="A"] .n-shape').bounding_box()
+    page.touchscreen.tap(box["x"] + 20, box["y"] + box["height"] / 2)
+    expect(page.locator("#at-name-A")).to_be_focused()
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert not problems, problems
+    context.close()
+
+
 def test_atelier_executions_successives(site, browser):
     """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
     partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""
@@ -1037,9 +1087,12 @@ def test_atelier_executions_successives(site, browser):
     # La seconde nomination et la fiche de son agent n'arrivent qu'à la deuxième exécution.
     page.select_option('select[name="c.C"]', "2")
     page.select_option('select[name="c.E"]', "2")
-    expect(runs.nth(0).locator(".at-run-text")).to_have_text("2 lignes ajoutées ; 2 lignes écrites.")
+    expect(runs.nth(0).locator(".at-run-text")).to_have_text(
+        "2 lignes ajoutées ; à l'écriture : 2 lignes écrites."
+    )
     expect(runs.nth(1).locator(".at-run-text")).to_have_text(
-        "1 ligne ajoutée, 1 ligne fermée et 1 ligne inchangée ; 1 ligne supprimée et 2 lignes écrites."
+        "1 ligne ajoutée, 1 ligne fermée et 1 ligne inchangée ; "
+        "à l'écriture : 1 ligne supprimée et 2 lignes écrites."
     )
     expect(runs.nth(1).locator(".at-run-known")).to_have_text(
         "Connues depuis cette exécution : Nomination C, Fiche d'agent E."
@@ -1052,7 +1105,8 @@ def test_atelier_executions_successives(site, browser):
     # À la troisième, la première nomination n'est plus connue : sa ligne change, une autre est retirée.
     page.select_option('select[name="j.B"]', "2")
     expect(runs.nth(2).locator(".at-run-text")).to_have_text(
-        "1 ligne modifiée, 1 ligne inchangée et 1 ligne retirée ; 2 lignes supprimées et 1 ligne écrite."
+        "1 ligne modifiée, 1 ligne inchangée et 1 ligne retirée ; "
+        "à l'écriture : 2 lignes supprimées et 1 ligne écrite."
     )
     expect(runs.nth(2).locator(".at-delta")).to_have_text(["modifiée", "inchangée", "retirée"])
     expect(runs.nth(2).locator("del")).to_have_text(

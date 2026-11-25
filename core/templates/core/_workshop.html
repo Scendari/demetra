@@ -16,7 +16,7 @@
       <div class="at-palette-list">
         {% for b in palette.bricks %}<button type="submit" class="btn at-add" name="add" value="{{ b.type }}"{% if palette.full %} disabled{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>{{ b.label }}</button>{% endfor %}
       </div>
-      {% if palette.full %}<p class="hint">{{ palette.max }} briques au plus par situation.</p>{% endif %}
+      {% if palette.full %}<p class="hint">{{ palette.max }} {{ words.most }}</p>{% endif %}
     </section>
 
     {% if palette.settings or palette.runs %}
@@ -34,9 +34,9 @@
         <li class="at-card" data-brick="{{ c.id }}" data-kind="{{ c.kind }}">
           <div class="at-card-head">
             <span class="at-id" aria-hidden="true">{{ c.id }}</span>
-            <label class="sr-only" for="at-name-{{ c.id }}">Nom de la brique {{ c.id }} ({{ c.brick }})</label>
+            <label class="sr-only" for="at-name-{{ c.id }}">{{ words.name }} {{ c.id }} ({{ c.brick }})</label>
             <input id="at-name-{{ c.id }}" class="at-name" type="text" name="n.{{ c.id }}" value="{{ c.label }}" maxlength="40" placeholder="{{ c.placeholder }}" autocomplete="off">
-            <button type="submit" class="icon-btn" name="del" value="{{ c.id }}" aria-label="Retirer {{ c.label }}" title="Retirer cette brique"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button>
+            <button type="submit" class="icon-btn" name="del" value="{{ c.id }}" aria-label="Retirer {{ c.label }}" title="{{ words.remove }}"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg></button>
           </div>
           {% if c.bounds %}
           <div class="at-bounds" role="group" aria-label="Bornes de {{ c.label }} sur l'axe « {{ c.bounds.axis }} »">
@@ -92,7 +92,7 @@
       <p class="at-source"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>{% if result.history %}Obtenu en combinant les périodes posées comme l'étude le déclare.{% elif result.steps %}Obtenu en {{ result.steps }} pas, en appliquant les règles que l'étude déclare.{% else %}Aucune règle de l'étude ne s'applique à cette situation : rien ne bouge.{% endif %} Rien ne prouve que le système réel se comporte ainsi.</span></p>
       {% if result.blocking %}<div class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><div><p>Le traitement est bloqué : rien n'est publié.</p><ul class="at-blocking">{% for reason in result.blocking %}<li>{{ reason }}</li>{% endfor %}</ul></div></div>{% endif %}
       {% if result.history %}
-      <div class="at-history-wrap">
+      <div class="at-history-wrap" tabindex="0" role="region" aria-label="Historique obtenu — défilement possible">
       <table class="at-history">
         <caption>Historique obtenu{% if result.runs %} à la dernière exécution{% endif %}{% if result.blocking %} s'il était publié{% endif %}</caption>
         <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th><th scope="col" class="at-row-end"><span class="sr-only">Provenance</span></th></tr></thead>
@@ -159,13 +159,13 @@
           {% if run.news or run.gone %}<p class="at-run-known">{% if run.news %}<span>{% if run.n == 1 %}Périodes connues{% else %}Connues depuis cette exécution{% endif %} : {{ run.news|join:", " }}.</span>{% endif %}{% if run.gone %} <span>Ne sont plus connues : {{ run.gone|join:", " }}.</span>{% endif %}</p>{% endif %}
           {% if run.blocking %}<ul class="at-blocking">{% for reason in run.blocking %}<li>{{ reason }}</li>{% endfor %}</ul>{% endif %}
           {% if run.lines or run.removed %}
-          <div class="at-history-wrap">
+          <div class="at-history-wrap" tabindex="0" role="region" aria-label="{{ run.title }} — défilement possible">
           <table class="at-history at-history-run">
             <caption class="sr-only">Ce qui est publié après {{ run.title }}</caption>
-            <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th><th scope="col" class="at-row-end"><span class="sr-only">Ce que fait cette exécution</span></th></tr></thead>
+            <thead><tr><th scope="col" class="at-row-start"><span class="sr-only">Ce que fait cette exécution</span></th><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th></tr></thead>
             <tbody>
-              {% for row in run.lines %}<tr{% if row.row %} class="{{ row.row }}"{% endif %} data-change="{{ row.change }}"><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td><td class="at-row-end"><span class="at-delta at-delta-{{ row.change }}"{% if row.was %} title="Avant : {{ row.was }}"{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-{{ row.icon }}"/></svg>{{ row.word }}</span>{% if row.was %}<span class="sr-only"> Avant : {{ row.was }}.</span>{% endif %}</td></tr>
-              {% endfor %}{% for row in run.removed %}<tr class="is-gone" data-change="removed"><td colspan="{{ result.history.fields|length|add:3 }}"><del>{{ row.text }}</del></td><td class="at-row-end"><span class="at-delta at-delta-removed"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg>{{ row.word }}</span></td></tr>
+              {% for row in run.lines %}<tr{% if row.row %} class="{{ row.row }}"{% endif %} data-change="{{ row.change }}"><td class="at-row-start"><span class="at-delta at-delta-{{ row.change }}"{% if row.was %} title="Avant : {{ row.was }}"{% endif %}><svg class="ic" aria-hidden="true"><use href="#ui-{{ row.icon }}"/></svg>{{ row.word }}</span>{% if row.was %}<span class="sr-only"> Avant : {{ row.was }}.</span>{% endif %}</td><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>
+              {% endfor %}{% for row in run.removed %}<tr class="is-gone" data-change="removed"><td class="at-row-start"><span class="at-delta at-delta-removed"><svg class="ic" aria-hidden="true"><use href="#ui-close"/></svg>{{ row.word }}</span></td><td colspan="{{ result.history.fields|length|add:3 }}"><del>{{ row.text }}</del></td></tr>
               {% endfor %}
             </tbody>
           </table>

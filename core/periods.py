@@ -451,6 +451,7 @@ HOW_INVALID = {
     "inverted": "une période qui finit avant de commencer",
 }
 NOTHING_WRITTEN = "rien n'est écrit"
+WRITING = "à l'écriture : "
 HOW_WRITE = {
     "differences": "Seules les lignes qui diffèrent sont écrites ; sans différence, rien n'est écrit.",
     "all": "Tout l'historique est réécrit à chaque exécution, même sans différence.",
@@ -965,7 +966,7 @@ def _run_text(decl: dict, entry: dict) -> str:
     said = [lines(changes.count(key), word) for key, word in CHANGES.items() if key in changes]
     deleted, appended = entry["written"]["deleted"], entry["written"]["appended"]
     wrote = [lines(n, word) for n, word in ((deleted, "supprimée"), (appended, "écrite")) if n]
-    return f"{name} : {_listed(said)} ; {_listed(wrote) if wrote else NOTHING_WRITTEN}."
+    return f"{name} : {_listed(said)} ; {WRITING + _listed(wrote) if wrote else NOTHING_WRITTEN}."
 
 
 def successive(decl: dict, situation: dict) -> list[dict]:

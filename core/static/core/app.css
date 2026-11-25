@@ -782,6 +782,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-build-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
 .at-build-head h2 { font-size: var(--t-md); }
 .at-build-head .link { font-size: var(--t-sm); }
+/* Cibles d'au moins 24 px : les liens et les titres dépliables de l'écran, sans changer le rythme des lignes. */
+.at-build-head .link, .at-runs-jump .link, .at-plan .cp-rep-head .link { display: inline-block; padding-block: 0.2rem; }
+.at-why > summary, .at-rules > summary { padding-block: 0.2rem; }
 .at-build h3 { color: var(--ink-2); font-size: var(--t-sm); font-weight: 680; }
 .at-palette, .at-settings, .at-placed { display: grid; gap: var(--s-2); min-width: 0; }
 .at-settings, .at-placed { padding-top: var(--s-3); border-top: 1px solid var(--line); }
@@ -837,10 +840,13 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-feeds > span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 /* D'où vient une ligne : on la survole ou on la choisit, ses périodes sources se détachent sur la frise, dans
    les fiches et dans la liste des règles. Sans script, la liste « D'où vient chaque ligne » dit la même chose. */
-/* La dernière colonne reste en vue quand le tableau défile dans son cadre : le mot du changement et le bouton
-   de provenance ne sortent jamais de l'écran. */
+/* La dernière colonne reste en vue quand le tableau défile dans son cadre, sauf sur petit écran (voir plus
+   bas) où elle recouvrirait le statut. */
 .at-history .at-row-end { position: sticky; right: 0; width: 1%; padding-right: 0; padding-left: var(--s-2); background: var(--surface); text-align: right; white-space: nowrap; }
 .at-why-btn { display: none; }
+.at-why-btn:focus-visible { outline-offset: -2px; }   /* dans un cadre qui défile : l'anneau reste entier */
+/* La place du mot du dernier geste est réservée : le tableau ne s'élargit pas quand les marques arrivent. */
+.atelier.is-live .at-history [data-delta-cell] { min-width: 10.5rem; }
 .atelier.is-live .at-why-btn { display: inline-grid; }
 .at-why-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .atelier.is-live .at-history tbody tr[data-start] { cursor: pointer; }
@@ -859,7 +865,10 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-plan .tl-bar.is-traced .n-halo { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
 .at-plan .tl-grip { fill: transparent; pointer-events: none; }
 /* Une période posée se déplace sur la frise, ou s'étire par un bord ; ses champs de bornes disent la même chose. */
-.atelier.is-live .at-plan .tl-bar.is-movable { cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
+.atelier.is-live .at-plan .tl-bar.is-movable { cursor: grab; -webkit-user-select: none; user-select: none; }
+/* Au doigt, la barre se glisse sans que la frise défile sous elle. La règle vise les formes : un groupe SVG n'a
+   pas de boîte, « touch-action » n'y a aucun effet. */
+.atelier.is-live .at-plan .tl-bar.is-movable > * { touch-action: none; }
 .atelier.is-live .at-plan .tl-bar.is-movable .tl-grip { pointer-events: all; cursor: ew-resize; }
 .atelier.is-live .at-plan .tl-bar.is-movable:hover .n-shape, .at-plan .tl-bar.is-moving .n-shape { stroke: var(--accent); stroke-width: 2; }
 .atelier.is-dragging .at-plan .tl-bar.is-moving, .atelier.is-dragging .at-plan .tl-bar.is-moving .tl-grip { cursor: grabbing; }
@@ -874,9 +883,8 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-delta .ic { width: 0.85rem; height: 0.85rem; }
 .at-delta-new { border-color: var(--accent); color: var(--accent); }
 .at-delta-gone { border-style: dashed; color: var(--ink-2); }
-.at-history tbody tr.is-new > td:first-child, .at-history tbody tr.is-changed > td:first-child { box-shadow: inset 3px 0 0 var(--accent); padding-left: var(--s-2); }
+/* Aucun liseré latéral sur une ligne marquée : le mot et son icône portent la marque. */
 .at-history tbody tr.is-gone > td { color: var(--ink-3); }
-.at-history tbody tr.is-gone > td:first-child { padding-left: var(--s-2); box-shadow: inset 3px 0 0 var(--line-strong); }
 .at-rules li.is-traced { background: var(--accent-soft); color: var(--ink); }
 /* Exécutions successives : ce que chacune a publié, avec le même vocabulaire de marques que le dernier geste
    (un mot et une icône par ligne, jamais la couleur seule). */
@@ -895,6 +903,9 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-run-known { max-width: 72ch; color: var(--ink-2); font-size: var(--t-xs); }
 .at-run .at-blocking { color: var(--ink-2); font-size: var(--t-sm); }
 .at-history-run { width: 100%; }
+/* Dans un tableau d'exécution, le mot du changement ouvre la ligne : il reste en vue quand le tableau défile. */
+.at-history .at-row-start { width: 1%; white-space: nowrap; }
+.at-history .at-row-start .at-delta { margin-right: 0; }
 .at-blocking { margin-top: var(--s-1); padding-left: 1.1em; list-style: disc; }
 .at-source { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }
 .at-source .ic { flex: none; margin-top: 0.2em; }
@@ -951,7 +962,20 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 @media (max-width: 900px) {
   .at-grid { grid-template-columns: minmax(0, 1fr); gap: var(--s-5); }
   .at-build { position: static; max-height: none; padding-right: 0; overflow: visible; }
-  .at-jump { display: inline; font-size: var(--t-sm); }
+  .at-jump { display: inline-block; font-size: var(--t-sm); }
+  /* Cibles au doigt : les liens et les titres dépliables de l'écran font au moins 2.75rem de haut. */
+  .at-jump, .at-build-head .link, .at-runs-jump .link, .at-plan .cp-rep-head .link { display: inline-block; padding-block: 0.75rem; }
+  .at-why > summary, .at-rules > summary { padding-block: 0.75rem; }
+  /* Sur petit écran le tableau défile dans son cadre, en entier : sa dernière colonne n'est plus collante, elle
+     recouvrirait le statut. */
+  .at-history { min-width: 0; }
+  .at-history .at-row-end { position: static; }
+  .at-history th, .at-history td { padding-right: var(--s-2); }
+  /* Le tableau principal tient dans la fenêtre : sa pastille de statut passe à la ligne, en étiquette. */
+  .at-history:not(.at-history-run) .st { border-radius: var(--radius-lg); white-space: normal; }
+  .atelier.is-live .at-history [data-delta-cell] { min-width: 0; }
+  .atelier.is-live .at-trace { min-height: 7.6em; }
+  .atelier.is-live .at-delta-note { min-height: 3em; }
   .tick { min-height: 2.75rem; }
   .at-links .icon-btn { width: 2.75rem; height: 2.75rem; }
   .at-result-value { font-size: var(--t-xl); }

@@ -268,8 +268,8 @@ d'une exécution, leur nombre au plus, et ce qu'une exécution écrit — les se
 gagne alors un réglage « Exécutions successives » ; dès qu'il vaut 2 ou plus, chaque fiche dit à partir de
 quelle exécution sa période est connue, et jusqu'à laquelle (une correction : l'ancienne période connue jusqu'à
 la 2, la nouvelle à partir de la 3). Sous le déroulé, une section montre chaque exécution : une phrase (« 1 ligne
-ajoutée et 1 ligne fermée ; 1 ligne supprimée et 2 lignes écrites »), les périodes qu'elle découvre ou ne
-connaît plus, et l'historique qu'elle publie, chaque ligne marquée d'un mot et d'une icône — ajoutée, fermée,
+ajoutée et 1 ligne fermée ; à l'écriture : 1 ligne supprimée et 2 lignes écrites »), les périodes qu'elle découvre ou ne
+connaît plus, et l'historique qu'elle publie, chaque ligne ouverte par un mot et une icône — ajoutée, fermée,
 modifiée, inchangée, retirée — par rapport à ce qui était publié. Une exécution bloquée ne publie rien. Le
 résultat, la frise et le déroulé sont ceux de la dernière exécution. Ce qui ne s'y dit pas : une publication
 qui échoue à mi-chemin, le périmètre d'un recalcul, plusieurs entités à la fois.
@@ -278,7 +278,8 @@ qui échoue à mi-chemin, le périmètre d'un recalcul, plusieurs entités à la
 et on tire un de ses bords pour changer son début ou sa fin. Le geste se cale sur le pas de l'axe et reste dans
 l'axe ; pendant qu'on glisse, seule la barre bouge — le schéma garde ses dimensions — et l'aide sous la frise
 dit les bornes. Au lâcher, les champs « Début » et « Fin, exclue » de la fiche prennent ces valeurs et le
-résultat suit ; Échap annule. Les champs restent le moyen de tout faire au clavier, et de poser une borne plus
+résultat suit ; Échap annule. Au doigt, le geste est le même : la frise ne défile pas sous la barre qu'on
+glisse. Les champs restent le moyen de tout faire au clavier, et de poser une borne plus
 fine que le pas. Les lignes de l'historique, elles, ne se déplacent pas : elles se déduisent.
 
 **Ce que le dernier geste a changé.** Après chaque geste, l'historique marque ses lignes d'un mot et d'une

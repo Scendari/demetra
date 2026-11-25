@@ -356,7 +356,7 @@ La réponse porte un champ `runs` de plus, une entrée par exécution :
  {"run": 1, "known": ["A"], "new": ["A"], "withdrawn": [], "published": true, "blocking": [],
   "lines": [{"start": 1, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "added"}],
   "removed": [], "written": {"deleted": 0, "appended": 1},
-  "text": "Exécution 1 : 1 ligne ajoutée ; 1 ligne écrite."},
+  "text": "Exécution 1 : 1 ligne ajoutée ; à l'écriture : 1 ligne écrite."},
  {"run": 2, "known": ["A"], "new": [], "withdrawn": [], "published": true, "blocking": [],
   "lines": [{"start": 1, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "same"}],
   "removed": [], "written": {"deleted": 0, "appended": 0},
@@ -367,7 +367,7 @@ La réponse porte un champ `runs` de plus, une entrée par exécution :
             {"start": 3, "end": 5, "fields": {"offre": "A", "taux": 10}, "status": "REMISE", "change": "added"},
             {"start": 5, "end": 6, "fields": {"offre": "A", "taux": null}, "status": "SANS_REMISE", "change": "added"}],
   "removed": [], "written": {"deleted": 1, "appended": 3},
-  "text": "Exécution 3 : 2 lignes ajoutées et 1 ligne fermée ; 1 ligne supprimée et 3 lignes écrites."}]}
+  "text": "Exécution 3 : 2 lignes ajoutées et 1 ligne fermée ; à l'écriture : 1 ligne supprimée et 3 lignes écrites."}]}
 ```
 
 - Chaque exécution **recalcule tout l'historique** avec les périodes qu'elle connaît (`known` ; `new` : celles qu'elle découvre ; `withdrawn` : celles qu'elle ne connaît plus), puis le compare à ce qui était publié. Une ligne se reconnaît à son **début**.

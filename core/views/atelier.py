@@ -33,6 +33,9 @@ WORDS = {
         "palette": "Briques de l'étude",
         "drop": "Glissez ici une brique de la palette, ou cliquez-la.",
         "placed": "Briques posées",
+        "name": "Nom de la brique",
+        "remove": "Retirer cette brique",
+        "most": "briques au plus par situation.",
         "none": "Aucune pour l'instant. Posez-en une : elle apparaît ici avec ses options.",
         "empty": "Posez des briques, reliez-les, réglez leurs options. Le site applique les règles que "
         "l'étude déclare et montre ici ce qui se passe, pas après pas. Aucun cas déposé n'intervient.",
@@ -48,6 +51,9 @@ WORDS = {
         "palette": "Sources de l'étude",
         "drop": "Glissez ici une source de la palette, ou cliquez-la : une période se pose.",
         "placed": "Périodes posées",
+        "name": "Nom de la période",
+        "remove": "Retirer cette période",
+        "most": "périodes au plus par situation.",
         "none": "Aucune pour l'instant. Posez-en une : elle apparaît ici avec ses bornes et ses champs.",
         "empty": "Posez des périodes, donnez-leur un début, une fin et des valeurs. Le site les combine "
         "comme l'étude le déclare et montre ici l'historique obtenu. Aucun cas déposé n'intervient.",

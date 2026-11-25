@@ -629,6 +629,11 @@
       else if (node) drag = Object.assign(at, { id: node.dataset.e, node: node });
       else if (bar) drag = Object.assign(at, { period: bar.dataset.p, node: bar, grip: event.target.dataset.grip || "move" });
     });
+    // Au doigt : sans cela, le cadre défile sous la brique ou la barre qu'on veut glisser et le geste est annulé
+    // (« touch-action » n'a pas d'effet sur les formes d'un dessin SVG dans tous les navigateurs).
+    atelier.addEventListener("touchstart", (event) => {
+      if (event.target.closest("[data-at-plan] .tl-bar.is-movable, [data-at-plan] .n[data-e]")) event.preventDefault();
+    }, { passive: false });
     doc.addEventListener("pointermove", (event) => {
       if (!drag) return;
       if (!drag.live) {
