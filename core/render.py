@@ -205,6 +205,7 @@ class Context:
     default_status: str = ""
     attributes: list = field(default_factory=list)
     handles: bool = False  # atelier : chaque nœud et chaque lien dit qui il est, pour qu'on puisse le saisir
+    span: tuple | None = None  # atelier : l'étendue que l'axe du temps couvre au moins
 
     def initial_status(self, ent_id: str) -> str:
         """Statut de l'entité avant la première étape."""
@@ -1087,11 +1088,29 @@ def _timeline_item(
     draw = _timeline_bar if item["kind"] == "bar" else _timeline_milestone
     shape, end_x = draw(item, x_of, y, geo["row_h"], label, row_by, sv)
     body = f"<title>{escape(label)}</title>{shape}"
+    if ctx.handles:
+        attrs += f' data-p="{escape(ent["id"], quote=True)}"'
+        if item["kind"] == "bar":
+            body += _timeline_grips(item, x_of, y, geo["row_h"])
     if mark["show_status"]:
         sx = max(end_x + 10, 0) if row_by != "entity" else geo["label_w"] + geo["plot_w"] + 12
         body += f'<g class="n-status">{_status_svg(ctx, ent["id"], sx, y + geo["row_h"] / 2 + 4, fixed)}</g>'
     cls = " ".join(["n", f"tl-{item['kind']}", *classes])
     return f'<g class="{cls}"{attrs}>{body}</g>'
+
+
+def _timeline_grips(item: dict, x_of, y: float, row_h: float) -> str:
+    """Atelier : deux zones aux bords d'une barre, pour en tirer le début ou la fin."""
+    x1, x2 = x_of(item["a"]), x_of(item["b"])
+    grip = min(9.0, max(3.0, (x2 - x1) / 3))
+    bh = min(22, row_h - 12)
+    by = y + (row_h - bh) / 2
+    return (
+        f'<rect class="tl-grip" data-grip="start" x="{x1 - 4:.1f}" y="{by - 3:.1f}" width="{grip + 4:.1f}" '
+        f'height="{bh + 6:.1f}"/>'
+        f'<rect class="tl-grip" data-grip="end" x="{x2 - grip:.1f}" y="{by - 3:.1f}" width="{grip + 4:.1f}" '
+        f'height="{bh + 6:.1f}"/>'
+    )
 
 
 def _render_timeline(ctx: Context, view: dict, sv: dict) -> str:
@@ -1110,6 +1129,8 @@ def _render_timeline(ctx: Context, view: dict, sv: dict) -> str:
         )
 
     lo, hi = min(values), max(values)
+    if ctx.span:
+        lo, hi = min(lo, ctx.span[0]), max(hi, ctx.span[1])
     if hi == lo:
         hi = lo + 1
     tick = _nice_step(hi - lo)
@@ -1154,9 +1175,11 @@ def _render_timeline(ctx: Context, view: dict, sv: dict) -> str:
     sv["axis"] = {"from": lo_axis, "to": hi_axis, "tick": tick}
     hl = " tm-highlight" if time.get("highlight_changes", True) else ""
     label = escape(view.get("title") or "Frise", quote=True)
+    # Atelier : de quoi convertir une abscisse en position sur l'axe (début, fin, origine, largeur).
+    scale = f' data-span="{lo_axis:g} {hi_axis:g} {geo["label_w"]} {geo["plot_w"]}"' if ctx.handles else ""
     svg = (
         f'<svg class="rep-svg rep-timeline{hl}" viewBox="0 0 {width} {height:.0f}" width="{width}" '
-        f'height="{height:.0f}" '
+        f'height="{height:.0f}"{scale} '
         f'role="group" aria-label="{label}">{"".join(parts)}</svg>'
     )
     return (
@@ -1519,11 +1542,13 @@ def render(
     lifecycles: list[dict] | None = None,
     attributes: list[dict] | None = None,
     handles: bool = False,
+    span: tuple | None = None,
 ) -> tuple[str, dict]:
     """Dessine la représentation pour un cas. Renvoie (fragment HTML, résumé structurel).
 
-    `handles` ajoute à chaque nœud et à chaque lien d'un graphe de quoi le saisir dans l'atelier (`data-e`,
-    `data-l`) ; sans lui, le dessin est exactement celui d'un cas."""
+    `handles` ajoute à chaque nœud et à chaque lien d'un graphe, et à chaque barre d'une frise, de quoi le
+    saisir dans l'atelier (`data-e`, `data-l`, `data-p`) ; `span` y fait couvrir à l'axe du temps toute
+    l'étendue donnée. Sans eux, le dessin est exactement celui d'un cas."""
     from . import render_ext
     from .casemodel import default_status
 
@@ -1552,6 +1577,7 @@ def render(
         default_status=default_status(statuses) or "",
         attributes=attributes or [],
         handles=handles,
+        span=span,
     )
     summary = Summary()
     compose = with_defaults(spec.get("compose") or {"brick": "compose.stack"})

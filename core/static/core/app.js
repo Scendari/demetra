@@ -285,9 +285,44 @@
       $$("[data-panel]", atelier).forEach((panel) => setStep(panel, stepOf(panel), { quiet: true }));
       const button = $("[data-atelier-play]", atelier);
       if (button) button.hidden = (walk()._steps || []).length < 2;
-      const hint = $("[data-at-hint]", atelier);   // un schéma sans nœuds (une table) ne se relie pas à la souris
-      if (hint) hint.hidden = !$("[data-at-plan] .n[data-e]", atelier);
+      const hint = $("[data-at-hint]", atelier);   // un schéma sans nœuds ni barres (une table) ne se manie pas à la souris
+      if (hint) hint.hidden = !$("[data-at-plan] .n[data-e], [data-at-plan] .tl-bar[data-p]", atelier);
+      if (!historyRow(pinned)) pinned = null;
+      trace(historyRow(pinned));
     };
+    /* D'où vient une ligne de l'historique (atelier de périodes) : la survoler ou la choisir fait ressortir ses
+       périodes sources sur la frise et dans les fiches, et ses règles dans la liste. Le serveur a écrit la
+       provenance dans la ligne ; ici on ne fait que la montrer. */
+    let pinned = null;   // le début de la ligne dont on garde la provenance affichée
+    const historyRow = (start) => (start === null ? null : $$(".at-history tr[data-start]", atelier).find((tr) => tr.dataset.start === start) || null);
+    const trace = (tr) => {
+      $$(".is-traced", atelier).forEach((el) => el.classList.remove("is-traced"));
+      atelier.classList.toggle("is-tracing", !!tr);
+      const line = $("[data-at-trace]", atelier);
+      if (line) line.textContent = tr ? tr.dataset.why : line.dataset.idle;
+      $$("[data-at-why]", atelier).forEach((button) => button.setAttribute("aria-pressed", String(pinned !== null && button.closest("tr").dataset.start === pinned)));
+      if (!tr) return;
+      tr.classList.add("is-traced");
+      tr.dataset.from.split(" ").concat(tr.dataset.image).filter(Boolean).forEach((id) => {
+        $$('[data-at-plan] [data-p="' + id + '"], .at-card[data-brick="' + id + '"]', atelier).forEach((el) => el.classList.add("is-traced"));
+      });
+      tr.dataset.rules.split(" ").filter(Boolean).forEach((key) => {
+        const rule = $('.at-rules li[data-rule="' + key + '"]', atelier);
+        if (rule) rule.classList.add("is-traced");
+      });
+    };
+    const rowOf = (target) => (target && target.closest ? target.closest(".at-history tr[data-start]") : null);
+    atelier.addEventListener("pointerover", (event) => { if (event.pointerType === "mouse" && rowOf(event.target)) trace(rowOf(event.target)); });
+    atelier.addEventListener("pointerout", (event) => { if (event.pointerType === "mouse" && rowOf(event.target) && !rowOf(event.relatedTarget)) trace(historyRow(pinned)); });
+    atelier.addEventListener("focusin", (event) => { if (rowOf(event.target)) trace(rowOf(event.target)); });
+    atelier.addEventListener("focusout", (event) => { if (rowOf(event.target)) trace(historyRow(pinned)); });
+    atelier.addEventListener("click", (event) => {
+      const tr = rowOf(event.target);
+      if (!tr) return;
+      pinned = pinned === tr.dataset.start ? null : tr.dataset.start;
+      trace(historyRow(pinned));
+    });
+
     const load = (url) => {
       const mine = ++turn;
       const key = focusKey(doc.activeElement);
@@ -472,6 +507,7 @@
       if (event.key !== "Escape") return;
       finish(event, true);
       closePop();
+      if (pinned !== null) { pinned = null; trace(null); }
     });
     atelier.addEventListener("click", (event) => {
       if (!swallow) return;

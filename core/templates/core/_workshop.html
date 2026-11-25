@@ -44,7 +44,8 @@
             <label for="at-a-{{ c.id }}"><span>Fin, exclue</span><input id="at-a-{{ c.id }}" type="number" inputmode="decimal" name="a.{{ c.id }}" value="{{ c.bounds.end }}" min="{{ c.bounds.min }}" max="{{ c.bounds.max }}" step="{{ c.bounds.step }}" autocomplete="off"></label>
           </div>
           {% endif %}
-          {% if c.final.key %}<p class="at-final" data-final="{{ c.final.key }}"><span class="at-final-tx">À la fin</span><span class="st" data-role="{{ c.final.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.final.role }}"/></svg><span class="st-tx">{{ c.final.label }}</span></span></p>{% endif %}
+          {% if c.feeds and not c.feeds.apart %}<p class="at-final at-feeds" data-feeds="{{ c.feeds.lines|length }}"><span class="at-final-tx">Dans l'historique</span>{% if c.feeds.lines %}<span>{{ c.feeds.lines|join:", " }}</span>{% else %}<span class="at-void">aucune ligne</span>{% endif %}</p>
+          {% elif c.final.key %}<p class="at-final" data-final="{{ c.final.key }}"><span class="at-final-tx">{% if c.feeds %}Hors du calcul{% else %}À la fin{% endif %}</span><span class="st" data-role="{{ c.final.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.final.role }}"/></svg><span class="st-tx">{{ c.final.label }}</span></span></p>{% endif %}
           {% if c.options %}<div class="at-row" role="group" aria-label="Options de {{ c.label }}">{% for o in c.options %}{% include "core/_workshop_choice.html" with c=o %}{% endfor %}</div>{% endif %}
           {% if c.events %}<div class="at-row" role="group" aria-label="Ce qui arrive à {{ c.label }}"><span class="at-row-name">Il lui arrive</span>{% for e in c.events %}<label class="tick tick-event"><input type="checkbox" name="ev" value="{{ e.value }}"{% if e.on %} checked{% endif %}><span>{{ e.label }}</span></label>{% endfor %}</div>{% endif %}
           {% if c.links or c.link_choices %}
@@ -77,22 +78,31 @@
     <section class="at-result" aria-labelledby="at-result-title">
       <h2 id="at-result-title">Résultat</h2>
       {% if result.label %}<p class="at-result-value" data-result>{{ result.label }}{% if result.status %} <span class="st" data-role="{{ result.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ result.role }}"/></svg><span class="st-tx">{{ result.status }}</span></span>{% endif %}</p>{% endif %}
+      {% if not result.history %}
       <ul class="at-counts" aria-label="{{ words.counts }}">
         {% for c in result.counts %}<li><b>{{ c.n }}</b><span class="st" data-role="{{ c.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.role }}"/></svg><span class="st-tx">{{ c.label }}</span></span></li>{% endfor %}
       </ul>
+      {% endif %}
       <p class="at-source"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>{% if result.history %}Obtenu en combinant les périodes posées comme l'étude le déclare.{% elif result.steps %}Obtenu en {{ result.steps }} pas, en appliquant les règles que l'étude déclare.{% else %}Aucune règle de l'étude ne s'applique à cette situation : rien ne bouge.{% endif %} Rien ne prouve que le système réel se comporte ainsi.</span></p>
       {% if result.blocking %}<div class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><div><p>Le traitement est bloqué : rien n'est publié.</p><ul class="at-blocking">{% for reason in result.blocking %}<li>{{ reason }}</li>{% endfor %}</ul></div></div>{% endif %}
       {% if result.history %}
       <div class="at-history-wrap">
       <table class="at-history">
         <caption>Historique obtenu{% if result.blocking %} s'il était publié{% endif %}</caption>
-        <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th></tr></thead>
+        <thead><tr><th scope="col">Du</th><th scope="col">Au, exclu</th>{% for name in result.history.fields %}<th scope="col">{{ name }}</th>{% endfor %}<th scope="col">Statut</th><th scope="col" class="at-row-end"><span class="sr-only">Provenance</span></th></tr></thead>
         <tbody>
-          {% for row in result.history.rows %}<tr><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>
-          {% empty %}<tr><td colspan="{{ result.history.fields|length|add:3 }}">Aucune ligne : ces périodes ne donnent aucune image.</td></tr>{% endfor %}
+          {% for row in result.history.rows %}<tr data-start="{{ row.start }}" data-image="{{ row.id }}" data-from="{{ row.sources }}" data-rules="{{ row.rules }}" data-why="Du {{ row.start }} au {{ row.end }} — {{ row.why }}" data-sig="{{ row.sig }}" data-text="{{ row.text }}"><td class="num">{{ row.start }}</td><td class="num">{{ row.end }}</td>{% for value in row.values %}<td>{% if value %}{{ value }}{% else %}<span class="at-void">vide</span>{% endif %}</td>{% endfor %}<td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td><td class="at-row-end"><button type="button" class="icon-btn at-why-btn" data-at-why aria-pressed="false" aria-label="D'où vient la ligne du {{ row.start }} au {{ row.end }}" title="D'où vient cette ligne"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg></button></td></tr>
+          {% empty %}<tr><td colspan="{{ result.history.fields|length|add:4 }}">Aucune ligne : ces périodes ne donnent aucune image.</td></tr>{% endfor %}
         </tbody>
       </table>
       </div>
+      {% if result.history.rows %}
+      <p class="at-trace" data-at-trace role="status" data-idle="Survolez une ligne, ou choisissez-la par son bouton, pour voir d'où elle vient."></p>
+      <details class="at-why" data-keep="why">
+        <summary>D'où vient chaque ligne</summary>
+        <ol>{% for row in result.history.rows %}<li><b>Du {{ row.start }} au {{ row.end }}</b> — {{ row.why }}</li>{% endfor %}</ol>
+      </details>
+      {% endif %}
       {% endif %}
       {% if result.end %}<p class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><span>{{ result.end }}</span></p>{% endif %}
     </section>
@@ -108,7 +118,7 @@
         </div>
         <div id="at-legend" data-fold-region="legend">{% include "core/_legend.html" with legend=p.legend %}</div>
         {{ p.rep_html }}
-        <p class="at-plan-hint" data-at-hint role="status"><span data-at-hint-text>Tirez d'une brique à une autre pour les relier. Cliquez un lien pour le retirer.</span><span class="at-plan-hint-fine"> Glissez ici une brique de la palette pour l'ajouter ; déposée sur une brique, elle s'y enchaîne.</span></p>
+        <p class="at-plan-hint" data-at-hint role="status"><span data-at-hint-text>{{ words.hint }}</span>{% if words.hint_fine %}<span class="at-plan-hint-fine"> {{ words.hint_fine }}</span>{% endif %}</p>
       </section>
       {% endif %}
 
@@ -143,7 +153,7 @@
       <summary>Les {{ rules|length }} {{ words.rules }}</summary>
       <p class="hint">{{ words.rules_hint }}</p>
       <ol>
-        {% for r in rules %}<li{% if r.used %} class="is-used"{% endif %}><b>{{ r.key }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
+        {% for r in rules %}<li data-rule="{{ r.key }}"{% if r.used %} class="is-used"{% endif %}><b>{{ r.key }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
       </ol>
     </details>
   </div>

@@ -827,13 +827,37 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-counts { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--t-sm); }
 .at-counts li { display: inline-flex; align-items: center; gap: 0.4rem; }
 .at-counts b { font-weight: 700; font-variant-numeric: tabular-nums; }
-.at-history-wrap { max-width: 100%; overflow-x: auto; }
+.at-history-wrap { position: relative; max-width: 100%; overflow-x: auto; }   /* relative : un texte pour lecteur d'écran, en absolu, y reste contenu */
 .at-history { min-width: 24rem; border-collapse: collapse; font-size: var(--t-sm); }
 .at-history caption { padding-bottom: var(--s-1); color: var(--ink-2); font-weight: 680; text-align: left; }
 .at-history th, .at-history td { padding: 0.35rem var(--s-4) 0.35rem 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .at-history th { color: var(--ink-3); font-size: var(--t-xs); font-weight: 600; }
 .at-history .num { font-variant-numeric: tabular-nums; font-weight: 640; }
 .at-void { color: var(--ink-3); font-style: italic; }
+.at-feeds > span:last-child { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* D'où vient une ligne : on la survole ou on la choisit, ses périodes sources se détachent sur la frise, dans
+   les fiches et dans la liste des règles. Sans script, la liste « D'où vient chaque ligne » dit la même chose. */
+.at-history .at-row-end { width: 1%; padding-right: 0; text-align: right; white-space: nowrap; }
+.at-why-btn { display: none; }
+.atelier.is-live .at-why-btn { display: inline-grid; }
+.at-why-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.atelier.is-live .at-history tbody tr[data-start] { cursor: pointer; }
+.at-history tbody tr.is-traced > td { background: var(--accent-soft); }
+.at-trace { display: none; }
+.atelier.is-live .at-trace { display: block; min-height: 4.4em; max-width: 72ch; color: var(--ink-3); font-size: var(--t-sm); }
+.atelier.is-tracing .at-trace { color: var(--ink); }
+.at-why { max-width: 72ch; font-size: var(--t-sm); }
+.at-why > summary { width: fit-content; color: var(--ink-2); font-weight: 620; cursor: pointer; }
+.at-why > summary:hover { color: var(--ink); }
+.at-why ol { display: grid; gap: var(--s-2); margin-top: var(--s-2); color: var(--ink-2); }
+.at-why li b { color: var(--ink); font-weight: 680; font-variant-numeric: tabular-nums; }
+.at-plan .tl-bar[data-p] { transition: opacity 120ms var(--ease); }
+.atelier.is-tracing .at-plan .tl-bar[data-p] { opacity: 0.3; }
+.atelier.is-tracing .at-plan .tl-bar.is-traced { opacity: 1; }
+.at-plan .tl-bar.is-traced .n-halo { stroke: var(--accent); stroke-width: 2.4; stroke-dasharray: none; opacity: 1; }
+.at-plan .tl-grip { fill: transparent; pointer-events: none; }
+.at-card.is-traced { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.at-rules li.is-traced { background: var(--accent-soft); color: var(--ink); }
 .at-blocking { margin-top: var(--s-1); padding-left: 1.1em; list-style: disc; }
 .at-source { display: flex; gap: var(--s-2); align-items: flex-start; max-width: 72ch; color: var(--ink-2); font-size: var(--t-sm); }
 .at-source .ic { flex: none; margin-top: 0.2em; }

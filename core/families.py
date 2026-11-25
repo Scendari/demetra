@@ -1,8 +1,8 @@
 """Les familles d'atelier : ce qu'une étude peut déclarer pour qu'on y construise une situation.
 
 Chaque famille est un module pur qui offre les mêmes fonctions — `normalize`, `declared`, `situation`,
-`from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `to_case` — : l'écran, l'API et la couche de
-services ne connaissent que cette interface. Ajouter une famille, c'est ajouter un module ici.
+`from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `plan`, `to_case` — : l'écran, l'API et la
+couche de services ne connaissent que cette interface. Ajouter une famille, c'est ajouter un module ici.
 """
 
 from __future__ import annotations

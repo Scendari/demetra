@@ -736,12 +736,53 @@ def _images(decl: dict, grains: list, taken: set[str]) -> list[dict]:
             images[-1]["end"] = _neat(start + grain)
             images[-1]["steps"] += 1
         else:
-            images.append({"start": _neat(start), "end": _neat(start + grain), "steps": 1, **row})
+            empty = {"sources": {b: [] for b in row["picked"]}, "hows": {b: [] for b in row["picked"]}}
+            images.append({"start": _neat(start), "end": _neat(start + grain), "steps": 1, **row, **empty})
+            images[-1]["beaten"] = []
+        _gather(images[-1], row)
         previous = key
     names = (f"I{n}" for n in itertools.count(1))  # « I » n'est jamais la lettre d'une brique posée ici
     for image in images:
         image["id"] = next(name for name in names if name not in taken)
     return images
+
+
+def _gather(image: dict, row: dict) -> None:
+    """Ce qu'un pas de plus apporte à la provenance d'une image : les périodes retenues, comment, et celles
+    qu'elles ont devancées."""
+    for brick, picked in row["picked"].items():
+        if picked and picked not in image["sources"][brick]:
+            image["sources"][brick].append(picked)
+        if row["how"][brick] not in image["hows"][brick]:
+            image["hows"][brick].append(row["how"][brick])
+    image["beaten"] += [key for key in row["lost"] if key not in image["beaten"]]
+
+
+def _why(decl: dict, situation: dict, image: dict) -> tuple[str, list[str]]:
+    """D'où vient une ligne de l'historique, en une phrase, et les règles qui l'expliquent."""
+    labels = {b["type"]: b["label"] for b in decl["bricks"]}
+    names = {e["id"]: e["label"] for e in situation["elements"]}
+    kinds = {e["id"]: e["type"] for e in situation["elements"]}
+    parts, rules = [], [_rule(decl, "grain")]
+    for brick, keys in image["sources"].items():
+        hows = image["hows"][brick]
+        said = ", puis ".join(names[key] for key in keys)
+        if "tie" in hows:
+            said = "plusieurs en vigueur, à égalité"
+        elif not keys:
+            said = "aucune en vigueur, la ligne est gardée"
+        else:
+            beaten = [names[key] for key in image["beaten"] if kinds[key] == brick]
+            said += f", retenue devant {_listed(beaten)}" if beaten else ""
+            said += " ; aucune en vigueur une partie du temps" if "missing" in hows else ""
+        if hows != [""]:
+            rules.append(_rule(decl, f"source:{brick}"))
+        parts.append(f"{labels[brick]} : {said}")
+    text = " ; ".join(parts) + "."
+    if image["steps"] > 1 and decl["merge"]:
+        rules.append(_rule(decl, "merge"))
+        text += f" {image['steps']} pas de l'axe aux mêmes valeurs, réunis en une période."
+    return text, rules
 
 
 def _state_at(period: dict, row: dict | None, edge: float) -> str | None:
@@ -772,6 +813,8 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
     usable, fixed, refused = _sorted(decl, situation)
     grains = _grains(decl, usable, situation["settings"])
     images = _images(decl, grains, {e["id"] for e in situation["elements"]})
+    for image in images:
+        image["why"], image["rules"] = _why(decl, situation, image)
     states = decl["states"]
     blocking = list(dict.fromkeys(refused + _ties(decl, images)))
     if blocking:
@@ -835,8 +878,15 @@ def outcome(decl: dict, result: dict) -> dict | None:
     return None
 
 
+def plan(decl: dict) -> dict:
+    """Ce que le dessin d'une situation doit savoir de plus : l'axe du temps couvre tout l'axe déclaré, pour
+    que la frise garde la même échelle d'un geste à l'autre."""
+    return {"span": (decl["axis"]["min"], decl["axis"]["max"])}
+
+
 def extra(decl: dict, result: dict) -> dict:
-    """Ce que cette famille ajoute à la réponse : les périodes d'historique et ce qui bloque."""
+    """Ce que cette famille ajoute à la réponse : les périodes d'historique, d'où vient chacune, et ce qui
+    bloque."""
     fields = decl["image"]["fields"]
     return {
         "images": [
@@ -847,6 +897,9 @@ def extra(decl: dict, result: dict) -> dict:
                 "fields": {f["key"]: image["fields"][f["key"]] for f in fields},
                 "status": image["status"],
                 "from": image["picked"],
+                "sources": [key for keys in image["sources"].values() for key in keys],
+                "rules": image["rules"],
+                "why": image["why"],
             }
             for image in result["images"]
         ],

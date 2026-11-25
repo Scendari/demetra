@@ -938,7 +938,8 @@ def test_atelier_periodes(site, browser):
     expect(rows).to_have_count(1)
     expect(rows.first).to_contain_text("Tarif remisé")
     expect(page.locator(".at-plan .rep-timeline")).to_be_visible()
-    expect(page.locator("[data-at-hint]")).to_be_hidden()  # une frise n'a pas de briques à relier
+    # Une frise n'a pas de briques à relier : son aide parle de la provenance des lignes.
+    expect(page.locator("[data-at-hint]")).to_contain_text("ses périodes sources se détachent ici")
 
     # Changer une borne au clavier : Entrée met à jour le résultat et ne pose rien.
     page.fill('input[name="a.A"]', "6")
@@ -1043,6 +1044,38 @@ def test_atelier_etude_de_periodes_semee(site, browser):
     expect(page.locator("[data-result]")).to_contain_text("avec des jours sans responsable")
     expect(page.locator(".at-plan .rep-timeline")).to_be_visible()
     shot(page, "45-atelier-periodes", full_page=True)
+
+    # D'où vient une ligne : au survol, ses périodes sources se détachent sur la frise, la règle est nommée,
+    # et la frise garde ses dimensions.
+    traced = page.locator(".at-plan .tl-bar.is-traced")
+    box = page.locator(".at-walk [data-rep]").first.bounding_box()
+    rows.nth(1).hover()
+    assert traced.evaluate_all("els => els.map(e => e.dataset.p)") == ["A", "I2"]
+    expect(page.locator("[data-at-trace]")).to_contain_text(
+        "Nomination : aucune en vigueur, la ligne est gardée"
+    )
+    expect(page.locator("[data-at-trace]")).to_contain_text("Règles P1, P5, P6 et P7.")
+    expect(page.locator(".at-rules li.is-traced b")).to_have_text(["P1", "P5", "P6", "P7"])
+    assert page.locator(".at-walk [data-rep]").first.bounding_box() == box
+    page.mouse.move(2, 2)
+    expect(traced).to_have_count(0)
+    # Au clavier : le bouton de la ligne la garde, même quand le focus s'en va ; Échap la lâche.
+    why = rows.nth(0).locator("[data-at-why]")
+    why.focus()
+    page.keyboard.press("Enter")
+    expect(why).to_have_attribute("aria-pressed", "true")
+    page.locator("#at-build-title").focus()
+    assert sorted(traced.evaluate_all("els => els.map(e => e.dataset.p)")) == ["A", "B", "D", "I1"]
+    expect(page.locator(".at-card.is-traced")).to_have_count(3)
+    expect(page.locator("[data-at-trace]")).to_contain_text("Du 1 au 3 — Magasin : Magasin A")
+    shot(page, "46-atelier-provenance", full_page=True)
+    page.keyboard.press("Escape")
+    expect(traced).to_have_count(0)
+    expect(why).to_have_attribute("aria-pressed", "false")
+    # Une fiche dit les lignes que sa période alimente.
+    expect(page.locator('.at-card[data-brick="A"] .at-feeds')).to_contain_text(
+        "du 1 au 3, du 3 au 5, du 5 au 7"
+    )
 
     page.select_option('select[name="r.sans_responsable"]', "retirés")
     expect(rows).to_have_count(2)

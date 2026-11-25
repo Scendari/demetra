@@ -40,6 +40,9 @@ WORDS = {
         "rules": "règles que l'étude déclare",
         "rules_hint": "Chaque brique suit, à chaque pas, la première règle de cette liste qui lui "
         "correspond.",
+        "hint": "Tirez d'une brique à une autre pour les relier. Cliquez un lien pour le retirer.",
+        "hint_fine": "Glissez ici une brique de la palette pour l'ajouter ; déposée sur une brique, elle s'y "
+        "enchaîne.",
     },
     "periods": {
         "palette": "Sources de l'étude",
@@ -51,6 +54,8 @@ WORDS = {
         "counts": "Périodes posées par état final",
         "rules": "règles que la déclaration de l'étude revient à poser",
         "rules_hint": "Le site les applique dans cet ordre à chaque pas de l'axe du temps.",
+        "hint": "Survolez ou choisissez une ligne de l'historique : ses périodes sources se détachent ici.",
+        "hint_fine": "",
     },
 }
 END_TEXT = {
@@ -182,8 +187,9 @@ def _links_of(decl: dict, sit: dict, element: dict, names: dict) -> list[dict]:
     return out
 
 
-def _cards(study: Study, sit: dict, final: dict) -> list[dict]:
-    """Une fiche par brique posée : son nom, ses options, ce qu'on y provoque, ses liens, son état final."""
+def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> list[dict]:
+    """Une fiche par brique posée : son nom, ses options, ce qu'on y provoque, ses liens, son état final —
+    ou, pour une période, les lignes de l'historique qu'elle alimente (`feeds`)."""
     decl, smap = study.workshop, status_map(study.statuses)
     bricks = {b["type"]: b for b in decl["bricks"]}
     names = {e["id"]: e["label"] for e in sit["elements"]}
@@ -195,6 +201,7 @@ def _cards(study: Study, sit: dict, final: dict) -> list[dict]:
         cards.append(
             {
                 "id": key,
+                "feeds": (feeds or {}).get(key),
                 "bounds": _bounds(decl, element),
                 "kind": element["type"],
                 "label": element["label"],
@@ -255,8 +262,9 @@ def _palette(decl: dict, sit: dict) -> dict:
 def _drawn(request, study: Study, content: dict, step: int) -> dict:
     """Le schéma et le déroulé de la situation, dessinés par la représentation de l'étude."""
     rep = svc.current_representation(request.user, study)
+    plan = families.of(study.workshop).plan(study.workshop)
     html, summary, frames = svc.render_content(
-        study, content, svc.resolved_spec(rep), step=step, handles=True
+        study, content, svc.resolved_spec(rep), step=step, handles=True, span=plan.get("span")
     )
     smap = status_map(study.statuses)
     return {
@@ -296,28 +304,58 @@ def _result(study: Study, run: dict) -> dict:
     }
 
 
+def _history_row(image: dict, smap: dict) -> dict:
+    """Une ligne de l'historique, avec de quoi dire d'où elle vient et la comparer à celle d'avant."""
+    start, end = workshop.text_of(image["start"]), workshop.text_of(image["end"])
+    values = ["" if v is None else workshop.text_of(v) for v in image["fields"].values()]
+    status = smap.get(image["status"], {}).get("label", image["status"] or "")
+    rules = image["rules"]
+    said = " et ".join(filter(None, [", ".join(rules[:-1]), rules[-1]]))
+    return {
+        "id": image["id"],
+        "start": start,
+        "end": end,
+        "values": values,
+        "status": status,
+        "role": smap.get(image["status"], {}).get("role", "neutral"),
+        "sources": " ".join(image["sources"]),
+        "rules": " ".join(rules),
+        "why": f"{image['why']} Règle{'s' if len(rules) > 1 else ''} {said}.",
+        # Ce qui fait qu'une ligne est « la même » d'un geste à l'autre, et ce qu'on en dit si elle disparaît.
+        "sig": "|".join([end, *values, status]),
+        "text": " · ".join([f"du {start} au {end}", *(v or "vide" for v in values), status]),
+    }
+
+
 def _history(study: Study, extra: dict) -> dict:
     """Pour un atelier de périodes : l'historique obtenu, ligne par ligne, et ce qui bloque le traitement."""
     if "images" not in extra:
         return {}
     smap = status_map(study.statuses)
-    fields = study.workshop["image"]["fields"]
     return {
         "history": {
             "axis": study.workshop["axis"]["label"],
-            "fields": [f["label"] for f in fields],
-            "rows": [
-                {
-                    "start": workshop.text_of(image["start"]),
-                    "end": workshop.text_of(image["end"]),
-                    "values": ["" if v is None else workshop.text_of(v) for v in image["fields"].values()],
-                    "status": smap.get(image["status"], {}).get("label", image["status"] or ""),
-                    "role": smap.get(image["status"], {}).get("role", "neutral"),
-                }
-                for image in extra["images"]
-            ],
+            "fields": [f["label"] for f in study.workshop["image"]["fields"]],
+            "rows": [_history_row(image, smap) for image in extra["images"]],
         },
         "blocking": extra["blocking"],
+    }
+
+
+def _feeds(decl: dict, extra: dict, final: dict) -> dict | None:
+    """Pour un atelier de périodes, ce que chaque période posée devient dans l'historique : les lignes qu'elle
+    alimente, sinon pourquoi elle n'en alimente aucune (invalide, ignorée). None pour une autre famille."""
+    if "images" not in extra:
+        return None
+    lines: dict[str, list[str]] = {}
+    for image in extra["images"]:
+        for key in image["sources"]:
+            span = f"du {workshop.text_of(image['start'])} au {workshop.text_of(image['end'])}"
+            lines.setdefault(key, []).append(span)
+    apart = (decl["states"]["invalid"], decl["states"]["ignored"])
+    return {
+        key: {"lines": lines.get(key, []), "apart": status in apart and key not in lines}
+        for key, status in final.items()
     }
 
 
@@ -365,6 +403,7 @@ def study_workshop(request, sid: str):
     last = len(run["steps"]) - 1 if run else 0
     step, chosen = _step_asked(request, last)
     kept = step if chosen and run else None
+    final = run["final"] if run else {}
     if parse_qsl(request.META.get("QUERY_STRING", ""), keep_blank_values=True) != _state(study, sit, kept):
         # L'adresse ne garde que la situation : un geste (poser, relier) n'y reste pas.
         return redirect(_address(study, sit, kept))
@@ -372,7 +411,7 @@ def study_workshop(request, sid: str):
         declared=True,
         title=decl["title"],
         palette=_palette(decl, sit),
-        cards=_cards(study, sit, run["final"] if run else {}),
+        cards=_cards(study, sit, final, _feeds(decl, run["extra"], final) if run else None),
         hidden=[(name, value) for name, value in family.to_query(decl, sit) if name in ("e", "l")],
         words=WORDS[families.name_of(decl)],
         rules=_rules(decl, run),

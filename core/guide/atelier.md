@@ -260,15 +260,22 @@ La réponse a la forme de l'autre famille (`steps`, `final`, `outcome`, `rules_a
 
 ```json
 {"images": [{"id": "I1", "start": 1, "end": 3, "fields": {"offre": "A", "taux": null},
-             "status": "SANS_REMISE", "from": {"contrat": "A", "remise": null}},
+             "status": "SANS_REMISE", "from": {"contrat": "A", "remise": null},
+             "sources": ["A"], "rules": ["P1", "P5", "P6"],
+             "why": "Contrat : Contrat A ; Remise : aucune en vigueur, la ligne est gardée. 2 pas de l'axe aux mêmes valeurs, réunis en une période."},
             {"id": "I2", "start": 3, "end": 5, "fields": {"offre": "A", "taux": 10},
-             "status": "REMISE", "from": {"contrat": "A", "remise": "B"}},
+             "status": "REMISE", "from": {"contrat": "A", "remise": "B"},
+             "sources": ["A", "B"], "rules": ["P1", "P6"],
+             "why": "Contrat : Contrat A ; Remise : Remise B. 2 pas de l'axe aux mêmes valeurs, réunis en une période."},
             {"id": "I3", "start": 5, "end": 6, "fields": {"offre": "A", "taux": null},
-             "status": "SANS_REMISE", "from": {"contrat": "A", "remise": null}}],
+             "status": "SANS_REMISE", "from": {"contrat": "A", "remise": null},
+             "sources": ["A"], "rules": ["P1", "P5"],
+             "why": "Contrat : Contrat A ; Remise : aucune en vigueur, la ligne est gardée."}],
  "blocking": []}
 ```
 
 - `images` : l'historique obtenu, période par période ; `from` nomme la période retenue pour chaque source au premier pas de l'image.
+- `images[].sources`, `rules`, `why` : **d'où vient la ligne**. `sources` liste toutes les périodes posées qui l'ont nourrie (plusieurs par source quand des périodes de mêmes valeurs se suivent) ; `rules` les règles de l'étude en cause (clés `P1`…, celles de `workshop.rules`) ; `why` le dit en une phrase : la période retenue pour chaque source, celle qu'elle a devancée, une source absente, une égalité, des pas réunis. Citez `why` à l'humain plutôt que de le reformuler : c'est ce que l'écran de l'atelier affiche quand il choisit une ligne.
 - `blocking` : ce qui bloque le traitement, en phrases ; vide quand rien ne bloque.
 - `steps` : un pas chaque fois qu'une image commence, qu'un trou s'ouvre ou qu'une période posée change d'état ; `at` y donne la position sur l'axe. Le déroulé va jusqu'au bout de l'axe : `final` est l'état des périodes posées à ce moment (`{"A": "FINIE", "B": "FINIE"}` ici, les deux périodes finissant avant la fin de l'axe ; une période qui court jusqu'au bout de l'axe reste `states.active`). Un pas sans image dit quelle source manque.
 - `case` : les périodes posées (groupe « Périodes posées ») et les images (groupe « Historique obtenu »), avec `attrs.start` et `attrs.end` : la représentation de l'étude les dessine telles quelles. Une frise convient le mieux.

@@ -1496,6 +1496,7 @@ def render_content(
     step: int = 0,
     siblings: list[dict] | None = None,
     handles: bool = False,
+    span: tuple | None = None,
 ) -> tuple[str, dict, list[dict]]:
     """Dessine un contenu de cas, déposé ou construit dans l'atelier, avec les définitions de l'étude."""
     from .render import render
@@ -1513,6 +1514,7 @@ def render_content(
         lifecycles=study.lifecycles or [],
         attributes=study.attributes or [],
         handles=handles,
+        span=span,
     )
     return html, summary, frames
 

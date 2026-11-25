@@ -846,6 +846,11 @@ def outcome(decl: dict, result: dict) -> dict | None:
     return outcome_of(decl, result["world"])
 
 
+def plan(decl: dict) -> dict:
+    """Ce que le dessin d'une situation doit savoir de plus : rien pour des éléments reliés."""
+    return {}
+
+
 def extra(decl: dict, result: dict) -> dict:
     """Ce que cette famille ajoute à la réponse d'un déroulé : rien."""
     return {}

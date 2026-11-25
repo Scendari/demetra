@@ -262,6 +262,13 @@ compose**, et le site calcule.
 | les champs restitués, et si les images identiques qui se suivent se réunissent | les règles que cette déclaration revient à poser, écrites en phrases par le site |
 | le sort d'une période invalide (durée nulle, borne absente, bornes inversées) | l'encadré « Le traitement est bloqué » et sa raison |
 
+**D'où vient une ligne.** Survoler une ligne de l'historique, ou la choisir par son bouton (au clavier aussi),
+fait ressortir ses périodes sources sur la frise et dans les fiches, et les règles en cause dans la liste des
+règles ; une phrase sous le tableau dit laquelle a été retenue pour chaque source, laquelle elle a devancée, et
+si des pas ont été réunis. Échap lâche la ligne. Dans l'autre sens, chaque fiche dit les lignes que sa période
+alimente. Sans script, la liste « D'où vient chaque ligne » dit la même chose ; l'API le rend dans
+`images[].sources`, `rules` et `why`.
+
 Le site calcule une image par pas de l'axe — les périodes en vigueur à la fin du pas, bornes [début, fin[ —
 puis réunit les pas qui donnent la même image. Le déroulé avance d'un pas chaque fois qu'une image commence,
 qu'un trou s'ouvre ou qu'une période posée change d'état, jusqu'au bout de l'axe : une période finie avant la
@@ -430,9 +437,9 @@ uv run ruff check .
   ni script tiers dans l'interface.
 - `docs/captures/` — captures des écrans principaux, produites par les tests de bout en bout ; `19` à `27` :
   une capture par représentation du catalogue élargi ; `28` : le choix à trois niveaux ; `29` : les exemples de
-  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `45` : l'onglet « Atelier » (page vide,
+  la page Briques ; `30` : diagramme de séquence sur petit écran ; `40` à `46` : l'onglet « Atelier » (page vide,
   situation construite, seconde étude, mobile en thème sombre, situation construite au glisser-déposer, atelier
-  de périodes de l'étude « Responsable d'un magasin au fil du temps »).
+  de périodes de l'étude « Responsable d'un magasin au fil du temps », provenance d'une ligne de l'historique).
 
 ## Architecture en bref
 

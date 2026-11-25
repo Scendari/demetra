@@ -317,6 +317,30 @@ def test_the_walk_tells_each_period_what_it_becomes():
     ]
 
 
+def test_each_line_says_where_it_comes_from():
+    """Chaque ligne nomme ses périodes sources, toutes celles qui l'ont nourrie, et les règles en cause."""
+    decl = declaration()
+    # Deux contrats de même offre se suivent : une seule ligne, deux sources, et la règle de fusion.
+    placed = [contrat("A", 1, 3), contrat("B", 3, 5)]
+    sit = periods.situation(decl, {"elements": placed}, Report())
+    (line,) = periods.extra(decl, periods.run(decl, sit, "A_VENIR"))["images"]
+    assert line["sources"] == ["A", "B"] and line["from"]["contrat"] == "A"
+    assert line["why"].startswith("Contrat : Contrat A, puis Contrat B ; Remise : aucune en vigueur")
+    assert line["why"].endswith("4 pas de l'axe aux mêmes valeurs, réunis en une période.")
+    assert line["rules"] == ["P1", "P5", "P6", "P7"]
+    # Deux remises en vigueur : la plus récente est retenue, la ligne dit devant laquelle.
+    placed = [contrat("A", 1, 2), remise("B", 1, 2, "R1"), remise("C", 1.5, 2, "R2"), bareme("D", 1, 2, "R2")]
+    sit = periods.situation(decl, {"elements": placed}, Report())
+    (line,) = periods.extra(decl, periods.run(decl, sit, "A_VENIR"))["images"]
+    assert line["sources"] == ["A", "C", "D"]
+    assert "Remise : Remise C, retenue devant Remise B" in line["why"] and line["rules"] == ["P1", "P5"]
+    # À égalité, rien n'est retenu : la ligne le dit, et la règle de la source est citée.
+    placed = [contrat("A", 1, 2), remise("B", 1, 2, "R1"), remise("C", 1, 2, "R2")]
+    sit = periods.situation(decl, {"elements": placed}, Report())
+    (line,) = periods.extra(decl, periods.run(decl, sit, "A_VENIR"))["images"]
+    assert "Remise : plusieurs en vigueur, à égalité" in line["why"] and "P5" in line["rules"]
+
+
 def test_an_address_holds_the_whole_situation():
     decl = declaration()
     raw = {
@@ -362,6 +386,10 @@ def test_the_api_describes_and_runs_a_periods_workshop(api, atelier):
             "fields": {"offre": "Base", "taux": None},
             "status": "PLEIN",
             "from": {"contrat": "A", "remise": None, "bareme": None},
+            "sources": ["A"],
+            "rules": ["P1", "P5", "P6", "P7"],
+            "why": "Contrat : Contrat A ; Remise : aucune en vigueur, la ligne est gardée ; Barème : aucune "
+            "en vigueur, la ligne est gardée. 2 pas de l'axe aux mêmes valeurs, réunis en une période.",
         },
         {
             "id": "I2",
@@ -370,6 +398,10 @@ def test_the_api_describes_and_runs_a_periods_workshop(api, atelier):
             "fields": {"offre": "Base", "taux": 20},
             "status": "REMISE",
             "from": {"contrat": "A", "remise": "B", "bareme": "C"},
+            "sources": ["A", "B", "C"],
+            "rules": ["P1", "P7"],
+            "why": "Contrat : Contrat A ; Remise : Remise B ; Barème : Barème C. 2 pas de l'axe aux mêmes "
+            "valeurs, réunis en une période.",
         },
         {
             "id": "I3",
@@ -378,6 +410,10 @@ def test_the_api_describes_and_runs_a_periods_workshop(api, atelier):
             "fields": {"offre": "Base", "taux": None},
             "status": "PLEIN",
             "from": {"contrat": "A", "remise": None, "bareme": None},
+            "sources": ["A"],
+            "rules": ["P1", "P5", "P6"],
+            "why": "Contrat : Contrat A ; Remise : aucune en vigueur, la ligne est gardée ; Barème : aucune "
+            "en vigueur, la ligne est gardée.",
         },
     ]
     assert data["outcome"] == {"label": "Tarif avec remise", "status": "REMISE"}
@@ -434,13 +470,14 @@ def rows_of(page: str) -> list[list[str]]:
     table = re.search(r'<table class="at-history">(.*?)</table>', page, flags=re.DOTALL)
     assert table, "pas de tableau d'historique"
     body = table.group(1).split("<tbody>")[1]
-    return [
+    rows = [
         [
             re.sub(r"<[^>]+>", "", cell).strip()
             for cell in re.findall(r"<td[^>]*>(.*?)</td>", row, flags=re.DOTALL)
         ]
-        for row in re.findall(r"<tr>(.*?)</tr>", body, flags=re.DOTALL)
+        for row in re.findall(r"<tr[^>]*>(.*?)</tr>", body, flags=re.DOTALL)
     ]
+    return [row[:-1] for row in rows]  # la dernière case porte le bouton « D'où vient cette ligne »
 
 
 def test_the_page_starts_empty_and_places_periods_one_after_the_other(atelier, web):
@@ -485,6 +522,40 @@ def test_the_page_shows_the_history_and_follows_every_change(atelier, web):
     # Le fragment redessiné sur place porte le même résultat.
     part = client.get(f"/etudes/{atelier}/atelier/?{state}", headers={"X-Requested-With": "fetch"})
     assert "<html" not in part.content.decode() and len(rows_of(part.content.decode())) == 3
+
+
+def test_the_page_says_where_each_line_comes_from(atelier, web, users):
+    actor = svc.Actor(users["ana"])
+    svc.ensure_system_representations()
+    frise = svc.Representation.objects.get(slug="frise-temporelle")
+    svc.choose_representation(actor, svc.get_study(actor, atelier), frise, for_study=True)
+    client = web("ana")
+    query = "e=A%3Acontrat&e=B%3Aremise&e=C%3Abareme&e=Z%3Acontrat&de.A=1&a.A=4&de.B=2&a.B=3&de.C=1&a.C=4"
+    page = client.get(f"/etudes/{atelier}/atelier/?{query}&de.Z=2&a.Z=2", follow=True).content.decode()
+    # Chaque ligne porte ses sources et ses règles ; la liste « D'où vient chaque ligne » les dit sans script.
+    rows = re.findall(
+        r'<tr data-start="([^"]+)" data-image="([^"]+)" data-from="([^"]*)" data-rules="([^"]*)"', page
+    )
+    assert rows == [("1", "I1", "A", "P1 P5 P6"), ("2", "I2", "A B C", "P1"), ("3", "I3", "A", "P1 P5 P6")]
+    assert page.count('data-at-why aria-pressed="false"') == 3
+    assert (
+        "<b>Du 2 au 3</b> — Contrat : Contrat A ; Remise : Remise B ; Barème : Barème C. Règle P1.</li>"
+        in page
+    )
+    # Une fiche dit les lignes que sa période alimente ; une période ignorée garde son statut.
+    feeds = re.findall(
+        r'data-feeds="\d+"><span class="at-final-tx">Dans l\'historique</span><span[^>]*>([^<]+)<', page
+    )
+    assert feeds == ["du 1 au 2, du 2 au 3, du 3 au 4", "du 2 au 3", "du 2 au 3"]
+    assert 'data-final="DEVANCEE"><span class="at-final-tx">Hors du calcul</span>' in page
+    # La frise de l'atelier nomme ses barres et couvre tout l'axe déclaré, de 1 à 13.
+    assert 'data-p="A"' in page and 'data-p="I2"' in page
+    low, high = map(float, re.search(r'data-span="(\S+) (\S+) \d+ \d+"', page).groups())
+    assert low <= 1 and high >= 13
+    # Un cas déposé, lui, se dessine sans ces poignées.
+    client.post(f"/etudes/{atelier}/atelier/", {"etat": query, "title": "Remise d'un mois"})
+    case = client.get(f"/etudes/{atelier}/?cas=atelier-1", follow=True).content.decode()
+    assert "tl-bar" in case and "data-p=" not in case and "data-span=" not in case and "tl-grip" not in case
 
 
 def test_a_human_saves_the_built_history_as_a_case(atelier, web):
