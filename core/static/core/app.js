@@ -402,6 +402,8 @@
       const before = historyNow();
       const key = focusKey(from || doc.activeElement);
       const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
+      // Le panneau de construction et la table de l'historique défilent à part : remplacés, ils repartiraient du haut.
+      const scrolled = [".at-build", ".at-history-wrap"].map((sel) => { const el = $(sel, atelier); return [sel, el ? el.scrollTop : 0, el ? el.scrollLeft : 0]; });
       stop();
       closePop();
       atelier.setAttribute("aria-busy", "true");
@@ -412,6 +414,7 @@
           atelier.innerHTML = html;
           atelier.removeAttribute("aria-busy");
           open.forEach((name) => { const d = $('details[data-keep="' + name + '"]', atelier); if (d) d.open = true; });
+          scrolled.forEach(([sel, top, left]) => { const el = $(sel, atelier); if (el) { el.scrollTop = top; el.scrollLeft = left; } });
           ready();
           showDelta(before);
           history.replaceState(history.state, "", landed || url);   // le serveur a rangé l'adresse : on garde la sienne
