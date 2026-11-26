@@ -139,6 +139,7 @@ Il n'y a jamais de valeur dans le dépôt. Le fichier d'environnement reste sur 
 | `DEMETRA_HSTS_SECONDS` | — | `0` si Caddy pose déjà HSTS (sinon Django le pose, un an) |
 | `DEMETRA_SIGNUP_OPEN` | — | `0` : inscription fermée, comptes créés dans `/admin/` |
 | `DEMETRA_SSE_MAX_SECONDS` | — | 55 par défaut : durée d'une connexion du flux d'événements en direct |
+| `DEMETRA_TRASH_DAYS` | — | 30 par défaut : jours pendant lesquels une étude supprimée reste restaurable dans la corbeille |
 
 Facultatif, à activer seulement sur demande :
 
@@ -203,6 +204,10 @@ docker compose exec demetra python manage.py sauvegarde /backup --keep-days 30
   sortie est non nul en cas d'échec.
 - `--keep-days` efface les sauvegardes plus anciennes que N jours (0 : n'efface rien).
 - Le dossier `/backup` doit être monté en écriture pour l'UID 1000.
+
+Corbeille : une étude supprimée est effacée d'office après `DEMETRA_TRASH_DAYS` jours. Le site vide la corbeille
+quand un propriétaire ouvre sa liste d'études ; pour un effacement à date, ajoutez au cron quotidien
+`docker compose exec -T demetra python manage.py purger_corbeille`.
 
 Il n'y a rien d'autre à sauvegarder : aucun fichier téléversé. Il faut aussi conserver le fichier
 d'environnement, qui contient la clé secrète.

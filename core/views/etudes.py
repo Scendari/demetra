@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
@@ -89,7 +90,35 @@ def studies(request):
                 else 0,
             }
         )
-    return render(request, "core/studies.html", {"rows": rows, "kinds": Study.Kind.choices, "nav": "studies"})
+    trashed = svc.trash_of(me).count()
+    return render(
+        request,
+        "core/studies.html",
+        {"rows": rows, "kinds": Study.Kind.choices, "nav": "studies", "trashed": trashed},
+    )
+
+
+@login_required
+@web
+def studies_trash(request):
+    """La corbeille : les études supprimées par leur propriétaire, restaurables jusqu'à leur effacement."""
+    me = actor(request)
+    if request.method == "POST":
+        sid, action = request.POST.get("study", ""), request.POST.get("action")
+        if action == "restore":
+            study = svc.restore_study(me, sid)
+            messages.success(request, f"Étude « {study.title} » restaurée.")
+            return redirect("workspace", sid=study.public_id)
+        if action == "purge":
+            title = svc.purge_study(me, sid)
+            messages.success(request, f"Étude « {title} » effacée définitivement.")
+        return redirect("studies_trash")
+    rows = [{"study": s, "until": svc.purge_date(s), "cases": s.cases.count()} for s in svc.trash_of(me)]
+    return render(
+        request,
+        "core/trash.html",
+        {"rows": rows, "days": settings.DEMETRA_TRASH_DAYS, "nav": "studies"},
+    )
 
 
 @login_required
@@ -99,6 +128,14 @@ def study_setup(request, sid: str):
     if request.method == "POST":
         data = request.POST
         action = data.get("action")
+        if action == "trash":
+            study = svc.trash_study(me, svc.get_study(me, sid, Role.OWNER, "studies:write"))
+            messages.success(
+                request,
+                f"Étude « {study.title} » mise à la corbeille. Vous pouvez la restaurer pendant "
+                f"{settings.DEMETRA_TRASH_DAYS} jours depuis la corbeille.",
+            )
+            return redirect("studies")
         if action == "archive":
             study = svc.get_study(me, sid, Role.OWNER)
             svc.archive_study(me, study)
@@ -165,6 +202,7 @@ def _setup_context(study: Study, **extra) -> dict:
         "definitions_json": definitions,
         "example_case": json.dumps({"cases": [casemodel.EXAMPLE_CASE]}, ensure_ascii=False, indent=2),
         "cases_count": study.cases.filter(retired_at__isnull=True).count(),
+        "trash_days": settings.DEMETRA_TRASH_DAYS,
         "nav": "studies",
         **extra,
     }

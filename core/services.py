@@ -157,7 +157,9 @@ def create_token(
         expires_at=expires,
     )
     if study_ids:
-        allowed = Study.objects.filter(public_id__in=study_ids, memberships__user=user)
+        allowed = Study.objects.filter(
+            public_id__in=study_ids, memberships__user=user, deleted_at__isnull=True
+        )
         token.studies.set(allowed)
     audit(Actor(user), "token.create", target=token.display, scopes=scopes, restricted=bool(study_ids))
     return token, secret
@@ -214,7 +216,7 @@ def need_role(actor: Actor, study: Study, min_role: str):
 
 
 def studies_for(actor: Actor):
-    qs = Study.objects.filter(memberships__user=actor.user, archived_at__isnull=True)
+    qs = Study.objects.filter(memberships__user=actor.user, archived_at__isnull=True, deleted_at__isnull=True)
     if actor.token and actor.token.studies.exists():
         qs = qs.filter(pk__in=actor.token.studies.values("pk"))
     return qs.distinct()
@@ -453,6 +455,92 @@ def archive_study(actor: Actor, study: Study):
     study.archived_at = timezone.now()
     study.save(update_fields=["archived_at"])
     audit(actor, "study.archive", study, target=study.title)
+
+
+# ----- Corbeille -----
+# Seul le propriétaire supprime. Mettre à la corbeille se rattrape : une IA peut le faire avec un jeton du
+# propriétaire (portée studies:write). Effacer pour de bon ne se rattrape pas : c'est un geste humain, dans
+# l'interface. Après DEMETRA_TRASH_DAYS jours, la corbeille se vide d'elle-même (purge_expired).
+
+
+def trash_study(actor: Actor, study: Study) -> Study:
+    actor.require_scope("studies:write")
+    need_role(actor, study, Role.OWNER)
+    study.deleted_at = timezone.now()
+    study.deleted_by = actor.user
+    study.save(update_fields=["deleted_at", "deleted_by"])
+    audit(actor, "study.trash", study, target=study.title)
+    return study
+
+
+def trash_of(actor: Actor):
+    """Les études que l'acteur a mises (ou qu'on a mises) à la corbeille et dont il est propriétaire."""
+    purge_expired()
+    qs = Study.objects.filter(owner=actor.user, deleted_at__isnull=False, archived_at__isnull=True)
+    if actor.token and actor.token.studies.exists():
+        qs = qs.filter(pk__in=actor.token.studies.values("pk"))
+    return qs.order_by("-deleted_at")
+
+
+def trashed_study(actor: Actor, public_id: str) -> Study:
+    actor.require_scope("studies:read")
+    study = trash_of(actor).filter(public_id=public_id).first()
+    if study is None:
+        raise not_found("Étude dans la corbeille")
+    study.my_role = Role.OWNER
+    return study
+
+
+def purge_date(study: Study):
+    return study.deleted_at + timezone.timedelta(days=settings.DEMETRA_TRASH_DAYS)
+
+
+def restore_study(actor: Actor, public_id: str) -> Study:
+    actor.require_scope("studies:write")
+    study = trashed_study(actor, public_id)
+    study.deleted_at = None
+    study.deleted_by = None
+    study.save(update_fields=["deleted_at", "deleted_by"])
+    audit(actor, "study.restore", study, target=study.title)
+    return study
+
+
+def purge_study(actor: Actor, public_id: str) -> str:
+    """Efface l'étude, ses cas, ses avis et son historique. Il en reste une ligne au journal du site."""
+    if actor.is_token:
+        raise ServiceError(
+            403,
+            "human_only",
+            "Une étude ne s'efface pour de bon que dans l'interface web, par son propriétaire. "
+            f"Dans la corbeille, elle sera effacée d'elle-même après {settings.DEMETRA_TRASH_DAYS} jours.",
+        )
+    study = trashed_study(actor, public_id)
+    title = study.title
+    _erase(study, actor)
+    return title
+
+
+def purge_expired() -> int:
+    """Efface les études restées à la corbeille plus longtemps que le délai."""
+    limit = timezone.now() - timezone.timedelta(days=settings.DEMETRA_TRASH_DAYS)
+    expired = list(Study.objects.filter(deleted_at__lt=limit))
+    for study in expired:
+        _erase(study, None)
+    return len(expired)
+
+
+@transaction.atomic
+def _erase(study: Study, actor: Actor | None) -> None:
+    audit(
+        actor,
+        "study.purge",
+        None,
+        target=study.title,
+        id=study.public_id,
+        cases=study.cases.count(),
+        expired=actor is None,
+    )
+    study.delete()
 
 
 # ---------------------------------------------------------------------------

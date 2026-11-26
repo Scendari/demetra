@@ -85,7 +85,8 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
    `presentation_hash` change, les avis sont conservés (`updated_cosmetic`). Toute nouvelle option d'un cas doit
    être rangée sciemment dans l'une ou l'autre.
 6. **Une IA ne rend jamais d'avis et ne partage jamais sans confirmation humaine.** Ces gestes restent dans
-   l'interface, réservés aux humains. De même, enregistrer comme cas une situation construite dans l'atelier.
+   l'interface, réservés aux humains. De même, enregistrer comme cas une situation construite dans l'atelier, et
+   effacer une étude pour de bon (une IA peut seulement la mettre à la corbeille, d'où elle se restaure).
 7. **Un jeton n'est jamais affiché, journalisé ni placé dans une URL.** Le site n'en garde que le condensé.
 8. **Le mode d'emploi suit le code.** Toute route d'API doit être décrite dans `core/guide/*.md`
    (`tests/test_api.py::test_every_api_route_is_documented_in_the_guide`). À chaque changement visible par une IA,
@@ -130,6 +131,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   disposition. `test_admin.py`, `test_entreprise.py`, `test_connect.py`, `test_exploitation.py` : administration,
   SSO/LDAP/HTTPS, lien d'autorisation, sonde, sauvegarde et kit `deploiement/`.
   `test_message_organisation.py` : message de l'organisation dans le mode d'emploi.
+  `test_corbeille.py` : suppression d'une étude (corbeille, restauration, effacement réservé aux humains).
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque).
 - `scripts/empreinte_rendu.py` : empreinte de tout ce que le site calcule sur les études de démonstration
   (données produites par `core/demo/*`, normalisation, rejeu, empreintes, couverture, recommandation,

@@ -76,6 +76,13 @@ class Study(models.Model):
         default=False, help_text="Étude d'exemple aux données fictives : affichée comme telle."
     )
     archived_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Mise à la corbeille : l'étude n'est plus visible et sera effacée après le délai de "
+        "DEMETRA_TRASH_DAYS jours, sauf si son propriétaire la restaure.",
+    )
+    deleted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -517,6 +524,8 @@ _labels(
     representation="représentation",
     is_example="exemple",
     archived_at="archivée le",
+    deleted_at="à la corbeille depuis le",
+    deleted_by="mise à la corbeille par",
     **_COMMON,
 )
 _labels(Membership, study="étude", user="compte", role="rôle", created_at="depuis le")

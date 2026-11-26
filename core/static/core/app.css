@@ -157,6 +157,11 @@ details.confirm > summary, details.add > summary { list-style: none; width: fit-
 details.confirm > summary::-webkit-details-marker, details.add > summary::-webkit-details-marker { display: none; }
 details.confirm[open] > summary { display: none; }
 details.confirm form { display: grid; gap: var(--s-2); justify-items: start; padding: var(--s-3); border: 1px solid var(--r-error-line); border-radius: var(--radius); background: var(--r-error-bg); }
+.trash-list { display: grid; gap: var(--s-3); margin-top: var(--s-4); padding: 0; list-style: none; }   /* corbeille */
+.trash-item { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: var(--s-3); padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.trash-text { flex: 1 1 20rem; min-width: 0; display: grid; gap: var(--s-1); }
+.trash-text h2 { font-size: var(--t-lg); font-weight: 680; overflow-wrap: anywhere; }
+.trash-actions { display: flex; flex-wrap: wrap; align-items: start; gap: var(--s-2); max-width: 100%; }
 details.add[open] > summary { margin-bottom: var(--s-3); }
 
 .seg { display: inline-flex; border: 1px solid var(--field-line); border-radius: var(--radius); background: var(--raised); overflow: hidden; }

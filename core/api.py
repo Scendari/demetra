@@ -473,6 +473,7 @@ def me(request):
         },
         "cannot": [
             "rendre un avis (réservé aux humains)",
+            "effacer une étude pour de bon (la mettre à la corbeille, oui ; l'effacer, non)",
             "partager directement (demande confirmée par un humain)",
             "choisir la représentation affichée (l'utilisateur choisit)",
         ],
@@ -514,6 +515,45 @@ def patch_study(request, sid: str, payload: StudyPatch):
     actor = actor_of(request)
     study = svc.get_study(actor, sid, Role.EDITOR, "studies:write")
     return study_out(svc.update_study(actor, study, payload.dict(exclude_unset=True)))
+
+
+@api.delete(
+    "/studies/{sid}",
+    tags=["Études"],
+    summary="Supprimer une étude : elle part à la corbeille, restaurable pendant le délai (propriétaire)",
+)
+def trash_study(request, sid: str):
+    actor = actor_of(request)
+    study = svc.trash_study(actor, svc.get_study(actor, sid, Role.OWNER, "studies:write"))
+    return _trashed_out(study, deleted=True)
+
+
+@api.get("/trash", tags=["Études"], summary="Lister mes études à la corbeille, avec leur date d'effacement")
+def list_trash(request):
+    actor = actor_of(request)
+    actor.require_scope("studies:read")
+    return {"items": [_trashed_out(s) for s in svc.trash_of(actor)], "days": settings.DEMETRA_TRASH_DAYS}
+
+
+@api.post("/trash/{sid}/restore", tags=["Études"], summary="Restaurer une étude de la corbeille")
+def restore_study(request, sid: str):
+    return study_out(svc.restore_study(actor_of(request), sid))
+
+
+def _trashed_out(study: Study, deleted: bool = False) -> dict:
+    out = {
+        "id": study.public_id,
+        "title": study.title,
+        "deleted_at": study.deleted_at.isoformat(),
+        "purge_at": svc.purge_date(study).isoformat(),
+    }
+    if deleted:
+        out["deleted"] = True
+        out["note"] = (
+            "L'étude est à la corbeille, pas effacée : POST /api/v1/trash/{id}/restore la rétablit. "
+            "L'effacement définitif se fait dans l'interface, par une personne, ou après le délai."
+        ).replace("{id}", study.public_id)
+    return out
 
 
 # ---------------------------------------------------------------------------

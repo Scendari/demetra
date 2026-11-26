@@ -9,7 +9,7 @@ Version {{version}}.
 | Lecteur (`viewer`) | Lire l'étude, les cas, les avis. |
 | Commentateur (`commenter`) | En plus : rendre un avis et commenter. |
 | Éditeur (`editor`) | En plus : modifier l'étude, déposer et retirer des cas, choisir la représentation par défaut. |
-| Propriétaire (`owner`) | En plus : partager, confirmer les demandes, archiver. |
+| Propriétaire (`owner`) | En plus : partager, confirmer les demandes, archiver, supprimer (corbeille). |
 
 `GET /api/v1/studies/{id}/members` liste qui a accès.
 

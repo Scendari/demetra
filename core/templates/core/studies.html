@@ -5,6 +5,7 @@
   <header class="page-head">
     <h1>Études</h1>
     <div class="page-actions">
+      {% if trashed %}<a class="btn" href="{% url 'studies_trash' %}"><svg class="ic" aria-hidden="true"><use href="#ui-retired"/></svg>Corbeille ({{ trashed }})</a>{% endif %}
       {% if rows %}<a class="btn" href="{% url 'tokens' %}"><svg class="ic" aria-hidden="true"><use href="#ui-key"/></svg>Connecter une IA</a>{% endif %}
       <a class="btn btn-primary" href="#nouvelle"><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>Nouvelle étude</a>
     </div>

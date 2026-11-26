@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Corbeille — Demetra{% endblock %}
+{% block content %}
+<div class="page">
+  <header class="page-head">
+    <h1>Corbeille</h1>
+    <div class="page-actions"><a class="btn" href="{% url 'studies' %}">Retour aux études</a></div>
+  </header>
+  <p class="lead-sm">Les études que vous avez supprimées. Chacune reste restaurable {{ days }} jours, puis elle est effacée avec ses cas, leurs avis et son historique.</p>
+
+  {% if rows %}
+  <ul class="trash-list" role="list">
+    {% for r in rows %}
+    <li class="trash-item">
+      <div class="trash-text">
+        <h2>{{ r.study.title }}</h2>
+        <p class="sub">{{ r.cases }} cas · supprimée le {{ r.study.deleted_at|date:"j M Y" }}{% if r.study.deleted_by and r.study.deleted_by != request.user %} par {{ r.study.deleted_by.username }}{% endif %} · <b>effacée le {{ r.until|date:"j M Y" }}</b></p>
+        {% if r.study.description %}<p class="sub">{{ r.study.description|truncatechars:140 }}</p>{% endif %}
+      </div>
+      <div class="trash-actions">
+        <form method="post">{% csrf_token %}<input type="hidden" name="study" value="{{ r.study.public_id }}"><input type="hidden" name="action" value="restore"><button class="btn" type="submit">Restaurer</button></form>
+        <details class="confirm"><summary class="btn btn-danger">Effacer…</summary>
+          <form method="post">{% csrf_token %}<input type="hidden" name="study" value="{{ r.study.public_id }}"><input type="hidden" name="action" value="purge"><p>Effacer « {{ r.study.title }} » pour de bon ? Ses {{ r.cases }} cas, leurs avis et son historique disparaissent ; rien ne pourra être rétabli.</p><button class="btn btn-danger" type="submit">Oui, effacer définitivement</button></form>
+        </details>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <section class="empty"><h2>La corbeille est vide</h2><p>Une étude supprimée depuis « Règles et définitions » arrive ici.</p></section>
+  {% endif %}
+</div>
+{% endblock %}

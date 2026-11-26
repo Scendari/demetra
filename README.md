@@ -193,7 +193,8 @@ représentation aux trois niveaux :
 uv run python scripts/ia_externe.py --base http://127.0.0.1:8000 --token dmt_…
 ```
 
-Ce qu'un jeton ne peut pas faire : rendre un avis (403 `human_only`), partager directement (la demande attend
+Ce qu'un jeton ne peut pas faire : rendre un avis (403 `human_only`), effacer une étude pour de bon (il peut la
+mettre à la corbeille, d'où elle se restaure pendant 30 jours), partager directement (la demande attend
 une confirmation dans **Étude › Partage**), remplacer la représentation qu'un humain a choisie pour l'étude
 (409 `human_choice`), dépasser le rôle de son titulaire, sortir des études auxquelles il est limité. Tout ce
 qu'il fait est inscrit au journal de l'étude sous son nom.

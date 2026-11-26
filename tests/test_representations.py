@@ -303,3 +303,60 @@ def test_reimporting_the_catalogue_changes_nothing(demo):
     owner = svc.Actor(study.memberships.get(role="owner").user)
     report = svc.upsert_cases(owner, study, catalogue.cases()[:100])
     assert report["counts"] == {"unchanged": 100}
+
+
+def _graph_case(key: str, links: list[dict]) -> dict:
+    case = make_case(key)
+    case["entities"] = [
+        {"id": "A", "label": "Workflow A", "type": "workflow"},
+        {"id": "B", "label": "Task B", "type": "task"},
+        {"id": "C", "label": "Task C", "type": "task"},
+    ]
+    case["links"] = links
+    case["steps"] = [{"title": "Départ", "changes": {"A": "OK"}}]
+    return case
+
+
+def _drawn_graph(obj, key: str) -> tuple[dict[str, tuple[float, float]], list[float], list[str]]:
+    spec = Representation.objects.get(slug="graphe-couches", scope="system").spec
+    html, _, _ = svc.render_case(obj, obj.cases.get(key=key), spec)
+    svg = re.search(r'<svg class="rep-svg[^"]*"[^>]*viewBox="([^"]+)"', html)
+    box = [float(v) for v in svg.group(1).split()]
+    nodes = re.findall(r'<g class="n[^"]*"[^>]*transform="translate\(([\d.]+) ([\d.]+)\)"', html)
+    paths = re.findall(r'class="lk-path" d="([^"]+)"', html)
+    return dict(zip("ABC", ((float(x), float(y)) for x, y in nodes))), box, paths
+
+
+def test_a_link_of_another_type_still_places_the_bricks_in_levels(api, study):
+    # A contient B (lien quelconque), B précède C (dépendance) : avant, seule la dépendance rangeait les
+    # nœuds, et A restait à côté de B, relié par une courbe qui sortait du dessin.
+    links = [{"from": "A", "to": "B", "type": "contains"}, {"from": "B", "to": "C", "type": "prerequisite"}]
+    api.post(f"/studies/{study}/cases/batch", {"cases": [_graph_case("g", links)]})
+    pos, _, _ = _drawn_graph(Study.objects.get(public_id=study), "g")
+    assert pos["A"][1] < pos["B"][1] < pos["C"][1]
+
+
+def test_the_graph_grows_to_hold_a_link_that_goes_back(api, study):
+    # C précède A, A précède B, B précède C : une boucle ; le lien qui remonte passe hors des nœuds.
+    links = [
+        {"from": "A", "to": "B", "type": "flow"},
+        {"from": "B", "to": "C", "type": "flow"},
+        {"from": "C", "to": "A", "type": "flow"},
+    ]
+    api.post(f"/studies/{study}/cases/batch", {"cases": [_graph_case("boucle", links)]})
+    _, (x0, y0, w, h), paths = _drawn_graph(Study.objects.get(public_id=study), "boucle")
+    for d in paths:
+        numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", d)]
+        xs, ys = numbers[0::2], numbers[1::2]
+        if not re.search(r"[HV]", d):
+            assert x0 <= min(xs) and max(xs) <= x0 + w and y0 <= min(ys) and max(ys) <= y0 + h, d
+
+
+def test_a_brick_linked_to_itself_gets_a_visible_loop_above_it(api, study):
+    case = _graph_case("soi", [{"from": "A", "to": "A", "type": "flow"}])
+    api.post(f"/studies/{study}/cases/batch", {"cases": [case]})
+    pos, (x0, y0, w, h), paths = _drawn_graph(Study.objects.get(public_id=study), "soi")
+    loop = paths[0]
+    numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", loop)]
+    assert min(numbers[1::2]) < pos["A"][1]               # la boucle passe au-dessus du nœud…
+    assert y0 <= min(numbers[1::2])                        # … et reste dans le dessin

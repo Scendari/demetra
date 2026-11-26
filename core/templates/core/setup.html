@@ -101,6 +101,13 @@
 
   {% if is_owner %}
   <section class="form-section danger-zone">
+    <h2>Supprimer l'étude</h2>
+    <p>L'étude part à la corbeille et disparaît pour tous ses membres. Vous pouvez la restaurer pendant {{ trash_days }} jours ; ensuite, elle est effacée avec ses {{ cases_count }} cas, leurs avis et son historique.</p>
+    <details class="confirm"><summary class="btn btn-danger">Supprimer cette étude…</summary>
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="trash"><p>Mettre « {{ study.title }} » à la corbeille ?</p><button class="btn btn-danger" type="submit">Oui, mettre à la corbeille</button></form>
+    </details>
+  </section>
+  <section class="form-section danger-zone">
     <h2>Archiver l'étude</h2>
     <p>L'étude disparaît de la liste pour tous ses membres. Ses {{ cases_count }} cas et leurs avis sont conservés en base.</p>
     <details class="confirm"><summary class="btn btn-danger">Archiver cette étude…</summary>

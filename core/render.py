@@ -444,26 +444,14 @@ def _prepare_nodes(ctx: Context, view: dict, sv: dict) -> tuple[list[dict], list
 
 
 def _ranks(nodes: list[dict], links: list[dict]) -> dict[str, int]:
+    """Le niveau de chaque nœud. Les liens de dépendance donnent la structure ; les autres liens s'y ajoutent
+    tant qu'ils ne referment pas de boucle (une brique qui en contient une autre se place au-dessus d'elle,
+    même quand d'autres briques dépendent l'une de l'autre). Une arête de retour est ignorée pour le rang."""
     ids = [n["id"] for n in nodes]
-    structural = [l for l in links if l["type"] in ACYCLIC_LINK_TYPES] or links
-    out: dict[str, list[str]] = {i: [] for i in ids}
-    state: dict[str, int] = {}
-    kept: list[tuple[str, str]] = []
-
-    def visit(node):
-        state[node] = 1
-        for nxt in [l["to"] for l in structural if l["from"] == node]:
-            if state.get(nxt) == 1:
-                continue  # arête de retour : ignorée pour le rang
-            kept.append((node, nxt))
-            out[node].append(nxt)
-            if state.get(nxt) is None:
-                visit(nxt)
-        state[node] = 2
-
-    for node in ids:
-        if state.get(node) is None:
-            visit(node)
+    structural = [l for l in links if l["type"] in ACYCLIC_LINK_TYPES]
+    others = [l for l in links if l["type"] not in ACYCLIC_LINK_TYPES]
+    kept = _acyclic_edges(ids, structural, [])
+    kept = _acyclic_edges(ids, others, kept)
     rank = {i: 0 for i in ids}
     for _ in range(len(ids)):
         moved = False
@@ -474,6 +462,44 @@ def _ranks(nodes: list[dict], links: list[dict]) -> dict[str, int]:
         if not moved:
             break
     return rank
+
+
+def _acyclic_edges(ids: list[str], links: list[dict], kept: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """`kept` plus les liens de `links` qui ne referment pas de boucle, parcourus en profondeur."""
+    kept = list(kept)
+    out: dict[str, list[str]] = {i: [] for i in ids}
+    for src, dst in kept:
+        out[src].append(dst)
+
+    def reaches(start: str, goal: str) -> bool:
+        seen, todo = set(), [start]
+        while todo:
+            node = todo.pop()
+            if node == goal:
+                return True
+            if node not in seen:
+                seen.add(node)
+                todo += out[node]
+        return False
+
+    state: dict[str, int] = {}
+
+    def visit(node):
+        state[node] = 1
+        for nxt in [l["to"] for l in links if l["from"] == node]:
+            if state.get(nxt) == 1 or (nxt, node) in kept or reaches(nxt, node):
+                continue  # arête de retour : ignorée pour le rang
+            if (node, nxt) not in kept:
+                kept.append((node, nxt))
+                out[node].append(nxt)
+            if state.get(nxt) is None:
+                visit(nxt)
+        state[node] = 2
+
+    for node in ids:
+        if state.get(node) is None:
+            visit(node)
+    return kept
 
 
 def _order_ranks(nodes: list[dict], links: list[dict], rank: dict[str, int]) -> list[list[dict]]:
@@ -577,11 +603,48 @@ def _link_ports(links: list[dict], pos: dict, axis: str):
             return (x + w * frac, y + h if side == "out" else y)
         return (x + w if side == "out" else x, y + h * frac)
 
+    port.pos = pos  # pour la boucle d'un nœud relié à lui-même
     return port
 
 
-def _draw_links(ctx: Context, links: list[dict], port, axis: str, fixed_step: int | None) -> str:
-    """Les liens d'un graphe : tracé, pointes de flèche, libellé, état « changé » à l'étape courante."""
+def _path_extent(d: str) -> tuple[float, float, float, float]:
+    """Le rectangle qui contient un tracé (M, L, H, V, C, Q en coordonnées absolues). Une courbe reste dans
+    l'enveloppe de ses points de contrôle : les compter suffit à ne jamais la couper."""
+    xs, ys, cmd, pending = [], [], "M", []
+    for token in re.findall(r"[MLHVCQ]|-?\d+(?:\.\d+)?", d):
+        if token.isalpha():
+            cmd, pending = token, []
+        elif cmd == "H":
+            xs.append(float(token))
+        elif cmd == "V":
+            ys.append(float(token))
+        else:
+            pending.append(float(token))
+            if len(pending) == 2:
+                xs.append(pending[0])
+                ys.append(pending[1])
+                pending = []
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _canvas(
+    size: tuple[float, float], paths: list[str], pad: float = 10
+) -> tuple[float, float, float, float]:
+    """La zone dessinée : celle des nœuds, agrandie pour qu'aucun lien n'en sorte (un lien qui remonte ou
+    relie deux nœuds d'un même niveau passe par une courbe hors des nœuds). Rend x, y, largeur, hauteur."""
+    width, height = size
+    x0, y0, x1, y1 = 0.0, 0.0, width, height
+    for d in paths:
+        a, b, c, e = _path_extent(d)
+        x0, y0, x1, y1 = min(x0, a - pad), min(y0, b - pad), max(x1, c + pad), max(y1, e + pad)
+    return x0, y0, x1 - x0, y1 - y0
+
+
+def _draw_links(
+    ctx: Context, links: list[dict], port, axis: str, fixed_step: int | None, paths: list[str] | None = None
+) -> str:
+    """Les liens d'un graphe : tracé, pointes de flèche, libellé, état « changé » à l'étape courante.
+    `paths` reçoit chaque tracé, pour que la zone dessinée les contienne tous."""
     link_svg = []
     for i, link in enumerate(links):
         mark = link["mark"]
@@ -589,7 +652,13 @@ def _draw_links(ctx: Context, links: list[dict], port, axis: str, fixed_step: in
         ex, ey = port(link["to"], link, "in")
         arrow = mark["arrow"]
         tip = 7 if arrow != "none" else 0
-        if axis == "down":
+        lift = 0.0  # hauteur du libellé au-dessus du milieu du lien
+        if link["from"] == link["to"]:  # un nœud relié à lui-même : une boucle au-dessus de lui
+            x, y, w, _ = port.pos[link["from"]]
+            sx, sy, ex, ey = x + w * 0.35, y, x + w * 0.65, y
+            path = f"M{sx:.1f} {sy:.1f}C{sx:.1f} {sy - 38:.1f} {ex:.1f} {ey - 38:.1f} {ex:.1f} {ey - tip:.1f}"
+            angle, lift = 90, 28
+        elif axis == "down":
             path, angle = _route(sx, sy, ex, ey - tip, mark["route"], axis, offset=(i % 3 - 1) * 5)
         else:
             path, angle = _route(sx, sy, ex - tip, ey, mark["route"], axis, offset=(i % 3 - 1) * 5)
@@ -607,6 +676,8 @@ def _draw_links(ctx: Context, links: list[dict], port, axis: str, fixed_step: in
             flagged is not None
         ):  # la règle tient à ce lien : trait renforcé dans la teinte choisie par l'auteur
             cls += f" is-flagged {flag_classes(flagged)}"
+        if paths is not None:
+            paths.append(path)
         body = f'<path class="lk-path" d="{path}"/>'
         if ctx.handles:  # une zone plus large que le trait, pour le cliquer
             name = escape(f"{link['from']}:{link.get('type', '')}:{link['to']}", quote=True)
@@ -627,7 +698,7 @@ def _draw_links(ctx: Context, links: list[dict], port, axis: str, fixed_step: in
         if text:
             mx, my = (sx + ex) / 2, (sy + ey) / 2
             body += (
-                f'<text class="lk-label" x="{mx:.1f}" y="{my - 4:.1f}" '
+                f'<text class="lk-label" x="{mx:.1f}" y="{my - 4 - lift:.1f}" '
                 f'text-anchor="middle">{escape(text)}</text>'
             )
         link_svg.append(f'<g class="{cls}"{attrs}>{body}</g>')
@@ -706,15 +777,17 @@ def _draw_graph(
     time = with_defaults(view.get("time") or {"brick": "time.stepper"})
     radius = RADIUS[ctx.tokens.get("corners", "soft")]
     port = _link_ports(links, pos, axis)
-    parts = [extra, _draw_links(ctx, links, port, axis, fixed_step)]
+    paths: list[str] = []
+    parts = [extra, _draw_links(ctx, links, port, axis, fixed_step, paths)]
     parts += [_draw_node(ctx, node, pos, radius, fixed_step) for node in nodes]
-    width, height = size
+    x0, y0, width, height = _canvas(size, paths)
     hl = " tm-highlight" if time.get("highlight_changes", True) else ""
     dim = " tm-dim" if time.get("dim_unchanged") else ""
     ms = time.get("transition_ms", 160)
     label = escape(view.get("title") or "Schéma du cas", quote=True)
     return (
-        f'<svg class="rep-svg{hl}{dim}" style="--w:{width:.0f}" viewBox="0 0 {width:.0f} {height:.0f}" '
+        f'<svg class="rep-svg{hl}{dim}" style="--w:{width:.0f}" '
+        f'viewBox="{x0:.0f} {y0:.0f} {width:.0f} {height:.0f}" '
         f'width="{width:.0f}" height="{height:.0f}" '
         f'style="--tm-ms:{ms}ms" role="group" aria-label="{label}">{"".join(parts)}</svg>'
     )

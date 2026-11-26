@@ -13,6 +13,8 @@ ACTION_LABELS = {
     "study.create": "Étude créée",
     "study.update": "Définitions modifiées",
     "study.archive": "Étude archivée",
+    "study.trash": "Étude mise à la corbeille",
+    "study.restore": "Étude restaurée de la corbeille",
     "cases.upsert": "Cas déposés",
     "case.retire": "Cas retiré",
     "case.restore": "Cas rétabli",

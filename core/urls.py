@@ -9,6 +9,7 @@ urlpatterns = [
     path("guide/<slug:topic>/", views.guide_page, name="guide_topic"),
     path("briques/", views.bricks_page, name="bricks"),
     path("etudes/", views.studies, name="studies"),
+    path("etudes/corbeille/", views.studies_trash, name="studies_trash"),
     path("etudes/<str:sid>/", views.workspace, name="workspace"),
     path("etudes/<str:sid>/etat/", views.study_state, name="study_state"),
     path("etudes/<str:sid>/events", views.study_events, name="study_events"),

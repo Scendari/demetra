@@ -9,7 +9,7 @@ from __future__ import annotations
 from .atelier import study_workshop
 from .commun import DECISION_KEYS, actor, body_of, legend_of, steps_payload, study_nav, wants_json, web
 from .couverture import study_coverage
-from .etudes import STARTER_STATUSES, studies, study_setup
+from .etudes import STARTER_STATUSES, studies, studies_trash, study_setup
 from .historique import ACTION_LABELS, DECISION_LABELS, study_history
 from .jetons import tokens
 from .pages import (
@@ -47,6 +47,7 @@ __all__ = [
     "sprite",
     "steps_payload",
     "studies",
+    "studies_trash",
     "study_coverage",
     "study_events",
     "study_history",

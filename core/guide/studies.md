@@ -128,6 +128,18 @@ Ce que le site **exécute** quand un humain construit une situation dans l'ongle
 - `GET /api/v1/studies/{id}` — définitions complètes et état de la revue.
 - `PATCH /api/v1/studies/{id}` — envoyer seulement les champs à changer. Chaque liste envoyée **remplace** la liste existante : pour ajouter un statut, renvoyez la liste complète avec le nouveau. Retirer un statut, une valeur de dimension ou une règle encore utilisés par des cas est refusé (`in_use`).
 
+## Supprimer et restaurer
+
+Seul le **propriétaire** supprime une étude, et une suppression passe d'abord par la corbeille.
+
+- `DELETE /api/v1/studies/{id}` met l'étude à la corbeille (portée `studies:write`, jeton du propriétaire). Elle
+  disparaît aussitôt pour tous ses membres ; la réponse donne `purge_at`, la date à laquelle elle sera effacée.
+- `GET /api/v1/trash` liste vos études à la corbeille ; `POST /api/v1/trash/{id}/restore` en rétablit une, avec ses
+  cas, ses avis et son historique intacts.
+- **L'effacement définitif n'est pas dans l'API.** Il se fait dans l'interface (*Études › Corbeille*), par une
+  personne, ou d'office à la fin du délai (30 jours par défaut). Ne supprimez une étude que si la personne vous
+  l'a demandé, et dites-lui qu'elle peut la restaurer.
+
 ## Trois familles, un seul format
 
 - **Workflows et états** : entités = tâches ; liens = prérequis ; étapes = changements de statut.

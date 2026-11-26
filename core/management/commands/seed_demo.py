@@ -125,6 +125,9 @@ class Command(BaseCommand):
         study = Study.objects.filter(
             owner=users["demo"], title=definition["title"], archived_at__isnull=True
         ).first()
+        if study is not None and study.deleted_at:  # mise à la corbeille : la démonstration la rétablit
+            Study.objects.filter(pk=study.pk).update(deleted_at=None, deleted_by=None)
+            study.deleted_at = None
         if study is None:
             study = svc.create_study(demo, definition)
         else:
