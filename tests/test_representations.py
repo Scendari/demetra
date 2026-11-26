@@ -358,5 +358,5 @@ def test_a_brick_linked_to_itself_gets_a_visible_loop_above_it(api, study):
     pos, (x0, y0, w, h), paths = _drawn_graph(Study.objects.get(public_id=study), "soi")
     loop = paths[0]
     numbers = [float(n) for n in re.findall(r"-?\d+(?:\.\d+)?", loop)]
-    assert min(numbers[1::2]) < pos["A"][1]               # la boucle passe au-dessus du nœud…
-    assert y0 <= min(numbers[1::2])                        # … et reste dans le dessin
+    assert min(numbers[1::2]) < pos["A"][1]  # la boucle passe au-dessus du nœud…
+    assert y0 <= min(numbers[1::2])  # … et reste dans le dessin

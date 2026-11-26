@@ -43,8 +43,8 @@ def test_only_the_owner_deletes(api, filled, users, token_for):
     assert reader.delete(f"/studies/{filled}")[0] == 403
     assert Study.objects.get(public_id=filled).deleted_at is None
     api.delete(f"/studies/{filled}")
-    assert ben.post(f"/trash/{filled}/restore")[0] == 404        # pas propriétaire : rien à restaurer
-    assert ben.get(f"/studies/{filled}")[0] == 404                # disparue pour tous ses membres
+    assert ben.post(f"/trash/{filled}/restore")[0] == 404  # pas propriétaire : rien à restaurer
+    assert ben.get(f"/studies/{filled}")[0] == 404  # disparue pour tous ses membres
 
 
 def test_an_ai_cannot_erase_for_good(api, filled):
@@ -86,7 +86,7 @@ def test_the_trash_empties_itself_after_the_delay(api, filled, settings):
     call_command("purger_corbeille")
     assert Study.objects.filter(public_id=filled).exists()
     Study.objects.filter(public_id=filled).update(deleted_at=timezone.now() - timedelta(days=31))
-    assert api.get("/trash")[1]["items"] == []                    # la lecture de la corbeille la purge aussi
+    assert api.get("/trash")[1]["items"] == []  # la lecture de la corbeille la purge aussi
     assert not Study.objects.filter(public_id=filled).exists()
     assert AuditEvent.objects.get(action="study.purge").detail["expired"] is True
     settings.DEMETRA_TRASH_DAYS = 7

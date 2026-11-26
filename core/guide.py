@@ -65,7 +65,7 @@ def _with_notice(topic: str, text: str, notice: SiteNotice | None, html: bool) -
     if notice is None:
         return text
     if notice.message.strip() and topic in NOTICE_TOPICS:
-        head, sep, rest = text.partition("\n\n")          # titre, puis la ligne « Version »
+        head, sep, rest = text.partition("\n\n")  # titre, puis la ligne « Version »
         version, sep2, rest = rest.partition("\n\n")
         text = f"{head}{sep}{version}{sep2}{notice_block(notice.message, html)}\n{rest}"
     lines = project_lines(notice.project_lines)

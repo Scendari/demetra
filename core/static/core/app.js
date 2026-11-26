@@ -252,13 +252,12 @@
       if (!el || el.disabled) el = $("#at-build-title", atelier);
       if (el) el.focus({ preventScroll: true });
     };
-    // Le pas affiché suit dans l'adresse ; le dernier pas est celui qu'on voit par défaut, il ne s'écrit pas.
+    // Le pas affiché suit dans l'adresse ; le départ est celui qu'on voit par défaut, il ne s'écrit pas.
     const writeStep = () => {
       const panel = walk();
       if (!panel) return;
       const url = new URL(location.href);
-      const last = (panel._steps || []).length - 1;
-      if (stepOf(panel) < last) url.searchParams.set("etape", String(stepOf(panel) + 1)); else url.searchParams.delete("etape");
+      if (stepOf(panel) > 0) url.searchParams.set("etape", String(stepOf(panel) + 1)); else url.searchParams.delete("etape");
       history.replaceState(history.state, "", url);
     };
     const stop = () => {
@@ -396,10 +395,12 @@
       note.textContent = parts.length ? "Votre dernier geste : " + parts.join(", ") + "." : "Votre dernier geste n'a pas changé l'historique.";
     };
 
-    const load = (url) => {
+    // « from » : le contrôle qui a lancé le geste. Safari ne donne pas le focus à une case ou à un bouton
+    // qu'on clique : c'est lui, et non l'élément actif, qu'on rend après le nouveau résultat.
+    const load = (url, from) => {
       const mine = ++turn;
       const before = historyNow();
-      const key = focusKey(doc.activeElement);
+      const key = focusKey(from || doc.activeElement);
       const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
       stop();
       closePop();
@@ -426,10 +427,10 @@
       Object.keys(extra || {}).forEach((name) => query.append(name, extra[name]));
       return form.action + "?" + query.toString();
     };
-    const submit = (form, submitter) => {
+    const submit = (form, submitter, from) => {
       const extra = {};
       if (submitter && submitter.name) extra[submitter.name] = submitter.value;
-      load(asked(form, extra));
+      load(asked(form, extra), from || submitter);
     };
 
     /* Glisser-déposer. Deux gestes sur le schéma : y déposer une brique de la palette, et tirer un lien d'une
@@ -466,10 +467,11 @@
       if (!card) return;
       $$('[data-at-plan] .n[data-e="' + id + '"], [data-at-plan] .tl-bar[data-p="' + id + '"]', atelier).forEach((el) => el.classList.add("is-chosen"));
     };
-    atelier.addEventListener("focusin", (event) => {
+    // Un clic dans une fiche la choisit aussi : Safari ne donne pas le focus aux cases ni aux boutons.
+    ["focusin", "pointerdown"].forEach((type) => atelier.addEventListener(type, (event) => {
       const card = event.target.closest(".at-card");
       if (card && card.dataset.brick !== chosen) choose(card.dataset.brick);
-    });
+    }));
     const under = (event, selector) => { const el = doc.elementFromPoint(event.clientX, event.clientY); return el ? el.closest(selector) : null; };
     const inSvg = (svg, x, y) => { const point = svg.createSVGPoint(); point.x = x; point.y = y; return point.matrixTransform(svg.getScreenCTM().inverse()); };
     const closePop = () => { if (pop) pop.remove(); pop = null; mark(null, "is-picked"); };
@@ -695,7 +697,7 @@
     });
     atelier.addEventListener("change", (event) => {
       const form = event.target.form;
-      if (form && form.matches("[data-atelier-form]")) submit(form);
+      if (form && form.matches("[data-atelier-form]")) submit(form, null, event.target);
     });
     atelier.addEventListener("submit", (event) => {
       if (!event.target.matches("[data-atelier-form]")) return;

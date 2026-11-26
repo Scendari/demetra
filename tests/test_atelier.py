@@ -669,11 +669,14 @@ def test_options_events_and_settings_redraw_the_result(atelier, web):
 def test_the_walk_can_be_followed_without_script(atelier, web):
     client = web("ana")
     base = f"/etudes/{atelier}/atelier/?e=A%3Aporte&ev=A%3Apanne"
+    # Sans pas demandé, on part de la situation posée : le départ ne s'écrit pas dans l'adresse.
     page = client.get(base).content.decode()
-    assert 'data-panel data-step="2"' in page and f'href="{escape(base)}&amp;etape=1"' in page
-    first = client.get(base + "&etape=1").content.decode()
-    assert 'data-panel data-step="0"' in first and "Situation de départ" in first
+    assert 'data-panel data-step="0"' in page and "Situation de départ" in page
+    assert f'href="{escape(base)}&amp;etape=3"' in page and f'href="{escape(base)}&amp;etape=2"' in page
+    last = client.get(base + "&etape=3").content.decode()
+    assert 'data-panel data-step="2"' in last
     assert client.get(base + "&etape=99")["Location"].endswith("&etape=3")
+    assert client.get(base + "&etape=1")["Location"].endswith("ev=A%3Apanne")
 
 
 def test_a_damaged_address_gives_a_smaller_situation(atelier, web):

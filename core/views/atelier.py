@@ -460,11 +460,11 @@ def _save(request, study: Study):
 
 
 def _step_asked(request, last: int) -> tuple[int, bool]:
-    """Le pas demandé par l'adresse (« etape=2 »), sinon le dernier : on arrive sur le résultat."""
+    """Le pas demandé par l'adresse (« etape=2 »), sinon le départ : on déroule depuis la situation posée."""
     try:
         wanted = int(request.GET.get("etape", "")) - 1
     except ValueError:
-        return last, False
+        return 0, False
     return max(0, min(wanted, last)), True
 
 
@@ -484,7 +484,7 @@ def study_workshop(request, sid: str):
     run = svc.workshop_run(study, sit) if sit["elements"] else None
     last = len(run["steps"]) - 1 if run else 0
     step, chosen = _step_asked(request, last)
-    kept = step if chosen and run else None
+    kept = step if chosen and run and step else None  # le départ ne s'écrit pas dans l'adresse
     final = run["final"] if run else {}
     if parse_qsl(request.META.get("QUERY_STRING", ""), keep_blank_values=True) != _state(study, sit, kept):
         # L'adresse ne garde que la situation : un geste (poser, relier) n'y reste pas.
