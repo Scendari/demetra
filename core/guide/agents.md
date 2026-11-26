@@ -118,7 +118,8 @@ e-mail ou par message.
 
 Pour ne pas répéter ces consignes à chaque conversation, copiez ce bloc dans le fichier d'instructions de votre
 projet : `.github/copilot-instructions.md` pour Copilot, `AGENTS.md` pour Codex et Copilot, `CLAUDE.md` pour
-Claude Code. Il ne contient aucun secret.
+Claude Code. Il ne contient aucun secret. Les dernières lignes, s'il y en a après « Commencer par… », sont les
+consignes propres à votre organisation, écrites par l'administrateur de ce site.
 
 ```markdown
 ## Demetra

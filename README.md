@@ -36,6 +36,9 @@ Comptes de démonstration (mot de passe `demetra-demo`) :
 Facultatif — l'aperçu **image** d'une représentation (API `…/preview`) et le test de bout en bout ont besoin de
 Chromium : `uv run playwright install chromium`. Sans lui, l'aperçu renvoie le résumé textuel seul.
 
+Sur un serveur Linux : `DEPLOIEMENT.md`, section « Installer sur un nouveau serveur », avec le modèle du dossier
+`deploiement/` (docker compose, Caddy pour le HTTPS, `preparer.sh` qui écrit la clé secrète sans l'afficher).
+
 ## Connexion d'entreprise et HTTPS
 
 Tout se règle par variables d'environnement ; sans elles, le site garde la connexion locale par mot de passe.
@@ -194,6 +197,10 @@ Ce qu'un jeton ne peut pas faire : rendre un avis (403 `human_only`), partager d
 une confirmation dans **Étude › Partage**), remplacer la représentation qu'un humain a choisie pour l'étude
 (409 `human_choice`), dépasser le rôle de son titulaire, sortir des études auxquelles il est limité. Tout ce
 qu'il fait est inscrit au journal de l'étude sous son nom.
+
+L'administrateur peut ajouter au mode d'emploi un **message de l'organisation** (`/admin/`) : un message en tête
+de `/llms.txt`, et des consignes ajoutées au bloc que chacun copie dans le fichier d'instructions de son projet
+(voir `DEPLOIEMENT.md`).
 
 ## Atelier : construire une situation et voir ce que les règles en font
 

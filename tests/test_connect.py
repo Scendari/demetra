@@ -119,6 +119,7 @@ def test_code_is_forgiving_and_scopes_are_filtered(web):
     assert "Claude Code" in page
 
 
+@pytest.mark.django_db  # le message de l'organisation est lu en base
 def test_guide_and_llms_explain_the_link(client):
     llms = client.get("/llms.txt").content.decode()
     assert "/api/v1/connect" in llms and "DEMETRA_TOKEN" in llms

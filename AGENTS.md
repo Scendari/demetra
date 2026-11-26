@@ -56,14 +56,15 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `connect.py` | Connexion d'une IA par lien d'autorisation (`POST /api/v1/connect`, page `/connecter/`) | Aucun jeton n'est stocké en clair |
 | `sso.py`, `accounts.py` | SSO OpenID Connect (bibliothèque standard + PyJWT) et règles de connexion allauth | Voir `demetra/entreprise.py` pour LDAP, HTTPS, SMTP |
 | `sante.py` | Sonde `/sante/`, traitée avant la vérification d'hôte | |
-| `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule | Le contenu des études n'y est pas modifiable |
-| `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown |
+| `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule, message de l'organisation (`SiteNotice`, une seule ligne) | Le contenu des études n'y est pas modifiable |
+| `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown ; le message de l'organisation (`SiteNotice`) s'y insère à la lecture, échappé sur `/guide/` |
 | `demo/` | Données des 15 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP` (qui déclare aussi des exécutions successives)) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 
 `demetra/` : réglages (`settings.py`, tout vient de variables `DEMETRA_*`), `entreprise.py` (HTTPS, SSO, LDAP, SMTP),
-URLs. `scripts/` : outils hors application (empreinte de rendu, détecteur de design, import du catalogue).
+URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile, `preparer.sh`), sans secret.
+`scripts/` : outils hors application (empreinte de rendu, détecteur de design, import du catalogue).
 `tests/` : voir « Tests ».
 
 ## Règles du projet (non négociables)
@@ -127,7 +128,8 @@ URLs. `scripts/` : outils hors application (empreinte de rendu, détecteur de de
   `test_parametrique.py`, `test_modele.py` : cas paramétrés, accord avec le jeu de règles.
 - `test_contrast.py` : contrastes des deux thèmes. `test_licences.py` : licences et absence de bibliothèque de
   disposition. `test_admin.py`, `test_entreprise.py`, `test_connect.py`, `test_exploitation.py` : administration,
-  SSO/LDAP/HTTPS, lien d'autorisation, sonde et sauvegarde.
+  SSO/LDAP/HTTPS, lien d'autorisation, sonde, sauvegarde et kit `deploiement/`.
+  `test_message_organisation.py` : message de l'organisation dans le mode d'emploi.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque).
 - `scripts/empreinte_rendu.py` : empreinte de tout ce que le site calcule sur les études de démonstration
   (données produites par `core/demo/*`, normalisation, rejeu, empreintes, couverture, recommandation,

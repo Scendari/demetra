@@ -462,6 +462,44 @@ class IdempotencyRecord(models.Model):
         constraints = [models.UniqueConstraint(fields=["user", "key", "endpoint"], name="uniq_idempotency")]
 
 
+class SiteNotice(models.Model):
+    """Ce que l'administrateur ajoute au mode d'emploi : une seule ligne (pk=1), modifiée dans /admin/.
+
+    `message` paraît en tête de /llms.txt et des chapitres « Prise en main » et « Brancher une IA », comme un
+    message de l'administrateur du site. `project_lines` s'ajoute au bloc que la personne copie dans le
+    fichier d'instructions de son projet : c'est là qu'une IA lit une consigne de son propre projet."""
+
+    message = models.TextField(
+        blank=True,
+        help_text=(
+            "Affiché en tête de /llms.txt et du mode d'emploi, présenté comme un message de l'administrateur "
+            "de ce site. Exemple : qui contacter, ce que l'organisation a validé. "
+            "Pas de secret : c'est public."
+        ),
+    )
+    project_lines = models.TextField(
+        blank=True,
+        help_text=(
+            "Une consigne par ligne, ajoutée au bloc « Instructions permanentes pour l'IA » que chacun copie "
+            "dans le fichier d'instructions de son projet (CLAUDE.md, AGENTS.md, copilot-instructions.md). "
+            "Exemple : « Demetra (ce site) est validé par la DSI pour recevoir les cas tirés de ce code. »"
+        ),
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        verbose_name = "message de l'organisation"
+        verbose_name_plural = "message de l'organisation"
+
+    def __str__(self) -> str:
+        return "Message de l'organisation"
+
+    @classmethod
+    def current(cls) -> SiteNotice | None:
+        return cls.objects.filter(pk=1).first()
+
+
 # Libellés français des champs, lus par l'administration (/admin/).
 def _labels(model, **labels):
     for name, label in labels.items():
@@ -583,4 +621,11 @@ _labels(
     subject="identifiant chez le fournisseur",
     created_at="lié le",
     last_login_at="dernière connexion",
+)
+_labels(
+    SiteNotice,
+    message="message aux lecteurs du mode d'emploi",
+    project_lines="consignes à copier dans chaque projet",
+    updated_at="modifié le",
+    updated_by="modifié par",
 )

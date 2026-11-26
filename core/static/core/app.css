@@ -711,6 +711,7 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .prose th, .prose td { padding: 0.45rem 0.7rem; border: 1px solid var(--line); text-align: start; vertical-align: top; }
 .prose th { background: var(--panel); font-weight: 660; font-size: var(--t-sm); }
 .prose strong { font-weight: 680; }
+.prose blockquote { padding-left: 1rem; border-left: 3px solid var(--line); }   /* message de l'organisation */
 @media (max-width: 900px) {
   .doc { grid-template-columns: minmax(0, 1fr); padding: var(--s-4); gap: var(--s-4); }
   .doc-nav { position: static; }

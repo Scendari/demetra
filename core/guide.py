@@ -2,9 +2,12 @@
 (/api/v1/guide), par /llms.txt et par la page publique /guide/."""
 
 from functools import cache
+from html import escape
 from pathlib import Path
 
 from django.conf import settings
+
+from .models import SiteNotice
 
 TOPICS = {
     "index": "Prise en main : ce qu'est Demetra et l'ordre des opérations",
@@ -27,8 +30,49 @@ def _read(topic: str) -> str:
     return (_DIR / f"{topic}.md").read_text(encoding="utf-8")
 
 
-def markdown(topic: str, origin: str = "https://votre-site-demetra") -> str:
-    return _read(topic).replace("{{version}}", settings.DEMETRA_GUIDE_VERSION).replace("{{origin}}", origin)
+# Chapitres qui portent le message de l'administrateur, juste après leur ligne « Version ».
+NOTICE_TOPICS = ("index", "agents")
+# Ligne du bloc à copier après laquelle viennent les consignes de l'organisation (chapitre « agents »).
+_LAST_PROJECT_LINE = "- Commencer par GET {{origin}}/api/v1/me, puis GET {{origin}}/api/v1/guide?format=md.\n"
+
+
+def markdown(topic: str, origin: str = "https://votre-site-demetra", html: bool = False) -> str:
+    """Le chapitre, avec ce que l'administrateur a ajouté. `html` : pour la page /guide/, où le message est
+    échappé (le bloc à copier l'est déjà par le rendu des blocs de code)."""
+    text = _with_notice(topic, _read(topic), SiteNotice.current(), html)
+    return text.replace("{{version}}", settings.DEMETRA_GUIDE_VERSION).replace("{{origin}}", origin)
+
+
+def notice_block(message: str, html: bool = False) -> str:
+    """Le message de l'administrateur en citation, signé : une IA le lit comme ce qu'il est, une information
+    donnée par l'exploitant du site, pas une consigne du mode d'emploi."""
+    lines = [escape(line, quote=False) if html else line for line in message.strip().splitlines()]
+    quoted = "\n".join(f"> {line}".rstrip() for line in lines)
+    return f"**Message de l'administrateur de ce site**\n\n{quoted}\n"
+
+
+def project_lines(raw: str) -> list[str]:
+    """Une consigne par ligne non vide, en liste Markdown ; sans clôture de bloc de code possible."""
+    lines = []
+    for line in raw.splitlines():
+        line = line.strip().replace("```", "` ` `")
+        if line:
+            lines.append(line if line.startswith("- ") else f"- {line}")
+    return lines
+
+
+def _with_notice(topic: str, text: str, notice: SiteNotice | None, html: bool) -> str:
+    if notice is None:
+        return text
+    if notice.message.strip() and topic in NOTICE_TOPICS:
+        head, sep, rest = text.partition("\n\n")          # titre, puis la ligne « Version »
+        version, sep2, rest = rest.partition("\n\n")
+        text = f"{head}{sep}{version}{sep2}{notice_block(notice.message, html)}\n{rest}"
+    lines = project_lines(notice.project_lines)
+    if lines and topic == "agents":
+        added = "".join(f"{line}\n" for line in lines)
+        text = text.replace(_LAST_PROJECT_LINE, _LAST_PROJECT_LINE + added, 1)
+    return text
 
 
 def topics(base: str) -> list[dict]:
@@ -51,6 +95,7 @@ def llms_txt(origin: str) -> str:
             "le site vérifie, mesure la couverture et dessine. Seuls les humains rendent un avis."
         ),
         "",
+        *_llms_notice(),
         (
             f"Version du mode d'emploi : {settings.DEMETRA_GUIDE_VERSION}. "
             "Authentification de l'API : en-tête `Authorization: Bearer <jeton>`."
@@ -84,3 +129,10 @@ def llms_txt(origin: str) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _llms_notice() -> list[str]:
+    notice = SiteNotice.current()
+    if notice is None or not notice.message.strip():
+        return []
+    return [notice_block(notice.message), ""]

@@ -16,6 +16,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from django.db import transaction
 from django.db.models import Count, Q
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -611,6 +612,31 @@ class ExternalIdentityAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(models.SiteNotice)
+class SiteNoticeAdmin(admin.ModelAdmin):
+    """Une seule ligne : la liste mène droit au formulaire. Chaque enregistrement est inscrit au journal."""
+
+    fields = ("message", "project_lines", "updated_at", "updated_by")
+    readonly_fields = ("updated_at", "updated_by")
+
+    def has_add_permission(self, request):
+        return not models.SiteNotice.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        notice = models.SiteNotice.current()
+        name = "admin:core_sitenotice_change" if notice else "admin:core_sitenotice_add"
+        return redirect(reverse(name, args=[notice.pk] if notice else []))
+
+    def save_model(self, request, obj, form, change):
+        obj.pk = 1
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+        _audit(request, None, "site_notice.updated", "message de l'organisation", fields=form.changed_data)
 
 
 # ----- Tableau de bord -----

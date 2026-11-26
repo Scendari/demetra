@@ -135,7 +135,7 @@ def guide_page(request, topic: str = "index"):
     if topic not in guide.TOPICS:
         raise Http404
     html = md.markdown(
-        guide.markdown(topic, request.build_absolute_uri("/").rstrip("/")),
+        guide.markdown(topic, request.build_absolute_uri("/").rstrip("/"), html=True),
         extensions=["tables", "fenced_code", "toc"],
     )
     return render(

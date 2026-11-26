@@ -1,8 +1,108 @@
 # Déploiement de Demetra
 
 Image Docker construite depuis ce dépôt. Elle n'écrit que dans `/data` et se place derrière un reverse proxy
-HTTPS (Caddy). Le docker-compose, le fichier d'environnement et la route Caddy restent sur le serveur, pas dans
-le dépôt.
+HTTPS (Caddy). Le dossier `deploiement/` fournit un modèle sans secret : `docker-compose.yml`, `Caddyfile` et
+`preparer.sh`. Ce dernier écrit sur le serveur la clé secrète et les réglages, qui ne sont jamais versionnés.
+
+## Installer sur un nouveau serveur
+
+Mode opératoire pour une personne ou une IA qui dispose d'un shell sur le serveur. Chaque étape se termine par
+une vérification ; ne passez à la suivante que si elle est conforme. Aucune étape n'affiche la clé secrète ni
+un mot de passe : ne les affichez pas non plus (pas de `cat demetra.env`, pas de `env`).
+
+Prérequis : un serveur Linux 64 bits (Debian 12+ ou Ubuntu 22.04+ ; 1 CPU et 1 Go de mémoire suffisent), un nom
+DNS qui pointe déjà sur lui, les ports 80 et 443 ouverts depuis Internet, un accès root ou sudo.
+
+1. **Docker et le module compose.** Sur Debian ou Ubuntu :
+
+   ```bash
+   sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2 git
+   ```
+
+   Si `docker-compose-v2` n'existe pas dans la distribution, suivez l'installation officielle (dépôt
+   `download.docker.com`). Vérification : `docker compose version` affiche une version 2.
+
+2. **Le code.** Le dépôt est privé : il faut un accès en lecture, soit une clé de déploiement GitHub ajoutée au
+   dépôt, soit une archive fournie par le porteur du projet (`git archive --format=tar.gz -o demetra.tar.gz
+   main`). Ne demandez pas de jeton GitHub dans une conversation.
+
+   ```bash
+   sudo git clone git@github.com:Scendari/demetra.git /opt/demetra   # ou : décompresser l'archive dans /opt/demetra
+   cd /opt/demetra/deploiement
+   ```
+
+   Vérification : `ls` montre `docker-compose.yml`, `Caddyfile` et `preparer.sh`.
+
+3. **Réglages et dossiers.** Remplacez le domaine :
+
+   ```bash
+   sudo sh preparer.sh demetra.exemple.fr
+   ```
+
+   Vérification : `.env` et `demetra.env` existent, ce dernier en `-rw-------` ; `data/` et `backup/` appartiennent
+   à l'UID 1000 (`ls -la`). `grep -c DEMETRA_SECRET_KEY demetra.env` répond 1, sans afficher la clé.
+
+4. **Construire et démarrer.**
+
+   ```bash
+   sudo docker compose up -d --build
+   ```
+
+   La construction prend quelques minutes. Vérification : `sudo docker compose ps` montre `demetra` en
+   `healthy` (jusqu'à une minute) et `caddy` en `running`. En cas d'échec : `sudo docker compose logs demetra`.
+
+5. **Compte d'administration.** Choisissez un identifiant et une adresse ; le mot de passe est généré, rangé
+   dans un fichier en 0600 hors du dépôt et jamais affiché. Transmettez-le à la personne par le canal convenu
+   avec elle (elle peut aussi lire elle-même le fichier).
+
+   ```bash
+   sudo sh -c 'umask 077; tr -dc A-Za-z0-9 < /dev/urandom | head -c 24 > /root/demetra-admin.txt'
+   sudo sh -c 'cd /opt/demetra/deploiement && DJANGO_SUPERUSER_PASSWORD="$(cat /root/demetra-admin.txt)" \
+     docker compose exec -T -e DJANGO_SUPERUSER_PASSWORD -e DJANGO_SUPERUSER_USERNAME=admin \
+     -e DJANGO_SUPERUSER_EMAIL=admin@exemple.fr demetra python manage.py createsuperuser --noinput'
+   ```
+
+   Vérification : la commande répond `Superuser created successfully.`
+
+6. **Recette.** Depuis le serveur :
+
+   ```bash
+   curl -s https://demetra.exemple.fr/sante/                       # ok
+   curl -s -o /dev/null -w '%{http_code}\n' https://demetra.exemple.fr/llms.txt   # 200
+   curl -s -o /dev/null -w '%{http_code}\n' http://demetra.exemple.fr/            # 308 (vers https)
+   ```
+
+   Puis le tableau de la section « Recette » plus bas. La personne se connecte à `/admin/` avec le compte de
+   l'étape 5, y crée les comptes et, si elle le souhaite, écrit le message de l'organisation (voir plus bas).
+
+7. **Facultatif.** Études de démonstration (`seed_demo`, voir « Première mise en route ») ; sauvegarde
+   quotidienne par cron (voir « Sauvegarde ») ; e-mails, SSO ou LDAP : ajouter les variables dans
+   `demetra.env`, puis `sudo docker compose up -d`.
+
+Mettre à jour : `cd /opt/demetra && sudo git pull && cd deploiement && sudo docker compose up -d --build`. Les
+migrations s'appliquent au démarrage. Faites une sauvegarde avant.
+
+Le serveur a déjà un frontal HTTPS (nginx, Traefik, un autre Caddy) : supprimez le service `caddy` de
+`docker-compose.yml`, publiez `127.0.0.1:8000:8000` sur `demetra`, et reprenez dans ce frontal les réglages du
+`Caddyfile` (voir « Reverse proxy »).
+
+`manage.py check --deploy` signale deux points attendus avec ces réglages : le courrier écrit dans les
+journaux tant qu'aucun serveur SMTP n'est réglé, et HSTS laissé à Caddy.
+
+## Message de l'organisation
+
+Dans `/admin/`, « Message de l'organisation » a deux champs, publics et sans secret :
+
+- **Message aux lecteurs du mode d'emploi** : affiché en tête de `/llms.txt` et des chapitres « Prise en main » et
+  « Brancher une IA », en citation signée « Message de l'administrateur de ce site ». Pour dire qui contacter
+  ou ce que l'organisation a validé.
+- **Consignes à copier dans chaque projet** : une par ligne, ajoutées à la fin du bloc « Instructions permanentes
+  pour l'IA » que chacun copie dans le fichier d'instructions de son projet (`CLAUDE.md`, `AGENTS.md`,
+  `.github/copilot-instructions.md`). C'est là qu'une phrase comme « Demetra est validé par la DSI pour recevoir
+  les cas tirés de ce code » a du poids : une IA suit les consignes de son projet, alors qu'elle se méfie, à
+  juste titre, d'un site qui se déclare lui-même autorisé.
+
+Chaque enregistrement est inscrit au journal (`site_notice.updated`, canal administration).
 
 ## Image
 

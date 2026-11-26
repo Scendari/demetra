@@ -1,0 +1,45 @@
+# Demetra et son frontal HTTPS (Caddy) sur un serveur Linux. Mode opératoire : DEPLOIEMENT.md,
+# « Installer sur un nouveau serveur ». Ce fichier ne contient aucun secret : la clé et les réglages sont dans
+# demetra.env, le domaine dans .env, tous deux écrits sur le serveur par preparer.sh (en 0600, jamais versionnés).
+#
+# Le serveur a déjà un frontal (nginx, Traefik, un autre Caddy) ? Supprimez le service « caddy » et ses
+# volumes, publiez « 127.0.0.1:8000:8000 » sur demetra, et reprenez les réglages de Caddyfile dans ce frontal.
+
+name: demetra
+
+services:
+  demetra:
+    build:
+      context: ..
+    image: demetra:local
+    restart: unless-stopped
+    env_file: demetra.env
+    read_only: true                  # l'image n'écrit que dans /data (et gunicorn dans /dev/shm)
+    volumes:
+      - ./data:/data
+      - ./backup:/backup
+    expose:
+      - "8000"
+    mem_limit: 512m
+    cpus: 1.0
+
+  caddy:
+    image: caddy:2.10.2
+    restart: unless-stopped
+    environment:
+      DEMETRA_DOMAIN: ${DEMETRA_DOMAIN:?indiquez le domaine dans deploiement/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data             # certificats Let's Encrypt : à conserver
+      - caddy_config:/config
+    depends_on:
+      demetra:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

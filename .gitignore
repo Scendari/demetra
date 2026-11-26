@@ -14,3 +14,9 @@ test-results/
 .impeccable/review/
 .claude/
 .impeccable/hook.cache.json
+
+# Installation sur un serveur : écrits par deploiement/preparer.sh, jamais versionnés
+deploiement/.env
+deploiement/demetra.env
+deploiement/data/
+deploiement/backup/

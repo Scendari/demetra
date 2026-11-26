@@ -1,0 +1,27 @@
+# Frontal HTTPS de Demetra. Le domaine vient de la variable DEMETRA_DOMAIN (deploiement/.env).
+# Caddy obtient et renouvelle seul le certificat : les ports 80 et 443 doivent être joignables depuis Internet
+# et le nom DNS doit déjà pointer sur ce serveur.
+
+{$DEMETRA_DOMAIN} {
+	# Le site ne reçoit que du JSON ; Django plafonne déjà à 2,5 Mo.
+	request_body {
+		max_size 10MB
+	}
+
+	# Flux d'événements en direct (SSE) : ni compression ni mise en tampon, sinon rien n'arrive au navigateur.
+	@sse path_regexp ^/etudes/[^/]+/events$
+	handle @sse {
+		reverse_proxy demetra:8000 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		# /static/ est déjà compressé par WhiteNoise ; la compression sert au reste.
+		encode zstd gzip
+		reverse_proxy demetra:8000
+	}
+
+	# HSTS posé ici : DEMETRA_HSTS_SECONDS=0 dans demetra.env pour que Django ne le pose pas une seconde fois.
+	header Strict-Transport-Security "max-age=31536000"
+}
