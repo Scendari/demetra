@@ -807,19 +807,10 @@ def _centre(locator) -> tuple[float, float]:
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
-def _under(page, point: tuple[float, float]) -> str:
-    """L'élément sous un point de la page, et sa brique ou son lien : pour dire pourquoi un geste a manqué."""
-    return page.evaluate(
-        """([x, y]) => { const el = document.elementFromPoint(x, y); if (!el) return "rien";
-        const owner = el.closest("[data-e], [data-l]");
-        const where = owner ? owner.outerHTML.slice(0, 60) : "—";
-        return el.tagName + "." + el.className.baseVal + " dans " + where; }""",
-        list(point),
-    )
-
-
 def _glisser(page, start: tuple[float, float], end: tuple[float, float]) -> None:
     """Un glisser à la souris, en plusieurs pas, puis l'attente du fragment redemandé."""
+    # WebKit sous Linux (CI) perd un glisser commencé dans la foulée du précédent : un temps de main humaine.
+    page.wait_for_timeout(150)
     page.mouse.move(*start)
     page.mouse.down()
     page.mouse.move(start[0] + 10, start[1] + 10, steps=3)
@@ -867,23 +858,8 @@ def test_atelier_glisser_deposer(site, engine):
         "?e=A%3Atask&e=B%3Atask&e=C%3Atask&l=A%3Aprerequisite%3AC&l=B%3Aprerequisite%3AC"
     )
     # Le même lien une seconde fois : rien ne change, le site dit pourquoi.
-    ends = _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]'))
-    under = [_under(page, point) for point in ends]
-    page.evaluate(
-        """() => { window.__said = [];
-        const log = (e) => window.__said.push(e.type + ":" + (e.target.tagName || ""));
-        ["pointerdown", "pointerup", "pointercancel", "click"]
-          .forEach((t) => document.addEventListener(t, log, true));
-        new MutationObserver(() => window.__said.push("aide:" + document.querySelector("[data-at-hint-text]")
-          ?.textContent.slice(0, 30))).observe(document.querySelector("[data-atelier]"),
-          { subtree: true, childList: true, characterData: true }); }"""
-    )
-    _glisser(page, *ends)
-    page.wait_for_timeout(300)
-    under.append(page.evaluate("window.__said"))
-    expect(page.locator("[data-at-hint-text]"), f"sous la souris : {under}").to_have_text(
-        "Task B et Task C sont déjà reliées ainsi."
-    )
+    _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]')))
+    expect(page.locator("[data-at-hint-text]")).to_have_text("Task B et Task C sont déjà reliées ainsi.")
     expect(links).to_have_count(2)
     shot(page, "44-atelier-glisser-deposer", full_page=True)
     # Cliquer un lien propose de le retirer.
