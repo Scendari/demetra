@@ -408,6 +408,7 @@
       if (changed) CACHES.forEach((name) => { delete old[name]; });
     };
     const morphField = (old, fresh) => {
+      if (touched.has(old)) return;   // changé pendant le calcul : son propre geste part juste après
       if (old.tagName === "INPUT" && (old.type === "checkbox" || old.type === "radio")) old.checked = fresh.hasAttribute("checked");
       else if (old.tagName === "INPUT" && old !== doc.activeElement) old.value = fresh.getAttribute("value") || "";
       else if (old.tagName === "SELECT") old.selectedIndex = Math.max(0, Array.from(fresh.options).findIndex((o) => o.hasAttribute("selected")));
@@ -455,13 +456,22 @@
     };
     // « from » : le contrôle qui a lancé le geste. Safari ne donne pas le focus à une case ou à un bouton
     // qu'on clique : c'est à lui qu'on le rend quand le nouveau résultat arrive.
+    /* Les gestes partent l'un après l'autre : un geste fait pendant un calcul attend sa réponse, puis lit la
+       situation à jour (retirer A puis B très vite ne fait pas revenir A). Ce qu'on change pendant l'attente
+       est gardé tel quel par la fusion. */
+    let queue = Promise.resolve();
+    const touched = new Set();
+    ["input", "change"].forEach((type) => atelier.addEventListener(type, (event) => {
+      if (atelier.hasAttribute("aria-busy")) touched.add(event.target);
+    }));
+    const later = (make) => { queue = queue.then(make).catch(() => {}); };
     const load = (url, from) => {
       const mine = ++turn;
       const before = historyNow();
       stop();
       closePop();
       atelier.setAttribute("aria-busy", "true");
-      fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
+      return fetch(url, { headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
         .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.text().then((html) => [html, response.url]); })
         .then(([html, landed]) => {
           if (mine !== turn) return;   // une réponse plus récente est attendue
@@ -469,6 +479,7 @@
           const fresh = doc.createElement("template");
           fresh.innerHTML = html;
           morphChildren(atelier, fresh.content);
+          touched.clear();
           atelier.removeAttribute("aria-busy");
           ready();
           showDelta(before);
@@ -491,7 +502,7 @@
     const submit = (form, submitter, from) => {
       const extra = {};
       if (submitter && submitter.name) extra[submitter.name] = submitter.value;
-      load(asked(form, extra), from || submitter);
+      later(() => load(asked(form, extra), from || submitter));
     };
 
     /* Glisser-déposer. Deux gestes sur le schéma : y déposer une brique de la palette, et tirer un lien d'une
@@ -503,7 +514,7 @@
     let pop = null;
     let swallow = false;   // le clic qui suit un glisser ne vaut pas un clic sur le bouton
     const build = () => $("[data-atelier-form]", atelier);
-    const gesture = (extra) => load(asked(build(), extra));
+    const gesture = (extra) => later(() => load(asked(build(), extra)));
     const nameOf = (id) => { const field = doc.getElementById("at-name-" + id); return field ? field.value || field.placeholder : id; };
     const kindOf = (id) => { const card = $('.at-card[data-brick="' + id + '"]', atelier); return card ? card.dataset.kind : ""; };
     const linkTypes = () => JSON.parse(build().dataset.atLinks || "[]");
@@ -770,7 +781,7 @@
       const link = event.target.closest("a[data-atelier-link], a[data-at-step]");
       if (link && !(event.metaKey || event.ctrlKey || event.shiftKey || event.button)) {
         event.preventDefault();
-        if (link.matches("[data-atelier-link]")) return load(link.href);
+        if (link.matches("[data-atelier-link]")) return later(() => load(link.href));
         const panel = walk();
         const last = (panel._steps || []).length - 1;
         stop();

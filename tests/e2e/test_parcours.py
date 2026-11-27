@@ -1259,6 +1259,39 @@ def test_atelier_annonce_le_resultat(site, engine):
     context.close()
 
 
+def test_atelier_enchaine_les_gestes_rapproches(site, engine):
+    """Deux gestes faits pendant un calcul partent l'un après l'autre, chacun sur la situation à jour :
+    retirer A puis B sans attendre les retire toutes les deux, et une case cochée pendant l'attente reste
+    cochée."""
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.goto(page.url.split("?")[0] + "atelier/?e=A%3Atask&e=B%3Atask&e=C%3Atask")
+
+    def delayed(route):
+        if route.request.headers.get("x-requested-with") == "fetch":
+            time.sleep(0.6)
+        route.continue_()
+
+    page.route("**/atelier/**", delayed)
+    page.locator('button[name="del"][value="A"]').click()
+    page.locator('button[name="del"][value="B"]').click()
+    expect(page.locator(".at-card")).to_have_count(1, timeout=8000)
+    expect(page.locator('.at-card[data-brick="C"]')).to_have_count(1)
+    page.check('input[name="o.C.always_run"]')
+    page.check('input[name="ev"][value="C:echec"]')
+    expect(page).to_have_url(re.compile(r"ev=C%3Aechec"), timeout=8000)
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator('input[name="o.C.always_run"]')).to_be_checked()
+    expect(page.locator('input[name="ev"][value="C:echec"]')).to_be_checked()
+    assert "o.C.always_run=true" in page.url
+    assert not problems, problems
+    context.close()
+
+
 def test_atelier_executions_successives(site, engine):
     """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
     partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""
