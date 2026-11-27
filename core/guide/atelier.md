@@ -109,6 +109,28 @@ Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `un
 
 L'ordre des règles fait donc la priorité : placez les règles d'arrêt (blocage, désactivation) avant les règles de démarrage. Une règle dont l'état d'arrivée est l'état actuel ne change rien, mais elle empêche les suivantes de s'appliquer à cet élément.
 
+### Ressources à places : jamais plus de N à la fois
+
+Parce que les changements d'un pas sont simultanés, une règle « je démarre s'il y a moins de 2 éléments en cours » ne tient pas sa limite : trois éléments qui attendent voient tous zéro élément en cours et démarrent ensemble. Pour une capacité (des postes, des guichets, des places en parallèle), déclarez une **ressource** et dites quelles règles **prennent une place** :
+
+```json
+"settings": [{"key": "capacite", "label": "Places", "values": [1, 2, 3]}],
+"resources": [{"key": "postes", "label": "Postes", "places": {"setting": "capacite"},
+               "held": ["EN_COURS"], "policy": "order"}],
+"rules": [
+  {"key": "D1", "title": "Une tâche prête démarre", "when": {"status": "ATTENTE"},
+   "then": "EN_COURS", "takes": "postes"},
+  {"key": "D2", "title": "Une tâche en cours se termine", "when": {"status": "EN_COURS"}, "then": "FINI"}
+]
+```
+
+- `places` : un entier de 1 à 50, ou un réglage numérique (`{"setting": "capacite"}`). `held` : les états qui tiennent une place. 6 ressources au plus.
+- `takes` sur une règle : son `then` doit être un état de `held`. Le site calcule les changements du pas comme d'habitude, puis sert les règles qui prennent une place, **au plus les places libres** : places moins éléments dont l'état du pas précédent est dans `held`. Une place libérée dans un pas ne sert qu'au pas suivant.
+- `policy` : `order` (par défaut, l'ordre où les briques sont posées) ou `key` (l'ordre de leurs identifiants). C'est un ordre **choisi par l'étude pour la simulation** : ne le présentez pas comme celui du processus réel. L'atelier l'écrit sous la liste des règles.
+- Les éléments non servis restent dans leur état et seront réexaminés au pas suivant, toutes leurs autres conditions comprises : une règle d'arrêt placée avant (annulation, blocage) joue d'abord. Le pas les liste dans `refused` (`[{"id", "rule", "resource"}]`) et l'étape du cas le dit (« C attend une place : Postes au complet. »). Si la situation se stabilise avec des éléments en attente, `waiting` les explique (`"test": "resource"`).
+- Erreurs : `unknown_resource` (un `takes` qui ne nomme aucune ressource), `type` (places invalides, ou un `then` qui ne tient pas de place), `unknown_status`, `enum` (politique).
+- Sans `resources`, rien ne change : les règles s'appliquent comme avant.
+
 ## Lire ce que l'étude déclare
 
 `GET /api/v1/studies/{id}/workshop` — portée `studies:read`.

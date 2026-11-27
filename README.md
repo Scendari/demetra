@@ -18,7 +18,7 @@ Prérequis : [uv](https://docs.astral.sh/uv/) (il installe Python 3.14 si besoin
 ```bash
 uv sync                                  # installe les dépendances
 uv run python manage.py migrate          # crée la base SQLite et les 16 représentations système
-uv run python manage.py seed_demo        # crée les comptes et les 16 études de démonstration
+uv run python manage.py seed_demo        # crée les comptes et les 17 études de démonstration
 uv run python manage.py runserver        # http://127.0.0.1:8000
 ```
 

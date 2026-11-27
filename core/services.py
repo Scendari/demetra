@@ -1966,6 +1966,7 @@ def workshop_run_out(study: Study, raw: Any) -> dict:
     steps = [
         {"step": n, "states": step["states"], "changes": step["changes"]}
         | ({"at": step["at"]} if step.get("at") is not None else {})
+        | ({"refused": step["refused"]} if step.get("refused") else {})
         for n, step in enumerate(result["steps"])
     ]
     return {

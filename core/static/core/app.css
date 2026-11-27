@@ -572,6 +572,7 @@ dialog.help form { display: grid; gap: var(--s-4); padding: var(--s-4); }
 .missing-try { margin-left: auto; }
 .inv-counts { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
 .at-wait { margin: 0.2rem 0 0; color: var(--ink-3); font-size: var(--t-xs); }
+.at-resource { margin: var(--s-2) 0 0; color: var(--ink-2); font-size: var(--t-sm); }
 .cov-inventory .sub { color: var(--ink-3); font-size: var(--t-xs); overflow-wrap: anywhere; }
 .pick-number input { width: 7.5rem; }
 .at-calc-total { font-size: var(--t-lg); }

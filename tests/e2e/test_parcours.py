@@ -245,7 +245,7 @@ def test_parcours_complet(site, browser):
     expect(page.get_by_role("heading", level=1)).to_have_text("Études")
     # Le catalogue, six exemples (décision, temps, cas paramétrés, trois ateliers), un exemple par
     # représentation élargie.
-    expect(page.locator("a.row-link")).to_have_count(16)
+    expect(page.locator("a.row-link")).to_have_count(17)
     shot(page, "03-etudes", full_page=True)
 
     # ---- Revue d'un cas, au clavier

@@ -507,6 +507,26 @@ def _feeds(decl: dict, extra: dict, final: dict) -> dict | None:
     }
 
 
+POLICY_TEXT = {"order": "dans l'ordre où elles sont posées", "key": "dans l'ordre de leurs identifiants"}
+
+
+def _resources(study: Study) -> list[str]:
+    """Une phrase par ressource à places : combien, tenues par quels états, servies dans quel ordre."""
+    smap = status_map(study.statuses)
+    settings = {s["key"]: s["label"] for s in study.workshop.get("settings", [])}
+    out = []
+    for r in study.workshop.get("resources", []):
+        ref = workshop.setting_ref(r["places"])
+        places = f"autant de places que le réglage « {settings[ref]} »" if ref else f"{r['places']} place(s)"
+        held = ", ".join(smap.get(state, {}).get("label", state) for state in r["held"])
+        out.append(
+            f"{r['label']} : {places}, tenues par les briques {held}. Quand plusieurs se présentent au même "
+            f"pas, elles sont servies {POLICY_TEXT[r['policy']]} : un ordre choisi par l'étude pour la "
+            "simulation, pas une garantie du processus réel."
+        )
+    return out
+
+
 def _rules(decl: dict, run: dict | None) -> list[dict]:
     used = {c.get("rule") for step in (run["steps"] if run else []) for c in step["changes"]}
     used |= set(run["used"] if run else [])
@@ -579,6 +599,7 @@ def study_workshop(request, sid: str):
         hidden=[(name, value) for name, value in family.to_query(decl, sit) if name in ("e", "l")],
         words=WORDS[families.name_of(decl)],
         rules=_rules(decl, run),
+        resources=_resources(study),
         state_qs=urlencode(family.to_query(decl, sit)),
         reset_url=reverse("study_workshop", args=[study.public_id]),
         steps_urls=[_address(study, sit, n) for n in range(last + 1)] if run else [],

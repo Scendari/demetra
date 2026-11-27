@@ -15,7 +15,19 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .casemodel import ID_RE, Report, _is_str
-from .rules import among, as_list, check_count, matches, pairs_hold, same, text_of
+from .rules import (
+    among,
+    as_list,
+    check_count,
+    is_number,
+    matches,
+    operand_of,
+    pairs_hold,
+    same,
+    setting_ref,
+    text_of,
+    values_of,
+)
 from .rules import bricks as _bricks
 from .rules import check_pairs as _check_pairs
 from .rules import choices as _choices
@@ -291,6 +303,83 @@ def _outcomes(raw, voc: Vocabulary, report: Report, path: str) -> list[dict]:
     return out
 
 
+MAX_RESOURCES = 6
+MAX_PLACES = 50
+POLICIES = ("order", "key")
+EXAMPLE_RESOURCE = {
+    "key": "postes",
+    "label": "Postes",
+    "places": {"setting": "capacite"},
+    "held": ["EN_COURS"],
+}
+
+
+def _places(raw, settings: list[dict], report: Report, p: str):
+    """Le nombre de places : un entier, ou un réglage numérique de l'étude."""
+    if isinstance(raw, int) and not isinstance(raw, bool) and 1 <= raw <= MAX_PLACES:
+        return raw
+    key = setting_ref(raw)
+    numeric = {s["key"]: s for s in settings if all(is_number(v) for v in values_of(s))}
+    if key is not None and key in numeric:
+        return raw
+    report.error(
+        p,
+        "type",
+        f'« places » : un entier de 1 à {MAX_PLACES}, ou un réglage numérique {{"setting": clé}}.',
+        received=raw,
+        example=EXAMPLE_RESOURCE["places"],
+    )
+    return None
+
+
+def _resources(raw, settings: list[dict], voc: Vocabulary, report: Report, path: str) -> list[dict]:
+    """Les ressources à places que l'étude déclare : au plus `places` briques à la fois dans les états de
+    `held`, attribuées selon `policy` quand plusieurs se présentent au même pas."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_RESOURCES:
+        report.error(
+            path, "type", f"« resources » : {MAX_RESOURCES} ressources au plus.", example=[EXAMPLE_RESOURCE]
+        )
+        return []
+    out, seen = [], set()
+    for i, item in enumerate(raw):
+        p = f"{path}[{i}]"
+        key = _key(item, "key", seen, report, p, "Une ressource") if isinstance(item, dict) else None
+        if key is None:
+            continue
+        places = _places(item.get("places"), settings, report, f"{p}.places")
+        held = as_list(item.get("held"))
+        fine = _known(held, voc.statuses, report, f"{p}.held", "unknown_status", "Statut")
+        policy = item.get("policy", "order")
+        if policy not in POLICIES:
+            report.error(f"{p}.policy", "enum", "Politique inconnue.", received=policy, expected=POLICIES)
+            fine = False
+        if places is not None and fine:
+            label = _label(item, report, p, key, 60)
+            out.append({"key": key, "label": label, "places": places, "held": held, "policy": policy})
+    return out
+
+
+def _check_takes(rules: list[dict], raw_rules, resources: list[dict], report: Report, path: str) -> None:
+    """Une règle qui « prend une place » nomme une ressource, et l'état qu'elle donne tient cette place."""
+    by_key = {r["key"]: r for r in resources}
+    raw_by_key = {item.get("key"): item for item in raw_rules if isinstance(item, dict)}
+    for n, rule in enumerate(rules):
+        takes = raw_by_key.get(rule["key"], {}).get("takes")
+        if takes is None:
+            continue
+        p = f"{path}[{n}].takes"
+        if takes not in by_key:
+            report.error(
+                p, "unknown_resource", "Ressource inconnue.", received=takes, expected=sorted(by_key)
+            )
+        elif rule["then"] not in by_key[takes]["held"]:
+            report.error(p, "type", "L'état que donne la règle doit tenir une place de cette ressource.")
+        else:
+            rule["takes"] = takes
+
+
 def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "workshop") -> dict:
     """La déclaration d'atelier d'une étude, validée. Rend {} quand l'étude n'en déclare pas."""
     if raw in (None, {}):
@@ -300,7 +389,8 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
             path, "type", "« workshop » est un objet {bricks, links, rules, outcome}.", example=EXAMPLE
         )
         return {}
-    unknown = set(raw) - {"family", "title", "bricks", "links", "settings", "rules", "outcome", "max_steps"}
+    known = {"family", "title", "bricks", "links", "settings", "rules", "outcome", "max_steps", "resources"}
+    unknown = set(raw) - known
     if unknown:
         report.error(path, "unknown_field", "Champ inconnu dans « workshop ».", received=sorted(unknown))
     bricks = _bricks(raw.get("bricks"), status_keys, report, f"{path}.bricks")
@@ -311,7 +401,7 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_RUN_STEPS:
         report.error(f"{path}.max_steps", "type", f"Un entier de 1 à {MAX_RUN_STEPS}.", received=limit)
         limit = DEFAULT_RUN_STEPS
-    return {
+    out = {
         "title": _label(raw, report, path, "", 80, "title"),
         "bricks": bricks,
         "links": links,
@@ -320,6 +410,12 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
         "outcome": _outcomes(raw.get("outcome"), voc, report, f"{path}.outcome"),
         "max_steps": limit,
     }
+    resources = _resources(raw.get("resources"), settings, voc, report, f"{path}.resources")
+    if resources:  # absent sinon : une déclaration sans ressource ne change pas d'un octet
+        out["resources"] = resources
+    if isinstance(raw.get("rules"), list):
+        _check_takes(out["rules"], raw["rules"], resources, report, f"{path}.rules")
+    return out
 
 
 def declared(decl: dict | None) -> bool:
@@ -634,9 +730,9 @@ def world_of(decl: dict, situation: dict, default_status: str, start: dict | Non
     )
 
 
-def _next(decl: dict, world: World) -> list[dict]:
-    """Ce que la table de règles change en un pas. Chaque élément suit la première règle qui lui correspond ;
-    toutes les règles lisent l'état du pas précédent."""
+def _proposed(decl: dict, world: World) -> list[dict]:
+    """Ce que la table de règles propose de changer en un pas. Chaque élément suit la première règle qui lui
+    correspond ; toutes les règles lisent l'état du pas précédent."""
     changes = []
     for key, element in world.elements.items():
         for rule in decl["rules"]:
@@ -649,6 +745,39 @@ def _next(decl: dict, world: World) -> list[dict]:
     return changes
 
 
+def places_of(resource: dict, world: World) -> tuple[int, int]:
+    """(places, places occupées) d'une ressource, d'après l'état du pas précédent."""
+    places = operand_of(resource["places"], world.settings)
+    total = int(places) if is_number(places) else 0
+    used = sum(1 for state in world.states.values() if state in resource["held"])
+    return total, used
+
+
+def _arbitrate(decl: dict, world: World, changes: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Les changements qui prennent une place, servis selon la politique de leur ressource, au plus les
+    places libres ; les autres attendent (refusés pour ce pas, réexaminés au suivant). Une place libérée dans
+    ce pas ne sert qu'au pas suivant."""
+    takes = {r["key"]: r.get("takes") for r in decl["rules"]}
+    order = list(world.elements)
+    refused: list[dict] = []
+    for resource in decl.get("resources", []):
+        asking = [c for c in changes if takes.get(c["rule"]) == resource["key"]]
+        if resource["policy"] == "key":
+            asking.sort(key=lambda c: c["id"])
+        else:
+            asking.sort(key=lambda c: order.index(c["id"]))
+        places, used = places_of(resource, world)
+        for change in asking[max(places - used, 0) :]:
+            refused.append({"id": change["id"], "rule": change["rule"], "resource": resource["key"]})
+    gone = {(r["id"], r["rule"]) for r in refused}
+    return [c for c in changes if (c["id"], c["rule"]) not in gone], refused
+
+
+def _next(decl: dict, world: World) -> list[dict]:
+    """Ce que la table de règles change en un pas, après l'attribution des places."""
+    return _arbitrate(decl, world, _proposed(decl, world))[0]
+
+
 def run(decl: dict, situation: dict, default_status: str, start: dict | None = None) -> dict:
     """Déroule la situation jusqu'à ce que plus rien ne bouge.
 
@@ -659,7 +788,7 @@ def run(decl: dict, situation: dict, default_status: str, start: dict | None = N
     seen = [dict(world.states)]
     end = "stable"
     while True:
-        changes = _next(decl, world)
+        changes, refused = _arbitrate(decl, world, _proposed(decl, world))
         if not changes:
             break
         if len(steps) > decl["max_steps"]:
@@ -667,7 +796,9 @@ def run(decl: dict, situation: dict, default_status: str, start: dict | None = N
             break
         for change in changes:
             world.states[change["id"]] = change["to"]
-        steps.append({"states": dict(world.states), "changes": changes})
+        steps.append(
+            {"states": dict(world.states), "changes": changes} | ({"refused": refused} if refused else {})
+        )
         if world.states in seen:
             end = "loop"
             break
@@ -726,12 +857,34 @@ def _missing(key: str, expected, decl: dict, element: dict) -> str:
     return "la condition composée de la règle n'est pas remplie"
 
 
+def _waiting_for_places(decl: dict, world: World) -> dict[str, dict]:
+    """Les briques dont la règle jouerait, mais qui n'ont pas eu de place."""
+    if not decl.get("resources"):
+        return {}
+    titles = {r["key"]: r["title"] for r in decl["rules"]}
+    resources = {r["key"]: r for r in decl["resources"]}
+    out = {}
+    for refusal in _arbitrate(decl, world, _proposed(decl, world))[1]:
+        resource = resources[refusal["resource"]]
+        places, used = places_of(resource, world)
+        out[refusal["id"]] = {
+            "rule": refusal["rule"],
+            "title": titles[refusal["rule"]],
+            "test": "resource",
+            "resource": resource["key"],
+            "why": f"aucune place libre pour « {resource['label']} » ({used} sur {places} occupées)",
+        }
+    return out
+
+
 def waiting(decl: dict, world: World) -> dict[str, dict]:
     """Pour chaque brique qu'une règle pourrait encore faire changer, la règle la plus proche de jouer et ce
     qui lui manque (la première condition fausse). Une brique qu'aucune règle ne fait sortir de son état n'y
     figure pas : rien ne l'attend. Au plus une raison par brique."""
-    out = {}
+    out = _waiting_for_places(decl, world)
     for key, element in world.elements.items():
+        if key in out:
+            continue
         state, best = world.states[key], None
         for rule in decl["rules"]:
             if element["type"] not in rule["on"] or rule["then"] == state:
@@ -782,6 +935,15 @@ def _step(decl: dict, situation: dict, step: dict) -> dict:
     else:
         title = f"{len(used)} règles s'appliquent en même temps"
         note = " ".join(f"Règle {key}, pour {_listed(by_rule[key])} : {rules[key]['title']}." for key in used)
+    if step.get("refused"):
+        resources = {r["key"]: r["label"] for r in decl.get("resources", [])}
+        waiting = {}
+        for refusal in step["refused"]:
+            waiting.setdefault(resources[refusal["resource"]], []).append(labels[refusal["id"]])
+        note += "".join(
+            f" {_listed(names)} attend{'ent' if len(names) > 1 else ''} une place : {label} au complet."
+            for label, names in waiting.items()
+        )
     return {"title": title[:200], "note": note[:1900], "changes": {c["id"]: c["to"] for c in step["changes"]}}
 
 

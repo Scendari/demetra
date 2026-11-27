@@ -48,7 +48,7 @@ call_command("seed_demo", no_verdicts=True, verbosity=0, stdout=io.StringIO())
 
 from core import casemodel
 from core import services as svc
-from core.demo import catalogue, circuit, decision, elargi, librairie, magasin, parametre, temporal
+from core.demo import catalogue, circuit, decision, elargi, librairie, magasin, mairie, parametre, temporal
 from core.models import Case, Representation, Study
 from core.recommend import recommend
 from core.render import render
@@ -92,6 +92,7 @@ def demo_empreinte() -> dict:
         ("circuit", circuit),
         ("magasin", magasin),
         ("librairie", librairie),
+        ("mairie", mairie),
     ):
         _definition(out, slug, module.DEFINITION)
         out[f"demo | {slug} | cases"] = _h(module.cases())

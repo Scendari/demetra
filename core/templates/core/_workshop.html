@@ -209,6 +209,7 @@
       <ol>
         {% for r in rules %}<li data-rule="{{ r.key }}"{% if r.used %} class="is-used"{% endif %}><b>{{ r.mark }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
       </ol>
+      {% for text in resources %}<p class="at-resource">{{ text }}</p>{% endfor %}
     </details>
   </div>
 </div>
