@@ -1196,8 +1196,8 @@ def test_atelier_option_garde_la_fiche_et_le_defilement(site, engine):
 
 
 def test_atelier_se_met_a_jour_sans_tout_remplacer(site, engine):
-    """Le nouveau résultat se fond dans la page : les fiches restent les mêmes éléments, un nom tapé pendant le
-    calcul n'est pas écrasé, un volet qu'on a ouvert le reste."""
+    """Le nouveau résultat se fond dans la page : les fiches restent les mêmes éléments, un nom tapé pendant
+    le calcul n'est pas écrasé, un volet qu'on a ouvert le reste."""
     context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems = watched(page)
