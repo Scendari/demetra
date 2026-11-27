@@ -1952,7 +1952,7 @@ def workshop_run_out(study: Study, raw: Any) -> dict:
         _raise_issues(report, "La situation n'a pas été déroulée : corrigez les champs signalés.", "atelier")
     result = workshop_run(study, situation)
     rules = {r["key"]: r["title"] for r in decl["rules"]}
-    cited = [c["rule"] for step in result["steps"] for c in step["changes"]]
+    cited = [c["rule"] for step in result["steps"] for c in step["changes"] if c.get("rule")]
     used = list(dict.fromkeys(cited + result["used"]))  # dans l'ordre où elles ont servi
     steps = [
         {"step": n, "states": step["states"], "changes": step["changes"]}

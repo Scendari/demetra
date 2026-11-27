@@ -20,7 +20,7 @@ Vue d'ensemble, limites connues, licences : `README.md`. Mise en production : `D
 ```bash
 uv sync                                   # dépendances (ajouter --extra ldap pour l'annuaire LDAP)
 uv run python manage.py migrate           # base SQLite locale + représentations système
-uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 15 études
+uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 16 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
 uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium, et WebKit
@@ -45,6 +45,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `rules.py` | Socle commun des familles d'atelier : valeurs (`same`, `among`, `text_of`), briques de déclaration (`item_key`, `item_label`, `choices` et leur `dimension`, `chosen`, `events`, `bricks`, `bound_dimensions`), comparaison d'une valeur déclarée (`check_pairs`, `pairs_hold`) | Pur. Ce qui sert toutes les familles s'écrit ici, une fois ; rien de propre à une famille ni à une étude |
 | `workshop.py` | Atelier : déclaration d'une étude (`normalize` : briques, options, évènements, liens, réglages, table de règles), conditions au vocabulaire fermé (`check_condition`, `holds`), situation construite (`situation`, `from_query`, `to_query`), moteur pas à pas (`run`), passage au format de cas (`to_case`) | Pur. Aucun code fourni par l'étude n'est exécuté. Rien n'y nomme une étude : les règles d'une étude vivent dans sa déclaration (`Study.workshop`), jamais ici |
 | `periods.py` | Atelier, famille « périodes » : déclaration (`normalize` : axe, sources, composition d'une image, champs restitués, fusion, périodes invalides), phrases tirées de la déclaration (`principles`), périodes posées (`situation`, `from_query`, `to_query`, `placed`), moteur (`run` : une image par pas, puis réunion), passage au format de cas (`to_case`) | Pur. Mêmes interdits que `workshop.py`. Prend au socle (`rules.py`) ses briques de déclaration et ses comparaisons |
+| `calc.py` | Atelier, famille « calcul » : briques aux options numériques, lignes de calcul (`lines` : `op`, `value`, `when`) appliquées dans l'ordre à un cumul, expressions et conditions au vocabulaire fermé (`check_value`, `check_condition`, `value_of`, `holds`), moteur (`run` : un pas par ligne), passage au format de cas (`to_case`, lignes dans `values`) | Pur. Mêmes interdits que `workshop.py`. Aucune chaîne n'est interprétée |
 | `families.py` | Les familles d'atelier (`FAMILIES`) et leur interface commune : `normalize`, `declared`, `situation`, `from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `to_case` | Pur. `services`, `api` et `views/atelier` passent par `families.of(decl)` : aucun n'appelle une famille par son nom. Ajouter une famille = un module de plus ici, sans toucher à l'écran ni à l'API |
 | `workshopcheck.py` | Accord entre un cas déposé et l'atelier de son étude (`agreement`) : le cas rejoué comme une situation, évènements supposés, cas arrêté en cours de route ; avertissement `workshop_mismatch` | Pur. Les réglages se lisent dans `config`, sinon dans la dimension déclarée (`settings[].dimension`) |
 | `rulecheck.py` | Accord entre le sort des lignes qu'un cas annonce et ce que calcule le jeu de règles de l'étude (`model_mismatch`) | Pur |
@@ -61,7 +62,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `storage.py` | Fichiers statiques sans manifeste (développement, tests) : l'adresse porte la date du fichier (`?v=…`) | En production, le manifeste de WhiteNoise met l'empreinte dans le nom |
 | `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule, message de l'organisation (`SiteNotice`, une seule ligne) | Le contenu des études n'y est pas modifiable |
 | `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown ; le message de l'organisation (`SiteNotice`) s'y insère à la lecture, échappé sur `/guide/` |
-| `demo/` | Données des 15 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP` (qui déclare aussi des exécutions successives)) | Le catalogue vient de `sources/catalogue` |
+| `demo/` | Données des 16 études de démonstration (`seed_demo`) ; deux déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`), une un atelier de périodes (`magasin.WORKSHOP` (qui déclare aussi des exécutions successives)), une un atelier de calcul (`librairie.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 
@@ -129,6 +130,9 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   (déclaration, moteur, adresse, API, écran, exemple du guide).
   `test_demo_magasin.py` : l'étude de démonstration qui déclare un atelier de périodes ; onze situations aux
   lignes attendues écrites à la main, le semis, et rien de cette étude dans `core/` hors `core/demo/`.
+  `test_calcul.py` : la famille « calcul » (déclaration, moteur, adresse, API, écran, accord des cas, exemple du guide)
+  sur la librairie de démonstration et une note de frais sans rapport. `test_comparer_compter.py` : comparaisons et
+  comptage du socle.
   `test_accord_atelier.py` : un cas rejoué dans l'atelier de son étude (concorde, s'écarte, ne s'y traduit pas).
   `test_parametrique.py`, `test_modele.py` : cas paramétrés, accord avec le jeu de règles.
 - `test_contrast.py` : contrastes des deux thèmes. `test_licences.py` : licences et absence de bibliothèque de

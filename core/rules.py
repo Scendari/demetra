@@ -32,6 +32,35 @@ def is_number(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+class Numbers(list):
+    """Les valeurs d'une option numérique : tout nombre entre `low` et `high`. Une liste vide, pour que les
+    contrôles qui parcourent des valeurs déclarées la traversent sans rien y trouver à refuser."""
+
+    def __init__(self, low: float | None = None, high: float | None = None):
+        super().__init__()
+        self.low, self.high = low, high
+
+    def __contains__(self, value) -> bool:
+        return fits(value, self)
+
+
+def fits(value, allowed) -> bool:
+    """`value` est-elle permise : l'une des valeurs déclarées, ou un nombre dans les bornes d'une option
+    numérique ?"""
+    if isinstance(allowed, Numbers):
+        low = allowed.low if allowed.low is not None else value
+        high = allowed.high if allowed.high is not None else value
+        return is_number(value) and low <= value <= high
+    return among(value, allowed)
+
+
+def values_of(item: dict) -> list:
+    """Les valeurs permises d'une option ou d'un réglage déclaré."""
+    if "number" in item:
+        return Numbers(item["number"]["min"], item["number"]["max"])
+    return item["values"]
+
+
 def matches(actual, wanted) -> bool:
     """La valeur `actual` satisfait-elle `wanted` : une valeur (égalité stricte) ou une comparaison ?"""
     if not isinstance(wanted, dict):
@@ -64,9 +93,9 @@ def comparison_issue(wanted, allowed) -> tuple[str, str, str] | None:
             return f".{op}", "not_numeric", "Ces valeurs ne sont pas des nombres : elles ne se comparent pas."
         return None
     if op == "in":
-        fine = isinstance(operand, list) and operand and all(among(v, allowed) for v in operand)
+        fine = isinstance(operand, list) and operand and all(fits(v, allowed) for v in operand)
     else:
-        fine = among(operand, allowed)
+        fine = fits(operand, allowed)
     return None if fine else (f".{op}", "unknown_value", "Valeur inconnue.")
 
 
@@ -194,9 +223,43 @@ def bound_dimensions(decl: dict, dimensions: list[dict], report: Report, path: s
                 )
 
 
-def choices(raw, report: Report, path: str, what: str, limit: int, bindable: bool = False) -> list[dict]:
+def number_choice(item: dict, key: str, report: Report, p: str) -> dict | None:
+    """Une option numérique : {key, label, number: {min, max, step}, default, unit}."""
+    spec = item.get("number")
+    bounds = isinstance(spec, dict) and set(spec) <= {"min", "max", "step"}
+    bounds = bounds and all(is_number(spec.get(k)) for k in ("min", "max")) and spec["min"] < spec["max"]
+    step = spec.get("step", 1) if isinstance(spec, dict) else None
+    if not bounds or not is_number(step) or step <= 0:
+        report.error(
+            f"{p}.number",
+            "type",
+            "Une option numérique : {min, max, step}, min plus petit que max, un pas positif.",
+            received=spec,
+            example={"min": 0, "max": 100, "step": 0.5},
+        )
+        return None
+    numbers = {"min": spec["min"], "max": spec["max"], "step": step}
+    default = item.get("default", spec["min"])
+    if not fits(default, Numbers(spec["min"], spec["max"])):
+        report.error(
+            f"{p}.default", "unknown_value", "La valeur par défaut est entre min et max.", received=default
+        )
+        return None
+    out = {"key": key, "label": item_label(item, report, p, key), "number": numbers, "default": default}
+    unit = item.get("unit")
+    if isinstance(unit, str) and 0 < len(unit) <= 12:
+        out["unit"] = unit
+    elif unit is not None:
+        report.error(f"{p}.unit", "type", "Une unité : un texte de 12 caractères au plus.", received=unit)
+    return out
+
+
+def choices(
+    raw, report: Report, path: str, what: str, limit: int, bindable: bool = False, numeric: bool = False
+) -> list[dict]:
     """Options d'une brique ou réglages de la situation : {key, label, values, default}. Un réglage
-    (`bindable`) peut dire dans quelle dimension de l'étude il se lit (`dimension`)."""
+    (`bindable`) peut dire dans quelle dimension de l'étude il se lit (`dimension`) ; une famille qui calcule
+    (`numeric`) accepte aussi des options numériques ({number: {min, max, step}})."""
     if raw in (None, []):
         return []
     if not isinstance(raw, list) or len(raw) > limit:
@@ -207,6 +270,11 @@ def choices(raw, report: Report, path: str, what: str, limit: int, bindable: boo
         p = f"{path}[{i}]"
         key = item_key(item, "key", seen, report, p, what)
         if key is None:
+            continue
+        if numeric and "number" in item and "values" not in item:
+            found = number_choice(item, key, report, p)
+            if found:
+                out.append(found)
             continue
         values = item.get("values")
         scalar = (bool, int, float, str)
@@ -251,7 +319,7 @@ def events(raw, report: Report, path: str) -> list[dict]:
     return out
 
 
-def bricks(raw, status_keys: set[str], report: Report, path: str) -> list[dict]:
+def bricks(raw, status_keys: set[str], report: Report, path: str, numeric: bool = False) -> list[dict]:
     if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_BRICKS:
         report.error(
             path,
@@ -269,7 +337,9 @@ def bricks(raw, status_keys: set[str], report: Report, path: str) -> list[dict]:
         brick = {
             "type": kind,
             "label": item_label(item, report, p, kind, 40),
-            "options": choices(item.get("options"), report, f"{p}.options", "Une option", MAX_OPTIONS),
+            "options": choices(
+                item.get("options"), report, f"{p}.options", "Une option", MAX_OPTIONS, numeric=numeric
+            ),
             "events": events(item.get("events"), report, f"{p}.events"),
         }
         initial = item.get("initial")
@@ -305,7 +375,7 @@ def check_pairs(expected, allowed: dict, report: Report, p: str, what: str) -> b
                 suffix, code, message = issue
                 report.error(f"{p}.{key}{suffix}", code, message, received=value, example=EXAMPLE_COMPARISON)
                 ok = False
-        elif not among(value, allowed[key]):
+        elif not fits(value, allowed[key]):
             report.error(
                 f"{p}.{key}", "unknown_value", "Valeur inconnue.", received=value, expected=allowed[key]
             )
@@ -325,14 +395,16 @@ def chosen(declared: list[dict], raw, report: Report, p: str) -> dict:
     for key, value in raw.items():
         if key not in known:
             report.error(f"{p}.{key}", "unknown_option", "Nom inconnu.", received=key, expected=sorted(known))
-        elif not among(value, known[key]["values"]):
+        elif not fits(value, values_of(known[key])):
             report.error(
                 f"{p}.{key}",
                 "unknown_value",
                 "Valeur inconnue.",
                 received=value,
-                expected=known[key]["values"],
+                expected=known[key].get("values", known[key].get("number")),
             )
+        elif "number" in known[key]:
+            out[key] = value
         else:
             out[key] = next(v for v in known[key]["values"] if same(v, value))
     return out

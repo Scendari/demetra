@@ -850,7 +850,7 @@ def test_one_example_study_per_new_representation_replayable_without_duplicates(
         }
 
     before = state()
-    assert len(before) == 15
+    assert len(before) == 16
     for slug, study in demo.items():
         assert study.is_example, f"{study.title} : marquée « Exemple »"
         assert study.representation.slug == slug, "chaque étude porte la représentation qu'elle illustre"

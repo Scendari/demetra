@@ -86,13 +86,25 @@
     <section class="at-result" aria-labelledby="at-result-title">
       <h2 id="at-result-title">Résultat</h2>
       {% if result.label %}<p class="at-result-value" data-result>{{ result.label }}{% if result.status %} <span class="st" data-role="{{ result.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ result.role }}"/></svg><span class="st-tx">{{ result.status }}</span></span>{% endif %}</p>{% endif %}
-      {% if not result.history %}
+      {% if result.calc %}<p class="at-calc-total" data-calc-total>{{ result.calc.label }} : {% if result.calc.blocked %}<span class="at-void">non calculé</span>{% else %}<b>{{ result.calc.value }}</b>{% endif %}</p>{% endif %}
+      {% if not result.history and not result.calc %}
       <ul class="at-counts" aria-label="{{ words.counts }}">
         {% for c in result.counts %}<li><b>{{ c.n }}</b><span class="st" data-role="{{ c.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ c.role }}"/></svg><span class="st-tx">{{ c.label }}</span></span></li>{% endfor %}
       </ul>
       {% endif %}
-      <p class="at-source"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>{% if result.history %}Obtenu en combinant les périodes posées comme l'étude le déclare.{% elif result.steps %}Obtenu en {{ result.steps }} pas, en appliquant les règles que l'étude déclare.{% else %}Aucune règle de l'étude ne s'applique à cette situation : rien ne bouge.{% endif %} Rien ne prouve que le système réel se comporte ainsi.</span></p>
+      <p class="at-source"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span>{% if result.history %}Obtenu en combinant les périodes posées comme l'étude le déclare.{% elif result.calc %}Obtenu en appliquant, dans l'ordre, les {{ result.steps }} lignes de calcul que l'étude déclare.{% elif result.steps %}Obtenu en {{ result.steps }} pas, en appliquant les règles que l'étude déclare.{% else %}Aucune règle de l'étude ne s'applique à cette situation : rien ne bouge.{% endif %} Rien ne prouve que le système réel se comporte ainsi.</span></p>
       {% if result.blocking %}<div class="notice notice-changed"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><div><p>Le traitement est bloqué : rien n'est publié.</p><ul class="at-blocking">{% for reason in result.blocking %}<li>{{ reason }}</li>{% endfor %}</ul></div></div>{% endif %}
+      {% if result.calc %}
+      <div class="at-history-wrap" tabindex="0" role="region" aria-label="Lignes de calcul — défilement possible">
+      <table class="at-history at-calc">
+        <caption>Lignes de calcul</caption>
+        <thead><tr><th scope="col">Ligne</th><th scope="col" class="num">Montant</th><th scope="col" class="num">Cumul</th><th scope="col">Sort</th></tr></thead>
+        <tbody>
+          {% for row in result.calc.rows %}<tr data-line="{{ row.key }}" class="{% if not row.applied %}is-quiet{% endif %}"><th scope="row"><span>{{ row.label }}</span><span class="sub">{{ row.why }}</span></th><td class="num">{% if row.amount %}{{ row.op }} {{ row.amount }}{% else %}<span class="at-void">—</span>{% endif %}</td><td class="num">{{ row.after }}</td><td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>{% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% endif %}
       {% if result.history %}
       <div class="at-history-wrap" tabindex="0" role="region" aria-label="Historique obtenu — défilement possible">
       <table class="at-history">
@@ -195,7 +207,7 @@
       <summary>Les {{ rules|length }} {{ words.rules }}</summary>
       <p class="hint">{{ words.rules_hint }}</p>
       <ol>
-        {% for r in rules %}<li data-rule="{{ r.key }}"{% if r.used %} class="is-used"{% endif %}><b>{{ r.key }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
+        {% for r in rules %}<li data-rule="{{ r.key }}"{% if r.used %} class="is-used"{% endif %}><b>{{ r.mark }}</b><span>{{ r.title }}</span>{% if r.used %}<span class="chip chip-on">appliquée</span>{% endif %}</li>{% endfor %}
       </ol>
     </details>
   </div>

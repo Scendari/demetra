@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import periods, workshop
+from . import calc, periods, workshop
 from .casemodel import Report
 
-FAMILIES = {"linked": workshop, "periods": periods}
-LABELS = {"linked": "éléments reliés", "periods": "périodes"}
+FAMILIES = {"linked": workshop, "periods": periods, "calc": calc}
+LABELS = {"linked": "éléments reliés", "periods": "périodes", "calc": "calcul"}
 
 
 def name_of(decl: dict | None) -> str:

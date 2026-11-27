@@ -35,7 +35,7 @@ django.setup()
 
 from core import casemodel
 from core import services as svc
-from core.demo import catalogue, circuit, decision, elargi, magasin, parametre, temporal
+from core.demo import catalogue, circuit, decision, elargi, librairie, magasin, parametre, temporal
 from core.models import Case, Representation, Study
 from core.recommend import recommend
 from core.render import render
@@ -74,7 +74,12 @@ def demo_empreinte() -> dict:
     for slug, definition, build in elargi.STUDIES:
         _definition(out, slug, definition)
         out[f"demo | {slug} | cases"] = _h(build())
-    for slug, module in (("parametre", parametre), ("circuit", circuit), ("magasin", magasin)):
+    for slug, module in (
+        ("parametre", parametre),
+        ("circuit", circuit),
+        ("magasin", magasin),
+        ("librairie", librairie),
+    ):
         _definition(out, slug, module.DEFINITION)
         out[f"demo | {slug} | cases"] = _h(module.cases())
     return out

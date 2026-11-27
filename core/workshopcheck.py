@@ -15,7 +15,7 @@ from __future__ import annotations
 from itertools import combinations
 from typing import Any
 
-from . import periods, workshop
+from . import calc, periods, workshop
 from .casemodel import Report, default_status, replay
 
 MAX_EVENTS_TRIED = 3  # évènements supposés à la fois, au plus
@@ -30,8 +30,11 @@ def agreement(decl: dict | None, case: dict, statuses: list[dict]) -> dict | Non
     """
     if not decl or not case.get("entities"):
         return None
-    if (decl.get("family") or "linked") == "periods":
+    family = decl.get("family") or "linked"
+    if family == "periods":
         return _periods(decl, case, statuses)
+    if family == "calc":
+        return _calc(decl, case, statuses)
     return _linked(decl, case, statuses)
 
 
@@ -43,6 +46,8 @@ def situation_of(decl: dict | None, case: dict, statuses: list[dict]) -> dict | 
     bricks = {b["type"]: b for b in decl["bricks"]}
     if (decl.get("family") or "linked") == "periods":
         return _period_situation(decl, case, bricks)[0]
+    if decl.get("family") == "calc":
+        return _calc_situation(decl, case, bricks)[0]
     sit, _ = _situation_of(decl, case, bricks)
     if sit is None:
         return None
@@ -263,3 +268,77 @@ def _spans(pairs: list[tuple]) -> str:
         return "∅" if value is None else workshop.text_of(value)
 
     return ", ".join(f"[{bound(a)} ; {bound(b)}[" for a, b in pairs)
+
+
+# ---------------------------------------------------------------------------
+# Calcul
+# ---------------------------------------------------------------------------
+
+
+def _calc_situation(decl: dict, case: dict, bricks: dict) -> tuple[dict | None, str]:
+    """Les briques posées que décrit le cas : ses entités qui sont des briques, les lignes mises à part."""
+    lines = {calc.LINE_PREFIX + line["key"] for line in decl["lines"]}
+    foreign = [e for e in case["entities"] if e["type"] not in bricks and e["id"] not in lines]
+    if foreign:
+        e = foreign[0]
+        return None, f"l'entité « {e['id']} » est de type « {e['type']} », que l'atelier ne déclare pas"
+    raw = {
+        "elements": [
+            {
+                "id": e["id"],
+                "label": e.get("label") or e["id"],
+                "type": e["type"],
+                "options": {
+                    k: v
+                    for k, v in (e.get("attrs") or {}).items()
+                    if k in {o["key"] for o in bricks[e["type"]]["options"]}
+                },
+            }
+            for e in case["entities"]
+            if e["type"] in bricks
+        ],
+        "settings": settings_of(decl, case),
+    }
+    report = Report()
+    sit = calc.situation(decl, raw, report)
+    if not report.ok:
+        issue = report.errors[0]
+        return None, f"{issue.path.removeprefix('situation.')} : {issue.message.rstrip('.')}"
+    return sit, ""
+
+
+def _announced_total(case: dict):
+    """Le cumul que le cas annonce à la fin : le `result` de sa dernière ligne de calcul."""
+    found = [v.get("result") for step in case.get("steps", []) for v in step.get("values") or []]
+    found = [v for v in found if v is not None]
+    return found[-1] if found else None
+
+
+def _calc(decl: dict, case: dict, statuses: list[dict]) -> dict | None:
+    bricks = {b["type"]: b for b in decl["bricks"]}
+    if not any(e["type"] in bricks for e in case["entities"]):
+        return None
+    sit, reason = _calc_situation(decl, case, bricks)
+    if sit is None:
+        return _untranslatable(reason)
+    result = calc.run(decl, sit, default_status(statuses))
+    final = result["steps"][-1]["states"]
+    frames = replay(case, statuses)
+    announced = {key: entry["status"] for key, entry in frames[-1]["states"].items()} if frames else {}
+    labels = {calc.LINE_PREFIX + line["key"]: line["label"] for line in decl["lines"]}
+    out = [
+        f"Ligne « {labels[key]} » : le cas la dit {announced[key]}, les règles la donnent {final[key]}"
+        for key in labels
+        if key in announced and announced[key] != final[key]
+    ]
+    total = _announced_total(case)
+    if total is not None and result["end"] == "stable" and abs(total - result["total"]) > 0.005:
+        out.append(
+            f"Montant final : le cas annonce {workshop.text_of(total)}, "
+            f"les règles donnent {workshop.text_of(result['total'])}"
+        )
+    wanted = (case.get("outcome") or {}).get("status")
+    got = (calc.outcome(decl, result) or {}).get("status")
+    if wanted and got and wanted != got:
+        out.append(f"Résultat d'ensemble : le cas annonce {wanted}, les règles donnent {got}")
+    return {"status": "differ" if out else "agree", "differences": out, "reason": "", "events": {}}

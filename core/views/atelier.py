@@ -65,6 +65,17 @@ WORDS = {
         "hint_fine": "",
     },
 }
+WORDS["calc"] = {
+    **WORDS["linked"],
+    "empty": "Posez des briques et donnez-leur des valeurs. Le site applique, dans l'ordre, les lignes de "
+    "calcul que l'étude déclare et montre ici chaque montant et le cumul. Aucun cas déposé n'intervient.",
+    "counts": "Lignes par sort",
+    "rules": "lignes de calcul que l'étude déclare",
+    "rules_hint": "Le site les applique dans cet ordre ; une ligne dont la condition n'est pas remplie est "
+    "sans objet.",
+    "hint": "",
+    "hint_fine": "Glissez ici une brique de la palette pour l'ajouter.",
+}
 END_TEXT = {
     "loop": "La situation revient à un état déjà vu : elle ne se stabilise pas. Le déroulé s'arrête là.",
     "limit": "Le nombre de pas permis est atteint avant que la situation se stabilise.",
@@ -73,7 +84,8 @@ END_TEXT = {
 
 def _is_switch(choice: dict) -> bool:
     """Une option ou un réglage à deux valeurs, vrai et faux : il se coche."""
-    return len(choice["values"]) == 2 and all(isinstance(v, bool) for v in choice["values"])
+    values = choice.get("values") or []
+    return len(values) == 2 and all(isinstance(v, bool) for v in values)
 
 
 def _asked(request, decl: dict) -> dict[str, list[str]]:
@@ -134,7 +146,15 @@ def _address(study: Study, sit: dict, step: int | None = None) -> str:
 
 
 def _choice(item: dict, name: str, value) -> dict:
-    """Une option ou un réglage, prêt à afficher : une case à cocher, ou une liste de valeurs."""
+    """Une option ou un réglage, prêt à afficher : une case à cocher, une liste de valeurs, ou un nombre."""
+    if "number" in item:
+        return {
+            "name": name,
+            "label": item["label"],
+            "number": {k: workshop.text_of(v) for k, v in item["number"].items()},
+            "value": workshop.text_of(value),
+            "unit": item.get("unit", ""),
+        }
     return {
         "name": name,
         "label": item["label"],
@@ -205,7 +225,8 @@ def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> l
     for element in sit["elements"]:
         key, brick = element["id"], bricks[element["type"]]
         happened = sit["events"].get(key, [])
-        status = smap.get(final.get(key), {})
+        # Une brique de calcul ne change pas d'état : seules les lignes en ont un.
+        status = {} if families.name_of(decl) == "calc" else smap.get(final.get(key), {})
         cards.append(
             {
                 "id": key,
@@ -226,7 +247,7 @@ def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> l
                 "links": _links_of(decl, sit, element, names),
                 "link_choices": _link_choices(decl, sit, element, names),
                 "final": {
-                    "key": final.get(key),
+                    "key": final.get(key) if status else None,
                     "label": status.get("label", ""),
                     "role": status.get("role"),
                 },
@@ -383,6 +404,47 @@ def _result(study: Study, run: dict, sit: dict) -> dict:
         "steps": len(run["steps"]) - 1,
         "runs": _runs(study, run["extra"], sit),
         **_history(study, run["extra"]),
+        **_calc(study, run["extra"]),
+    }
+
+
+def _amount(value, unit: str = "") -> str:
+    """Un montant à la française : virgule décimale, unité après une espace insécable."""
+    if value is None:
+        return ""
+    text = workshop.text_of(value).replace(".", ",").replace("-", "−")
+    return f"{text}\u00a0{unit}" if unit else text
+
+
+def _calc(study: Study, extra: dict) -> dict:
+    """Pour un atelier de calcul : chaque ligne, son sort, son montant et le cumul après elle."""
+    if "lines" not in extra:
+        return {}
+    decl, smap = study.workshop, status_map(study.statuses)
+    result = extra["result"]
+    rows = []
+    for entry in extra["lines"]:
+        status = decl["states"][entry["status"]]
+        rows.append(
+            {
+                "key": entry["key"],
+                "label": entry["label"],
+                "op": entry["op"],
+                "amount": _amount(entry["amount"], entry["unit"]),
+                "after": _amount(entry["after"], entry["unit"]) if entry["status"] == "applied" else "",
+                "status": smap.get(status, {}).get("label", status),
+                "role": smap.get(status, {}).get("role", "neutral"),
+                "applied": entry["status"] == "applied",
+                "why": entry["why"],
+            }
+        )
+    return {
+        "calc": {
+            "rows": rows,
+            "label": result["label"],
+            "value": _amount(result.get("value"), result.get("unit", "")),
+            "blocked": result.get("value") is None,
+        }
     }
 
 
@@ -442,9 +504,19 @@ def _feeds(decl: dict, extra: dict, final: dict) -> dict | None:
 
 
 def _rules(decl: dict, run: dict | None) -> list[dict]:
-    used = {c["rule"] for step in (run["steps"] if run else []) for c in step["changes"]}
+    used = {c.get("rule") for step in (run["steps"] if run else []) for c in step["changes"]}
     used |= set(run["used"] if run else [])
-    return [{"key": r["key"], "title": r["title"], "used": r["key"] in used} for r in decl["rules"]]
+    # Une ligne de calcul se repère à son rang : sa clé est un nom technique, pas un repère pour le relecteur.
+    numbered = families.name_of(decl) == "calc"
+    return [
+        {
+            "key": r["key"],
+            "mark": str(n) if numbered else r["key"],
+            "title": r["title"],
+            "used": r["key"] in used,
+        }
+        for n, r in enumerate(decl["rules"], 1)
+    ]
 
 
 def _save(request, study: Study):

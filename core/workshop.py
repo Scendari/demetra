@@ -463,6 +463,13 @@ def next_id(taken) -> str | None:
 def _typed(declared: list[dict], key: str, text: str):
     """La valeur déclarée qui s'écrit ainsi dans une adresse ; None si aucune."""
     item = next((d for d in declared if d["key"] == key), None)
+    if item and "number" in item:  # option numérique (famille calcul) : un nombre dans les bornes
+        try:
+            number = float(text.replace(",", "."))
+        except ValueError:
+            return None
+        number = int(number) if number == int(number) else number
+        return number if item["number"]["min"] <= number <= item["number"]["max"] else None
     return next((v for v in item["values"] if text_of(v) == text), None) if item else None
 
 

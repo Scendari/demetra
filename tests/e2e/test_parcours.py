@@ -248,9 +248,9 @@ def test_parcours_complet(site, browser):
     page.click("button[type=submit]")
     page.wait_for_url("**/etudes/")
     expect(page.get_by_role("heading", level=1)).to_have_text("Études")
-    # Le catalogue, cinq exemples (décision, temps, cas paramétrés, deux ateliers), un exemple par
+    # Le catalogue, six exemples (décision, temps, cas paramétrés, trois ateliers), un exemple par
     # représentation élargie.
-    expect(page.locator("a.row-link")).to_have_count(15)
+    expect(page.locator("a.row-link")).to_have_count(16)
     shot(page, "03-etudes", full_page=True)
 
     # ---- Revue d'un cas, au clavier
@@ -1288,6 +1288,39 @@ def test_atelier_enchaine_les_gestes_rapproches(site, engine):
     expect(page.locator('input[name="o.C.always_run"]')).to_be_checked()
     expect(page.locator('input[name="ev"][value="C:echec"]')).to_be_checked()
     assert "o.C.always_run=true" in page.url
+    assert not problems, problems
+    context.close()
+
+
+def test_atelier_calcul(site, engine):
+    """L'atelier de calcul de la librairie : on pose un livre, on règle son prix, la livraison, un coupon ; le
+    montant et chaque ligne se recalculent. En clair, en sombre et à 390 px, sans débordement."""
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.get_by_role("link", name="Facture d'une librairie").click()
+    page.get_by_role("link", name="Atelier", exact=True).click()
+    page.get_by_role("button", name="Livre", exact=True).click()
+    expect(page.locator(".at-card")).to_have_count(1)
+    total = page.locator("[data-calc-total]")
+    expect(total).to_contain_text("15\u00a0€")
+    page.fill('input[name="o.A.prix"]', "20")
+    page.locator('input[name="o.A.prix"]').press("Enter")
+    expect(total).to_contain_text("20\u00a0€")
+    page.select_option('select[name="r.livraison"]', "domicile")
+    expect(total).to_contain_text("24,9\u00a0€")
+    expect(page.locator('tr[data-line="port"]')).not_to_have_class("is-quiet")
+    page.get_by_role("button", name="Coupon", exact=True).click()
+    expect(page.locator(".at-card")).to_have_count(2)
+    expect(total).to_contain_text("19,9\u00a0€")  # 20 - 5, puis le port
+    expect(page.locator(".at-calc tbody tr")).to_have_count(6)
+    expect(page.locator("[data-at-said]")).to_contain_text("Facture à régler")
+    shot(page, "48-atelier-calcul", full_page=True)
+    page.emulate_media(color_scheme="dark")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    shot(page, "49-atelier-calcul-mobile", full_page=True)
     assert not problems, problems
     context.close()
 

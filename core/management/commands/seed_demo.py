@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from core import services as svc
-from core.demo import catalogue, circuit, decision, elargi, magasin, parametre, temporal
+from core.demo import catalogue, circuit, decision, elargi, librairie, magasin, parametre, temporal
 from core.models import Decision, Membership, Representation, Role, Study
 
 PASSWORD = "demetra-demo"
@@ -114,6 +114,8 @@ class Command(BaseCommand):
             (circuit.DEFINITION, circuit.cases(), True, None),
             # L'atelier de périodes se lit sur une frise : l'étude porte cette représentation.
             (magasin.DEFINITION, magasin.cases(), True, "frise-temporelle"),
+            # L'atelier de calcul se lit ligne après ligne.
+            (librairie.DEFINITION, librairie.cases(), True, "calcul-pas-a-pas"),
             # Une étude par représentation du catalogue élargi : elle porte la représentation qu'elle
             # illustre.
             *[(definition, build(), True, slug) for slug, definition, build in elargi.STUDIES],

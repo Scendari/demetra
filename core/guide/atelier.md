@@ -381,6 +381,54 @@ La réponse porte un champ `runs` de plus, une entrée par exécution :
 
 Ne s'y disent pas : une publication en plusieurs temps qui échoue en chemin (suppression faite, écriture non), le périmètre d'un recalcul (quelles clés, quelles colonnes), plusieurs entités à la fois (un lien qui passe d'un parent à un autre), un calcul sur les valeurs. Pour ces règles, déposez des cas.
 
+## Famille calcul : des lignes de calcul appliquées dans l'ordre à un cumul
+
+Avec `"family": "calc"`, on pose toujours des briques (des articles, des trajets, des repas…), mais leurs options peuvent être des **nombres**, et l'étude déclare des **lignes de calcul** : chacune applique une opération au cumul, dans l'ordre, comme les étapes `values` d'un cas. Le site montre chaque ligne, son montant, le cumul après elle, et le résultat.
+
+```json
+"workshop": {
+  "family": "calc",
+  "title": "Composer une facture",
+  "bricks": [
+    {"type": "article", "label": "Article", "options": [
+      {"key": "prix", "label": "Prix unitaire", "number": {"min": 0, "max": 500, "step": 0.5}, "unit": "€"},
+      {"key": "quantite", "label": "Quantité", "number": {"min": 1, "max": 20, "step": 1}}]}
+  ],
+  "settings": [{"key": "client", "label": "Client", "values": ["particulier", "professionnel"]}],
+  "lines": [
+    {"key": "articles", "label": "Total des articles", "op": "=", "unit": "€",
+     "value": {"sum": {"type": "article", "of": {"mul": [{"option": "prix"}, {"option": "quantite"}]}}}},
+    {"key": "remise", "label": "Remise de 5 % dès 100 €", "op": "-", "unit": "€",
+     "when": {"total": {"gte": 100}}, "value": {"pct": [{"total": true}, 5]}},
+    {"key": "arrondi", "label": "Arrondi au centime", "op": "arrondi", "value": 0.01}
+  ],
+  "result": {"label": "Montant à payer", "unit": "€"},
+  "states": {"applied": "APPLIQUEE", "skipped": "SANS_OBJET", "blocked": "BLOQUEE"},
+  "outcome": [{"when": {"total": {"gt": 0}}, "label": "À payer", "status": "A_PAYER"}]
+}
+```
+
+| Champ | Sens | Au plus |
+|---|---|---|
+| `bricks[].options[]` | Comme ailleurs (`values`), ou **numérique** : `{"key", "label", "number": {"min", "max", "step"}, "default", "unit"}` — à l'écran, un champ nombre ; dans l'adresse, `o.A.prix=12.5` | 8 par brique |
+| `settings` | Comme ailleurs ; un réglage numérique s'écrit comme une option numérique ; `dimension` facultatif | 8 |
+| `lines[]` | `key`, `label`, `op`, `value`, et au besoin `when` (la ligne ne s'applique que si la condition tient ; sinon elle est **sans objet**) et `unit` | 24 |
+| `lines[].op` | `=` (le cumul prend la valeur), `+`, `-`, `×`, `÷`, `min` (plafonne), `max` (relève au moins à), `arrondi` (la valeur est le pas : `0.01`, au plus proche, la moitié vers le haut) | — |
+| `result` | `{label, unit}` : ce que vaut le cumul final | — |
+| `states` | Le statut de l'étude d'une ligne `applied` (appliquée), `skipped` (sans objet), `blocked` (bloquée) | — |
+| `outcome` | Comme ailleurs ; ses conditions voient le cumul final (`total`) et les montants des lignes (`line`) | 12 |
+
+**Valeurs** (`lines[].value`) — un vocabulaire fermé, en JSON ; aucune chaîne n'est interprétée, 5 niveaux au plus :
+`12.5` ; `{"setting": "taux"}` (réglage numérique) ; `{"total": true}` (le cumul avant la ligne) ; `{"line": "articles"}` (le montant d'une ligne **déclarée plus haut** ; zéro si elle était sans objet) ; `{"add": [a, b, …]}`, `{"mul": […]}`, `{"min": […]}`, `{"max": […]}` (2 à 8 valeurs) ; `{"sub": [a, b]}`, `{"div": [a, b]}`, `{"pct": [base, taux]}` (base × taux / 100) ; sur les briques posées, `{"sum": {"type": "article", "where": {…}, "of": valeur}}` (une valeur par brique, additionnées ; `{"option": "prix"}` n'a de sens que dans `of`, et l'option doit exister pour chaque type compté) et `{"count": {"type": "coupon", "where": {…}}}`.
+
+**Conditions** (`lines[].when`, `outcome[].when`) — sur la situation : `setting` (valeurs ou comparaisons), `total` (un nombre ou une comparaison : `{"gte": 100}`), `line` (`{"articles": {"gt": 50}}` ; fausse si la ligne était sans objet), `elements` (`{"type": "coupon", "count": {"gte": 1}}`, ou `all`/`any`/`none` avec une condition sur la brique), `all`, `any`, `not`. Sur une brique (dans `where`) : `type`, `option`, `all`, `any`, `not`.
+
+Une ligne qui ne se calcule pas (division par zéro) est **bloquée** : le cumul ne bouge pas, les lignes suivantes s'appliquent, mais **aucun résultat d'ensemble** n'est donné (`end: "blocked"`).
+
+Erreurs de déclaration propres à cette famille : `unknown_line` (ligne inconnue, ou déclarée plus bas), `unknown_option` (option absente d'un type compté), `not_numeric` (valeur qui n'est pas un nombre), `enum` (opération inconnue), et celles des autres familles.
+
+Dérouler (`POST …/workshop/run`) : `{"situation": {"elements": [{"id": "A", "type": "article", "options": {"prix": 40, "quantite": 3}}], "settings": {}}}`. La réponse porte, en plus des pas (`steps`, un par ligne, l'entité `ligne-<key>` changeant de statut), `lines` (pour chaque ligne : `status`, `amount`, `before`, `after`, `why`), `total` et `result`. Le `case` produit compte une entité par brique, une entité par ligne, et un pas par ligne avec ses `values` (`label`, `op`, `value`, `unit`, `result` = cumul) : il se lit dans la représentation « calcul pas à pas ». Avec cet exemple : 120 € d'articles, la remise s'applique (6 €), le résultat vaut 114 €.
+
 ## Ce qui reste réservé aux humains
 
 - **Enregistrer une situation comme cas.** Dans l'atelier, un humain peut garder ce qu'il a construit comme un cas à relire (clé `atelier-1`, `atelier-2`…, famille « Atelier »). L'API n'a pas de route pour cela, et un jeton ne peut pas le faire à sa place. Vous pouvez toujours déposer vos propres cas par `POST …/cases/batch`, sous votre nom.
