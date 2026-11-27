@@ -9,6 +9,7 @@ fourni par l'étude n'est exécuté. Pur : aucun accès à la base. Rien ici ne 
 
 from __future__ import annotations
 
+import itertools
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
@@ -194,6 +195,72 @@ def _check_gather(name: str, raw, scope: Scope, report: Report, p: str, depth: i
     return ok
 
 
+MAX_BRACKETS = 8
+EXAMPLE_SCALE = {
+    "of": {"total": True},
+    "brackets": [{"upto": 15, "amount": 6.9}, {"upto": 35, "amount": 4.9}, {"amount": 0}],
+}
+
+
+def _check_scale(raw, scope: Scope, report: Report, p: str, depth: int) -> bool:
+    """Un barème : une base (`of`) et des tranches croissantes (`upto`, sauf la dernière), toutes à taux
+    (`rate`, en %, appliqué part par part) ou toutes à montant (`amount`, celui de la tranche où tombe la
+    base)."""
+    brackets = raw.get("brackets") if isinstance(raw, dict) else None
+    shaped = isinstance(raw, dict) and set(raw) <= {"of", "brackets"} and "of" in raw
+    shaped = shaped and isinstance(brackets, list) and 1 <= len(brackets) <= MAX_BRACKETS
+    shaped = shaped and all(isinstance(b, dict) and set(b) <= {"upto", "rate", "amount"} for b in brackets)
+    kinds = {k for b in brackets for k in ("rate", "amount") if k in b} if shaped else set()
+    bounds = [b.get("upto") for b in brackets] if shaped else []
+    fine = shaped and len(kinds) == 1 and all(len({"rate", "amount"} & set(b)) == 1 for b in brackets)
+    fine = fine and all(is_number(b[next(iter(kinds))]) for b in brackets)
+    fine = fine and bounds[-1] is None and all(is_number(u) for u in bounds[:-1])
+    fine = fine and all(a < b for a, b in itertools.pairwise(bounds[:-1]))
+    if not fine:
+        report.error(
+            p,
+            "type",
+            f"« scale » : {{of, brackets}}, de 1 à {MAX_BRACKETS} tranches croissantes (« upto », sauf la "
+            "dernière), toutes à taux (« rate ») ou toutes à montant (« amount »).",
+            received=raw,
+            example=EXAMPLE_SCALE,
+        )
+        return False
+    return check_value(raw["of"], scope, report, f"{p}.of", depth + 1)
+
+
+def _scale(raw: dict, ctx: dict, element: dict | None) -> float:
+    """Le montant d'un barème, et son détail par tranche, noté dans `ctx["detail"]` pour la ligne."""
+    base = value_of(raw["of"], ctx, element)
+    detail = ctx.setdefault("detail", [])
+    low = 0.0
+    if "amount" in raw["brackets"][0]:
+        for bracket in raw["brackets"]:
+            if bracket.get("upto") is None or base < bracket["upto"]:
+                below = f"sous {text_of(bracket['upto'])}" if bracket.get("upto") is not None else "au-delà"
+                detail.append(f"Base {text_of(neat(base))} → tranche {below} → {text_of(bracket['amount'])}")
+                return bracket["amount"]
+    total = 0.0
+    for bracket in raw["brackets"]:
+        high = bracket.get("upto")
+        part = max(0.0, (base if high is None else min(base, high)) - low)
+        if part > 0:
+            amount = part * bracket["rate"] / 100
+            total += amount
+            span = (
+                f"{text_of(neat(low))} à {text_of(high)}"
+                if high is not None
+                else f"au-delà de {text_of(neat(low))}"
+            )
+            detail.append(
+                f"{span} : {text_of(bracket['rate'])} % de {text_of(neat(part))} = {text_of(neat(amount))}"
+            )
+        if high is None or base <= high:
+            break
+        low = high
+    return total
+
+
 def _check_named(name: str, raw, scope: Scope, report: Report, p: str) -> bool:
     """`setting`, `option`, `line`, `total` : une valeur nommée de la situation."""
     if name == "total":
@@ -238,6 +305,8 @@ def check_value(raw, scope: Scope, report: Report, p: str, depth: int = 0) -> bo
         return _check_terms(name, inner, scope, report, f"{p}.{name}", depth)
     if name in ("sum", "count"):
         return _check_gather(name, inner, scope, report, f"{p}.{name}", depth)
+    if name == "scale":
+        return _check_scale(inner, scope, report, f"{p}.scale", depth)
     report.error(
         p,
         "unknown_value",
@@ -257,6 +326,7 @@ def check_value(raw, scope: Scope, report: Report, p: str, depth: int = 0) -> bo
             "pct",
             "sum",
             "count",
+            "scale",
         ],
     )
     return False
@@ -598,6 +668,8 @@ def value_of(raw, ctx: dict, element: dict | None = None) -> float:
     if name in ("sum", "count"):
         found = _items(ctx, inner)
         return len(found) if name == "count" else sum(value_of(inner["of"], ctx, e) for e in found)
+    if name == "scale":
+        return _scale(inner, ctx, element)
     terms = [value_of(term, ctx, element) for term in inner]
     if name == "add":
         return sum(terms)
@@ -708,6 +780,7 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
             status = "skipped"
         else:
             try:
+                ctx.pop("detail", None)
                 amount = neat(value_of(line["value"], ctx))
                 ctx["total"] = neat(apply(line["op"], before, amount))
             except Blocked as error:
@@ -733,7 +806,9 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
                 "after": ctx["total"],
                 "why": _why(line, status, amount, reason),
             }
+            | ({"detail": ctx.pop("detail")} if ctx.get("detail") and status == "applied" else {})
         )
+        ctx.pop("detail", None)
     return {
         "steps": steps,
         "end": "blocked" if blocked else "stable",

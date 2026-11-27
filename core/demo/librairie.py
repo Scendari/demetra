@@ -88,10 +88,12 @@ WORKSHOP = {
         },
         {
             "key": "port",
-            "label": "Port à domicile sous 35 €",
+            "label": "Port à domicile sous 35 €, par paliers",
             "when": {"setting": {"livraison": "domicile"}, "total": {"lt": 35}},
             "op": "+",
-            "value": 4.9,
+            "value": {
+                "scale": {"of": {"total": True}, "brackets": [{"upto": 15, "amount": 6.9}, {"amount": 4.9}]}
+            },
             "unit": "€",
         },
         {"key": "arrondi", "label": "Arrondi au centime", "op": "arrondi", "value": 0.01},
@@ -164,7 +166,8 @@ DEFINITION = {
         {
             "key": "F4",
             "title": "Port",
-            "text": "La livraison à domicile coûte 4,90 € quand la facture fait moins de 35 €.",
+            "text": "La livraison à domicile coûte 4,90 € quand la facture fait moins de 35 €, et 6,90 € "
+            "sous 15 €.",
         },
     ],
     "attributes": [
@@ -196,6 +199,15 @@ _SITUATIONS = [
         "Petite commande livrée",
         "Sous 35 €, la livraison à domicile ajoute le port.",
         [_book("A", 12), {"id": "B", "type": "papeterie", "options": {"prix": 3.5, "quantite": 2}}],
+        {"livraison": "domicile"},
+        {"client": "particulier", "livraison": "domicile", "coupon": "aucun"},
+        ["F1", "F4"],
+    ),
+    (
+        "port-petite-commande",
+        "Très petite commande livrée",
+        "Sous 15 €, le port passe au palier le plus haut.",
+        [_book("A", 9)],
         {"livraison": "domicile"},
         {"client": "particulier", "livraison": "domicile", "coupon": "aucun"},
         ["F1", "F4"],

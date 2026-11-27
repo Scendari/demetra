@@ -465,6 +465,7 @@ def _calc(study: Study, extra: dict) -> dict:
                 "role": smap.get(status, {}).get("role", "neutral"),
                 "applied": entry["status"] == "applied",
                 "why": entry["why"],
+                "detail": [line.replace(".", ",") for line in entry.get("detail", [])],
             }
         )
     return {

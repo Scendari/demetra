@@ -100,7 +100,7 @@
         <caption>Lignes de calcul</caption>
         <thead><tr><th scope="col">Ligne</th><th scope="col" class="num">Montant</th><th scope="col" class="num">Cumul</th><th scope="col">Sort</th></tr></thead>
         <tbody>
-          {% for row in result.calc.rows %}<tr data-line="{{ row.key }}" class="{% if not row.applied %}is-quiet{% endif %}"><th scope="row"><span>{{ row.label }}</span><span class="sub">{{ row.why }}</span></th><td class="num">{% if row.amount %}{{ row.op }} {{ row.amount }}{% else %}<span class="at-void">—</span>{% endif %}</td><td class="num">{{ row.after }}</td><td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>{% endfor %}
+          {% for row in result.calc.rows %}<tr data-line="{{ row.key }}" class="{% if not row.applied %}is-quiet{% endif %}"><th scope="row"><span>{{ row.label }}</span><span class="sub">{{ row.why }}</span>{% for d in row.detail %}<span class="sub at-bracket">{{ d }}</span>{% endfor %}</th><td class="num">{% if row.amount %}{{ row.op }} {{ row.amount }}{% else %}<span class="at-void">—</span>{% endif %}</td><td class="num">{{ row.after }}</td><td><span class="st" data-role="{{ row.role }}"><svg class="st-ic" width="14" height="14" aria-hidden="true"><use href="#ic-{{ row.role }}"/></svg><span class="st-tx">{{ row.status }}</span></span></td></tr>{% endfor %}
         </tbody>
       </table>
       </div>
