@@ -195,6 +195,7 @@ def _setup_context(study: Study, **extra) -> dict:
             "dimensions": study.dimensions,
             "exclusions": study.exclusions,
             "attributes": study.attributes or [],
+            "inventory": study.inventory or [],
         },
         ensure_ascii=False,
         indent=2,
@@ -236,7 +237,7 @@ def _setup_json(request, me: svc.Actor, study: Study, action: str):
                 study,
                 {
                     k: data[k]
-                    for k in ("statuses", "dimensions", "exclusions", "attributes")
+                    for k in ("statuses", "dimensions", "exclusions", "attributes", "inventory")
                     if isinstance(data, dict) and k in data
                 },
             )

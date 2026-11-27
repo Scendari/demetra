@@ -254,6 +254,7 @@ def context_of(study: Study) -> casemodel.StudyContext:
         lifecycles=study.lifecycles or [],
         attributes=study.attributes or [],
         workshop=study.workshop or {},
+        inventory=study.inventory or [],
     )
 
 
@@ -281,6 +282,8 @@ def _study_definitions(data: dict, report: casemodel.Report, current: Study | No
         out["lifecycles"] = extensions.normalize_lifecycles(data["lifecycles"], status_keys, report)
     if "attributes" in data:
         out["attributes"] = casemodel.normalize_attributes(data["attributes"], report)
+    if "inventory" in data:
+        out["inventory"] = casemodel.normalize_inventory(data["inventory"], report)
     if "workshop" in data:
         out["workshop"] = families.normalize(data["workshop"], status_keys, report)
     elif "statuses" in data and current and current.workshop:
@@ -370,7 +373,7 @@ def create_study(actor: Actor, data: dict) -> Study:
 
 
 def _usage(study: Study) -> dict:
-    statuses, dims, rules = {}, {}, {}
+    statuses, dims, rules, points = {}, {}, {}, {}
     for case in study.cases.filter(retired_at__isnull=True).only("key", "content", "dimensions"):
         content = case.content
         used = cov.statuses_used(content)
@@ -380,7 +383,40 @@ def _usage(study: Study) -> dict:
             dims.setdefault((key, value), []).append(case.key)
         for key in content.get("rules", []):
             rules.setdefault(key, []).append(case.key)
-    return {"statuses": statuses, "dimensions": dims, "rules": rules}
+        for key in content.get("covers", []):
+            points.setdefault(key, []).append(case.key)
+    return {"statuses": statuses, "dimensions": dims, "rules": rules, "inventory": points}
+
+
+def _check_in_use(study: Study, defs: dict, report: casemodel.Report):
+    """Un statut, une valeur de dimension, une règle ou un point d'inventaire ne se retire pas sous les cas
+    qui s'en servent."""
+    usage = _usage(study)
+    kept = {
+        "statuses": lambda d: {s["key"] for s in d},
+        "dimensions": lambda d: {(x["key"], v["value"]) for x in d for v in x["values"]},
+        "rules": lambda d: {r["key"] for r in d},
+        "inventory": lambda d: {point["key"] for point in d},
+    }
+    what = {
+        "statuses": "Le statut « {} » est utilisé par {} cas : il ne peut pas être retiré.",
+        "dimensions": "La valeur {} est utilisée par {} cas : elle ne peut pas être retirée.",
+        "rules": "La règle « {} » est illustrée par {} cas : elle ne peut pas être retirée.",
+        "inventory": "Le point « {} » est couvert par {} cas : il ne peut pas être retiré.",
+    }
+    for field, keys_of in kept.items():
+        if field not in defs:
+            continue
+        keys = keys_of(defs[field])
+        for key, cases in usage[field].items():
+            if key not in keys:
+                name = f"« {key[1]} » de la dimension « {key[0]} »" if field == "dimensions" else key
+                report.error(
+                    field,
+                    "inventory_point_in_use" if field == "inventory" else "in_use",
+                    what[field].format(name, len(cases)),
+                    received=cases[:10],
+                )
 
 
 def update_study(actor: Actor, study: Study, data: dict) -> Study:
@@ -405,39 +441,7 @@ def update_study(actor: Actor, study: Study, data: dict) -> Study:
         fields.append("kind")
     defs = _study_definitions(data, report, study)
     if report.ok and defs:
-        usage = _usage(study)
-        if "statuses" in defs:
-            keys = {s["key"] for s in defs["statuses"]}
-            for key, cases in usage["statuses"].items():
-                if key not in keys:
-                    report.error(
-                        "statuses",
-                        "in_use",
-                        f"Le statut « {key} » est utilisé par {len(cases)} cas : il ne peut pas être retiré.",
-                        received=cases[:10],
-                    )
-        if "dimensions" in defs:
-            values = {(d["key"], v["value"]) for d in defs["dimensions"] for v in d["values"]}
-            for (key, value), cases in usage["dimensions"].items():
-                if (key, value) not in values:
-                    report.error(
-                        "dimensions",
-                        "in_use",
-                        f"La valeur « {value} » de la dimension « {key} » est utilisée par {len(cases)} cas "
-                        ": elle ne peut pas être retirée.",
-                        received=cases[:10],
-                    )
-        if "rules" in defs:
-            keys = {r["key"] for r in defs["rules"]}
-            for key, cases in usage["rules"].items():
-                if key not in keys:
-                    report.error(
-                        "rules",
-                        "in_use",
-                        f"La règle « {key} » est illustrée par {len(cases)} cas : elle ne peut pas être "
-                        "retirée.",
-                        received=cases[:10],
-                    )
+        _check_in_use(study, defs, report)
         if report.ok and {"dimensions", "ruleset", "lifecycles"} & set(defs):
             _check_dependent_cases(study, defs, report)
     if not report.ok:
@@ -1076,6 +1080,9 @@ def _case_rows(study: Study, extra_cases: list[dict] | None = None, variants: bo
 def coverage_report(study: Study, strength: int = 2, extra_cases: list[dict] | None = None) -> dict:
     rows = _case_rows(study, extra_cases, variants=True)
     report = cov.coverage(study.dimensions, study.exclusions, rows, strength)
+    points = cov.inventory(study.inventory or [], rows)
+    if points:
+        report["inventory"] = points
     if workshop_of(study):
         report["workshop"] = _workshop_suggestions(study, report["missing"], rows)
     return report
@@ -1190,6 +1197,7 @@ def checks_report(study: Study) -> list[dict]:
     return (
         cov.study_checks(study.statuses, study.rules, rows)
         + cov.dimension_echoes(study.dimensions, rows)
+        + cov.inventory_findings(study.inventory or [], rows)
         + _model_findings(study, rows)
         + _workshop_findings(study, rows)
     )

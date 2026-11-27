@@ -37,6 +37,7 @@ Une étude porte les définitions que tous ses cas partagent. Déclarez-les **av
 - `rules` : les règles de gestion en langage clair. Un cas cite les règles qu'il illustre.
 - `exclusions` : combinaisons de valeurs déclarées impossibles, avec leur raison ; elles ne sont pas comptées comme manquantes.
 - `attributes` : les **options portées par les entités** (leurs `attrs`), déclarées une fois pour l'étude. Voir ci-dessous.
+- `inventory` : l'**inventaire des points de décision** relevés dans les sources, avant d'écrire les cas. Voir ci-dessous.
 
 ## Nommer et définir les options des entités (`attributes`)
 
@@ -54,6 +55,28 @@ Les entités portent souvent des options techniques (`always_run`, `ignore_on_er
 - `show` : `key` (par défaut) ou `label`. Avec `"show": "label"`, l'option s'écrit sous son libellé lisible, et une valeur vraie/fausse en oui / non (« Toujours exécutée : oui »). Choisissez-le quand le nom technique ne dit rien (`flg_x2`) ou quand les relecteurs sont des gens du métier, pas des techniciens ; gardez le nom technique quand le titre et le résumé des cas l'emploient.
 - Dès qu'une option est déclarée, toute option d'entité **non déclarée** donne un avertissement `undeclared_attr` au dépôt : c'est souvent une faute de frappe (`alway_run`). Le cas est quand même écrit.
 - `PATCH /api/v1/studies/{id}` avec `attributes` remplace la liste. Changer un libellé ou une définition ne touche pas aux avis.
+
+## Inventaire des points de décision (`inventory`)
+
+Une étude n'est complète que si chaque point de décision des sources a son cas, ou une raison de ne pas en avoir. Relevez d'abord ces points (chaque condition, branche, erreur, limite, paramètre qui change le comportement, ou chaque phrase « si », « sauf », « doit », « lorsque » d'un document), **puis** écrivez les cas qui les couvrent. Le site compte ce qui reste ouvert ; une étude à moitié faite se voit.
+
+```json
+"inventory": [
+  {"key": "P1", "label": "Montant négatif refusé", "kind": "erreur",
+   "source": {"ref": "facturation.py:120", "excerpt": "if montant < 0: raise MontantInvalide"}},
+  {"key": "P2", "label": "Remise au-delà de 100 €", "source": {"ref": "Règlement §3.2"}},
+  {"key": "P3", "label": "Devise étrangère", "source": {"ref": "facturation.py:88"},
+   "state": "excluded", "reason": "Hors périmètre : la facturation en devises est traitée par un autre service."},
+  {"key": "P4", "label": "Arrondi au centime inférieur ?", "source": {"ref": "Spécification v2, p. 7"},
+   "state": "to_confirm", "reason": "Le texte et le code divergent ; question posée au métier."}
+]
+```
+
+- `key` (format d'une clé de règle), `label` (200 caractères au plus) et `source.ref` (300 au plus : fichier et ligne, paragraphe, page) sont obligatoires : un point sans source ne se vérifie pas. `source.excerpt` (500 au plus) cite le passage ; `kind` (40 au plus) est une étiquette libre. 500 points au plus.
+- `state` : `open` (par défaut), `excluded` ou `to_confirm` ; ces deux derniers exigent `reason`. Ne déclarez jamais « couvert » : le site le calcule. Un point est **couvert** dès qu'un cas actif le cite dans son champ `covers` (chapitre `cases`).
+- `PATCH /api/v1/studies/{id}` avec `inventory` remplace la liste. Un point cité par un cas actif ne peut pas être retiré (`inventory_point_in_use`).
+- Lecture : `GET …/coverage` porte `inventory` (compteurs et liste des points ouverts et à confirmer), `GET …/checks` signale `inventory_open` et `inventory_to_confirm` (chapitre `coverage`).
+- « Couvert » veut dire « un cas le cite », pas « vérifié ». L'inventaire ne vaut que ce que vaut le relevé : dites à l'utilisateur ce que vous n'avez pas lu.
 
 ## Pour les règles chiffrées, les jeux de règles et les cycles de vie
 

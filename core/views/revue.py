@@ -284,6 +284,7 @@ def _panel_context(request, study: Study, case: Case, step: int = 0) -> dict:
         "stale_label": Decision(verdict.stale_from).label.lower() if verdict and verdict.stale_from else "",
         "others": others,
         "rules": [rules[k] for k in content.get("rules", []) if k in rules],
+        "points": [pt for pt in study.inventory or [] if pt["key"] in content.get("covers", [])],
         "proof": proof,
         "proof_help": proof_help,
         "outcome": outcome,

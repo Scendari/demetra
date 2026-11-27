@@ -41,7 +41,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `models.py` | Tables : études, cas, révisions, avis, représentations, jetons, partages, journal, identités SSO, demandes de connexion | Le contenu d'un cas est un document JSON (`Case.content`), validé à l'entrée |
 | `casemodel.py` | Validation et normalisation d'un cas et des définitions d'étude (`normalize_*`), rejeu des étapes (`replay`), empreintes (`semantic_hash`, `presentation_hash`) | Pur : aucun accès à la base. Un rapport (`Report`) porte erreurs et avertissements |
 | `extensions.py` | Champs étendus d'un cas : jeu de règles, cycles de vie, mesures, calculs, bandes | Appelé par `casemodel` |
-| `coverage.py` | Couverture des dimensions, combinaisons manquantes, contrôles d'étude | Pur |
+| `coverage.py` | Couverture des dimensions, combinaisons manquantes, contrôles d'étude, sort des points de l'inventaire (`inventory`) | Pur. « Couvert » = cité par un cas, jamais « vérifié » |
 | `rules.py` | Socle commun des familles d'atelier : valeurs (`same`, `among`, `text_of`), briques de déclaration (`item_key`, `item_label`, `choices` et leur `dimension`, `chosen`, `events`, `bricks`, `bound_dimensions`), comparaison d'une valeur déclarée (`check_pairs`, `pairs_hold`) | Pur. Ce qui sert toutes les familles s'écrit ici, une fois ; rien de propre à une famille ni à une étude |
 | `workshop.py` | Atelier : déclaration d'une étude (`normalize` : briques, options, évènements, liens, réglages, table de règles), conditions au vocabulaire fermé (`check_condition`, `holds`), situation construite (`situation`, `from_query`, `to_query`), moteur pas à pas (`run`), passage au format de cas (`to_case`) | Pur. Aucun code fourni par l'étude n'est exécuté. Rien n'y nomme une étude : les règles d'une étude vivent dans sa déclaration (`Study.workshop`), jamais ici |
 | `periods.py` | Atelier, famille « périodes » : déclaration (`normalize` : axe, sources, composition d'une image, champs restitués, fusion, périodes invalides), phrases tirées de la déclaration (`principles`), périodes posées (`situation`, `from_query`, `to_query`, `placed`), moteur (`run` : une image par pas, puis réunion), passage au format de cas (`to_case`) | Pur. Mêmes interdits que `workshop.py`. Prend au socle (`rules.py`) ses briques de déclaration et ses comparaisons |
@@ -141,6 +141,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_message_organisation.py` : message de l'organisation dans le mode d'emploi.
   `test_corbeille.py` : suppression d'une étude (corbeille, restauration, effacement réservé aux humains).
   `test_dimension_recopie.py` : avertissement d'une dimension qui décrit les cas un par un.
+  `test_inventaire.py` : inventaire des points de décision (déclaration, `covers`, couverture, contrôles, pages).
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

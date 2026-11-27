@@ -147,6 +147,11 @@ class StudyIn(Schema):
         description="Atelier : {bricks: [{type, label, options, events}], links: [{type, label}], settings, "
         "rules: [{key, title, on?, when, then}], outcome} — chapitre « atelier » du mode d'emploi.",
     )
+    inventory: list[dict] | None = Field(
+        None,
+        description="Inventaire des points de décision relevés dans les sources : [{key, label, "
+        "source: {ref, excerpt?}, kind?, state: open|excluded|to_confirm, reason?}] — chapitre « studies ».",
+    )
 
 
 class StudyPatch(Schema):
@@ -161,6 +166,7 @@ class StudyPatch(Schema):
     lifecycles: list[dict] | None = None
     attributes: list[dict] | None = None
     workshop: dict | None = None
+    inventory: list[dict] | None = None
 
 
 class CasesIn(Schema):
@@ -294,6 +300,7 @@ def study_out(study: Study, role: str | None = None, full: bool = True) -> dict:
             lifecycles=study.lifecycles or [],
             attributes=study.attributes or [],
             workshop=study.workshop or None,
+            inventory=study.inventory or [],
             representation={"id": study.representation.public_id, "name": study.representation.name}
             if study.representation
             else None,

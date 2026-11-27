@@ -570,6 +570,8 @@ dialog.help form { display: grid; gap: var(--s-4); padding: var(--s-4); }
 .missing li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem var(--s-2); padding: 0.45rem 0.75rem; background: var(--raised); font-size: var(--t-sm); }
 .missing .ic { color: var(--r-warning-fg); }
 .missing-try { margin-left: auto; }
+.inv-counts { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
+.cov-inventory .sub { color: var(--ink-3); font-size: var(--t-xs); overflow-wrap: anywhere; }
 .pick-number input { width: 7.5rem; }
 .at-calc-total { font-size: var(--t-lg); }
 .at-calc th[scope="row"] { display: grid; gap: 0.1rem; font-weight: 560; text-align: start; }

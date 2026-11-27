@@ -64,6 +64,7 @@ Version {{version}}.
 | `question` | non | **Ce que vous demandez au relecteur de vérifier**, en une phrase (300 caractères au plus). Affichée juste au-dessus des boutons Valider / Refuser : l'avis répond à cette question. Ne change pas les avis. |
 | `compare_with` | non | Les clés de 1 à 3 cas à **comparer** à celui-ci, typiquement le même cas avec l'option inverse. Le panneau les liste sous le schéma, avec un tableau de ce qui diffère (dimensions, réglages, options des entités, résultat) et un lien qui ouvre le cas. Un cas ne se compare pas à lui-même (`self_reference`) ; une clé absente ou retirée est signalée par les contrôles (`compare_missing_case`). Ne change pas les avis. |
 | `proof` | non | `asserted` (affirmé, par défaut) ou `observed` (constaté sur le système réel, par un test ou une exécution). |
+| `covers` | non | Les clés des **points de l'inventaire** de l'étude que ce cas couvre (chapitre `studies`, champ `inventory`). Un point inconnu est refusé (`unknown_inventory_point`). Ne change pas les avis. |
 
 Le site **rejoue** les changements pour reconstruire l'état complet à chaque étape ; `GET …/cases/{key}` renvoie ces états dans `frames`.
 
@@ -210,7 +211,7 @@ Quand l'étude déclare des règles d'atelier (chapitre `atelier`), chaque cas d
 
 L'avis d'un relecteur est attaché à l'**empreinte du déroulé** : structure, configuration, dimensions, changements d'état, résultat.
 
-- Vous corrigez un titre, un résumé, une note, un libellé, ou vous changez `highlights`, `focus`, `question`, `compare_with`, `caution` : `updated_cosmetic`, les avis sont conservés.
+- Vous corrigez un titre, un résumé, une note, un libellé, ou vous changez `highlights`, `focus`, `question`, `compare_with`, `covers`, `caution` : `updated_cosmetic`, les avis sont conservés.
 - Vous changez le déroulé : `updated`, les avis rendus repassent **à analyser** (`verdicts_reset` dans la réponse) et l'ancien avis reste dans l'historique.
 
 ## Erreurs de cas
@@ -224,7 +225,7 @@ Chaque erreur donne le chemin exact :
  "example": {"key": "RUNNING", "label": "En cours", "role": "active"}}
 ```
 
-Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Pour un cas paramétré : `too_many_combinations`, `unknown_param`, `never_true`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`, `model_mismatch` : le cas annonce un sort des lignes que le jeu de règles de l'étude ne donne pas ; `workshop_mismatch` : rejoué dans l'atelier de l'étude, le cas ne donne pas ce qu'il annonce).
+Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Pour `covers` : `unknown_inventory_point`. Pour un cas paramétré : `too_many_combinations`, `unknown_param`, `never_true`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`, `model_mismatch` : le cas annonce un sort des lignes que le jeu de règles de l'étude ne donne pas ; `workshop_mismatch` : rejoué dans l'atelier de l'étude, le cas ne donne pas ce qu'il annonce).
 
 ## Lire, retirer, rétablir
 

@@ -31,6 +31,21 @@ Quand l'étude déclare un atelier dont des réglages se lisent dans des dimensi
 
 Un **cas paramétré** (chapitre `cases`) compte pour toutes les combinaisons de dimensions que ses paramètres permettent, et pour un seul cas dans `cases_counted` et `by_dimension`. Dans l'interface, la case qu'il couvre est marquée « paramétré ».
 
+## Inventaire des points de décision
+
+Quand l'étude déclare un `inventory` (chapitre `studies`), la réponse de `GET …/coverage` porte aussi :
+
+```json
+"inventory": {
+  "total": 42, "covered": 30, "excluded": 6, "to_confirm": 2, "open": 4,
+  "open_points": [{"key": "P17", "label": "Remise cumulée plafonnée", "ref": "remises.py:212"}, …],
+  "to_confirm_points": [{"key": "P4", "label": "…", "ref": "…", "reason": "…"}],
+  "note": "Un point couvert est cité par au moins un cas : ce n'est pas une vérification. …"
+}
+```
+
+Un point est couvert dès qu'un cas actif le cite (`covers`). Les listes donnent 60 points au plus. Votre travail est fini quand `open` vaut 0 : chaque point est couvert, exclu avec sa raison, ou à confirmer avec la question posée. Ne dites pas l'étude complète tant qu'il reste des points ouverts, ni si des sources n'ont pas été relevées.
+
 ## Limite à dire à l'utilisateur
 
 La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que les dimensions ne décrivent pas n'apparaît pas comme manquante. Si vous découvrez un facteur qui change le comportement, ajoutez-le comme dimension.
@@ -48,6 +63,8 @@ Ne tirez pas les dimensions des cas déjà écrits. Une dimension dont chaque va
 - `single_step` : un cas d'une seule étape ;
 - `dimension_echoes_cases` : une dimension d'au moins 5 valeurs dont chaque valeur n'est portée que par un cas, avec autant de valeurs que de cas : elle décrit les cas un par un, et sa couverture de 100 % ne prouve rien (avertissement ; le champ `dimension` la nomme) ;
 - `compare_missing_case` : un `compare_with` qui vise un cas absent ou retiré ;
+- `inventory_open` : des points de l'inventaire qu'aucun cas ne couvre, ni exclus ni à confirmer (avertissement ; le champ `points` les nomme) ;
+- `inventory_to_confirm` : des points de l'inventaire en attente d'une confirmation (information) ;
 - `model_mismatch` : des cas annoncent un sort des lignes que le jeu de règles de l'étude ne donne pas (avertissement) ;
 - `workshop_mismatch` : des cas, rejoués dans l'atelier de l'étude, ne donnent pas ce qu'ils annoncent (avertissement ; voir le chapitre `cases`) ;
 - `workshop_untranslatable` : des cas que l'atelier de l'étude ne sait pas rejouer, faute des briques, options ou liens qu'ils utilisent (information).

@@ -441,6 +441,76 @@ def normalize_rules(raw, report: Report, path="rules") -> list[dict]:
     return out
 
 
+MAX_INVENTORY = 500
+INVENTORY_STATES = ("open", "excluded", "to_confirm")
+EXAMPLE_POINT = {
+    "key": "P1",
+    "label": "Montant négatif refusé",
+    "source": {"ref": "facturation.py:120", "excerpt": "if montant < 0: raise MontantInvalide"},
+    "kind": "erreur",
+}
+
+
+def _inventory_point(item, seen: set, report: Report, p: str) -> dict | None:
+    """Un point de décision : clé, libellé, source vérifiable, sort déclaré (ouvert par défaut)."""
+    if not isinstance(item, dict):
+        report.error(p, "type", "Un point d'inventaire est un objet.", example=EXAMPLE_POINT)
+        return None
+    key, label = item.get("key"), item.get("label")
+    if not (isinstance(key, str) and ID_RE.match(key)) or key in seen:
+        code = "duplicate" if key in seen else "format"
+        report.error(f"{p}.key", code, "Clé de point invalide ou déjà prise.", received=key, example="P1")
+        return None
+    seen.add(key)
+    source = item.get("source")
+    ref = source.get("ref") if isinstance(source, dict) else None
+    if not (_is_str(label, 200) and label) or not (_is_str(ref, 300) and ref):
+        report.error(
+            p,
+            "required",
+            "Un point a un libellé et une source (« source.ref » : fichier et ligne, paragraphe d'un "
+            "document…) : un point sans source ne se vérifie pas.",
+            received=item,
+            example=EXAMPLE_POINT,
+        )
+        return None
+    state = item.get("state", "open")
+    reason = item.get("reason")
+    if state not in INVENTORY_STATES:
+        report.error(
+            f"{p}.state", "enum", "Sort de point inconnu.", received=state, expected=INVENTORY_STATES
+        )
+        return None
+    if state != "open" and not (_is_str(reason, 1000) and reason):
+        report.error(f"{p}.reason", "required", "Un point exclu ou à confirmer dit pourquoi (« reason »).")
+        return None
+    out = {"key": key, "label": label, "source": {"ref": ref}, "state": state}
+    if _is_str(source.get("excerpt"), 500) and source.get("excerpt"):
+        out["source"]["excerpt"] = source["excerpt"]
+    if _is_str(item.get("kind"), 40) and item.get("kind"):
+        out["kind"] = item["kind"]
+    if state != "open":
+        out["reason"] = reason
+    return out
+
+
+def normalize_inventory(raw, report: Report, path="inventory") -> list[dict]:
+    """Les points de décision relevés dans les sources (code, documents), avant d'écrire les cas."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_INVENTORY:
+        report.error(
+            path,
+            "type",
+            f"L'inventaire est un tableau de {MAX_INVENTORY} points au plus.",
+            example=[EXAMPLE_POINT],
+        )
+        return []
+    seen: set[str] = set()
+    points = (_inventory_point(item, seen, report, f"{path}[{i}]") for i, item in enumerate(raw))
+    return [point for point in points if point]
+
+
 def default_status(statuses: list[dict]) -> str | None:
     for status in statuses:
         if status.get("default"):
@@ -483,6 +553,7 @@ class StudyContext:
     lifecycles: list = field(default_factory=list)
     attributes: list = field(default_factory=list)
     workshop: dict = field(default_factory=dict)
+    inventory: list = field(default_factory=list)
 
     @property
     def status_keys(self) -> set[str]:
@@ -495,6 +566,10 @@ class StudyContext:
     @property
     def rule_keys(self) -> set[str]:
         return {r["key"] for r in self.rules}
+
+    @property
+    def point_keys(self) -> set[str]:
+        return {point["key"] for point in self.inventory}
 
 
 def _scalar(value) -> bool:
@@ -617,6 +692,7 @@ KNOWN_CASE_FIELDS = {
     "question",
     "compare_with",
     "params",
+    "covers",
 }
 
 
@@ -682,6 +758,7 @@ def _plain_case(raw: Any, ctx: StudyContext, path: str) -> tuple[dict | None, Re
     _warn_unknown_fields(raw, report, path)
     head = _case_header(raw, ctx, report, path)
     rules = _case_rules(raw, ctx, report, path)
+    covers = _case_covers(raw, ctx, report, path)
     dims = _case_dimensions(raw, ctx, report, path)
     tags = _case_tags(raw, report, path)
     config = _clean_attrs(raw.get("config"), report, f"{path}.config")
@@ -729,6 +806,8 @@ def _plain_case(raw: Any, ctx: StudyContext, path: str) -> tuple[dict | None, Re
     }
     if outcome:
         case["outcome"] = outcome
+    if covers:  # absent sinon : le contenu des cas sans inventaire ne change pas d'un octet
+        case["covers"] = covers
     if highlights:
         case["highlights"] = highlights
     question = _case_question(raw, report, path)
@@ -840,6 +919,28 @@ def _case_rules(raw: dict, ctx: StudyContext, report: Report, path: str) -> list
         elif rule_key not in rules:
             rules.append(rule_key)
     return rules
+
+
+def _case_covers(raw: dict, ctx: StudyContext, report: Report, path: str) -> list[str]:
+    """Les points de l'inventaire que le cas couvre, tous déclarés dans l'étude."""
+    raw_covers = raw.get("covers") or []
+    if not isinstance(raw_covers, list):
+        report.error(f"{path}.covers", "type", "« covers » est la liste des clés de points.", example=["P1"])
+        return []
+    covers: list[str] = []
+    for i, point in enumerate(raw_covers):
+        if point not in ctx.point_keys:
+            report.error(
+                f"{path}.covers[{i}]",
+                "unknown_inventory_point",
+                f"Le point « {point} » n'est pas dans l'inventaire de l'étude.",
+                received=point,
+                expected=sorted(ctx.point_keys)[:50]
+                or "aucun inventaire : déclarez-le d'abord (PATCH /studies/{id}, champ inventory)",
+            )
+        elif point not in covers:
+            covers.append(point)
+    return covers
 
 
 def _case_dimensions(raw: dict, ctx: StudyContext, report: Report, path: str) -> dict[str, str]:

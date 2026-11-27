@@ -61,6 +61,12 @@ class Study(models.Model):
         blank=True,
         help_text="Atelier : briques, liens et table de règles que le site exécute sur une situation.",
     )
+    inventory = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Inventaire des points de décision relevés dans les sources, chacun couvert par des cas, "
+        "exclu ou à confirmer.",
+    )
     representation = models.ForeignKey(
         "Representation", null=True, blank=True, on_delete=models.SET_NULL, related_name="default_for"
     )

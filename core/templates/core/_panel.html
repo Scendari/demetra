@@ -81,6 +81,12 @@
       <ul class="rule-list">{% for r in p.rules %}<li><b>{{ r.key }}</b> {{ r.title }}{% if r.text %}<span>{{ r.text }}</span>{% endif %}</li>{% endfor %}</ul>
     </details>
     {% endif %}
+    {% if p.points %}
+    <details>
+      <summary>Points de l'inventaire couverts <span class="count">{{ p.points|length }}</span></summary>
+      <ul class="rule-list">{% for pt in p.points %}<li><b>{{ pt.key }}</b> {{ pt.label }}<span>{{ pt.source.ref }}</span></li>{% endfor %}</ul>
+    </details>
+    {% endif %}
     {% if p.content.references or p.content.tags %}
     <details>
       <summary>Sources et étiquettes <span class="count">{{ p.content.references|length }}</span></summary>

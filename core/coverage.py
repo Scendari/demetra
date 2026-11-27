@@ -245,6 +245,67 @@ def _definition_findings(
     return findings
 
 
+MAX_POINTS_LISTED = 60
+
+
+def inventory(points: list[dict], cases: list[dict]) -> dict | None:
+    """Le sort de chaque point de l'inventaire : couvert quand au moins un cas le cite, sinon exclu, à
+    confirmer ou ouvert. « Couvert » veut dire « un cas le cite », pas « vérifié »."""
+    if not points:
+        return None
+    cited: dict[str, set[str]] = defaultdict(set)
+    for case in cases:
+        for key in case["content"].get("covers", []):
+            cited[key].add(case["key"])
+    out = {"total": len(points), "covered": 0, "excluded": 0, "to_confirm": 0, "open": 0}
+    listed: dict[str, list[dict]] = {"open": [], "to_confirm": []}
+    for point in points:
+        sort = "covered" if cited.get(point["key"]) else point.get("state", "open")
+        out[sort] += 1
+        if sort in listed:
+            row = {"key": point["key"], "label": point["label"], "ref": point["source"]["ref"]}
+            listed[sort].append({**row, "reason": point["reason"]} if point.get("reason") else row)
+    out["open_points"] = listed["open"][:MAX_POINTS_LISTED]
+    out["to_confirm_points"] = listed["to_confirm"][:MAX_POINTS_LISTED]
+    out["note"] = (
+        "Un point couvert est cité par au moins un cas : ce n'est pas une vérification. L'inventaire ne vaut "
+        "que ce que vaut le relevé des sources."
+    )
+    return out
+
+
+def inventory_findings(points: list[dict], cases: list[dict]) -> list[dict]:
+    """Points ouverts (avertissement) et points à confirmer (information)."""
+    report = inventory(points, cases)
+    if not report:
+        return []
+    findings = []
+    if report["open"]:
+        keys = [p["key"] for p in report["open_points"]]
+        findings.append(
+            {
+                "code": "inventory_open",
+                "severity": "warning",
+                "points": keys,
+                "message": f"{report['open']} point(s) de l'inventaire ne sont couverts par aucun cas, ni "
+                "exclus ni à confirmer : " + ", ".join(keys[:20]) + ".",
+            }
+        )
+    if report["to_confirm"]:
+        keys = [p["key"] for p in report["to_confirm_points"]]
+        findings.append(
+            {
+                "code": "inventory_to_confirm",
+                "severity": "info",
+                "points": keys,
+                "message": f"{report['to_confirm']} point(s) de l'inventaire attendent une confirmation : "
+                + ", ".join(keys[:20])
+                + ".",
+            }
+        )
+    return findings
+
+
 MIN_ECHO_VALUES = 5  # en dessous, une valeur par cas est banale : deux ou trois cas, deux ou trois valeurs
 
 

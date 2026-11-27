@@ -3,6 +3,18 @@
 {% block content %}
 {% include "core/_study_head.html" %}
 <div class="page">
+  {% with inv=report.inventory %}{% if inv %}
+  <section class="cov-inventory" aria-labelledby="inv-title">
+    <h2 id="inv-title">Inventaire des points de décision <span class="count">{{ inv.total }}</span></h2>
+    <p class="inv-counts"><span class="pair"><span>couverts</span> <b>{{ inv.covered }}</b></span><span class="pair"><span>exclus</span> <b>{{ inv.excluded }}</b></span><span class="pair"><span>à confirmer</span> <b>{{ inv.to_confirm }}</b></span><span class="pair"><span>ouverts</span> <b>{{ inv.open }}</b></span></p>
+    {% if inv.open_points %}<h3>Ouverts : aucun cas ne les couvre</h3>
+    <ul class="findings">{% for pt in inv.open_points %}<li class="finding-warning"><svg class="ic" aria-hidden="true"><use href="#ui-warning"/></svg><span><b>{{ pt.key }}</b> {{ pt.label }} <span class="sub">{{ pt.ref }}</span></span></li>{% endfor %}</ul>{% endif %}
+    {% if inv.to_confirm_points %}<h3>À confirmer</h3>
+    <ul class="findings">{% for pt in inv.to_confirm_points %}<li class="finding-info"><svg class="ic" aria-hidden="true"><use href="#ui-info"/></svg><span><b>{{ pt.key }}</b> {{ pt.label }} <span class="sub">{{ pt.ref }} — {{ pt.reason }}</span></span></li>{% endfor %}</ul>{% endif %}
+    {% if not inv.open and not inv.to_confirm %}<p class="ok-line"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>Chaque point relevé est couvert par un cas ou exclu avec sa raison.</p>{% endif %}
+    <p class="hint">Un point couvert est cité par au moins un cas : ce n'est pas une vérification. L'inventaire ne vaut que ce que vaut le relevé des sources.</p>
+  </section>
+  {% endif %}{% endwith %}
   {% if not report.dimensions %}
   <section class="empty">
     <h2>La couverture ne peut pas encore être mesurée</h2>
