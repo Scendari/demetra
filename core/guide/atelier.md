@@ -66,7 +66,7 @@ Ne s'y disent pas, pour l'instant : un calcul de montants, un délai, une relanc
 | `bricks[].events` | Ce qu'on peut provoquer sur un élément de ce type : `key`, `label` | 6 |
 | `bricks[].initial` | Statut de départ des éléments de ce type ; sinon le statut par défaut de l'étude | — |
 | `links` | Types de liens : `type`, `label` (lu de l'origine vers la cible), `reverse` (lu dans l'autre sens, facultatif), `from` et `to` (types de briques reliés ; tous si absent) | 8 |
-| `settings` | Réglages de toute la situation : même forme qu'une option | 8 |
+| `settings` | Réglages de toute la situation : même forme qu'une option, plus `dimension` (facultatif) : `{"key": "<dimension de l'étude>", "values": {"<valeur de la dimension>": <valeur du réglage>}}`, la dimension où le réglage se lit quand un cas déposé est rejoué dans l'atelier | 8 |
 | `rules` | La table de règles, **de la plus prioritaire à la moins prioritaire** | 1 à 60 |
 | `outcome` | Le résultat d'ensemble : `when` (facultatif), `label`, `status` (facultatif) ; le premier dont la condition est vraie est retenu | 12 |
 | `max_steps` | Nombre de pas au-delà duquel le déroulé s'arrête | 1 à 40, 24 par défaut |
@@ -97,7 +97,7 @@ Une condition est un objet ; **toutes** ses entrées doivent être vraies.
 - Les conditions s'emboîtent sur 5 niveaux au plus (`too_deep`).
 - Dans `outcome[].when`, la condition porte sur la situation, pas sur un élément : seuls `setting`, `elements`, `all`, `any`, `not` y ont un sens (`no_element` sinon).
 
-Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `unknown_option`, `unknown_setting`, `unknown_event`, `unknown_link`, `unknown_value`, `unknown_field`, `duplicate`, `too_deep`, `no_element`, `type`, `required`. Chaque erreur donne le chemin exact (`workshop.rules[3].when.incoming.all.status`).
+Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `unknown_option`, `unknown_setting`, `unknown_event`, `unknown_link`, `unknown_value`, `unknown_field`, `duplicate`, `too_deep`, `no_element`, `type`, `required`, `unknown_dimension` (un réglage lu dans une dimension que l'étude ne déclare pas). Chaque erreur donne le chemin exact (`workshop.rules[3].when.incoming.all.status`).
 
 ## Comment le site déroule une situation
 
@@ -249,7 +249,7 @@ Vous ne déclarez **pas de table de règles** : vous déclarez comment une image
 | `title` | Titre de l'atelier | 80 caractères |
 | `axis` | L'axe du temps : `label`, `min`, `max`, `grain` (le pas : une image par pas), `step` (la finesse des bornes qu'on saisit ; `grain` par défaut). Des nombres : jours d'un mois, heures, rangs | 400 pas au plus |
 | `bricks` | Les sources de périodes : `type`, `label`, `options` (les champs d'une période, même forme que dans l'autre famille). Ni `events` ni `initial` ; `start` et `end` sont réservés aux bornes | 1 à 8 |
-| `settings` | Réglages de toute la situation | 8 |
+| `settings` | Réglages de toute la situation ; `dimension` facultatif, comme pour les éléments reliés | 8 |
 | `image.sources` | La **base** d'abord, puis les sources rattachées, dans l'ordre où elles se résolvent | une par brique au plus |
 | `image.fields` | Les champs restitués : `key`, `label`, `from` (`"brique.champ"`). **Seuls ces champs distinguent deux images** | 1 à 8 |
 | `image.status` | Le statut d'une image : la première entrée `{when, then}` dont la condition est vraie | 1 à 12 |

@@ -177,6 +177,17 @@ Préférez un cas paramétré quand les variantes partagent l'essentiel du déro
 
 Quand un cas annonce, dans `steps[].rows`, un sort des lignes que le jeu de règles de l'étude ne donne pas pour ses dimensions et réglages, le dépôt renvoie l'avertissement `model_mismatch`. **C'est un avertissement, jamais un refus** : le cas est écrit. Soit le cas se trompe, soit le jeu de règles est incomplet ; dites-le à l'utilisateur au lieu de corriger l'un pour faire taire l'autre. `GET /api/v1/studies/{id}/checks` liste les cas concernés sous le même code.
 
+## Écart entre un cas et les règles de l'atelier
+
+Quand l'étude déclare des règles d'atelier (chapitre `atelier`), chaque cas déposé est **rejoué dans l'atelier** : mêmes briques (le `type` des entités), mêmes options (les `attrs` qui portent le nom d'une option), mêmes liens, mêmes réglages, même état de départ (`initial`). Un réglage se lit dans `config`, sinon dans la dimension que la déclaration de l'atelier lui associe (`settings[].dimension`). Si les règles ne mènent pas là où le cas finit, ou à un autre résultat d'ensemble (`outcome.status`), le dépôt renvoie l'avertissement `workshop_mismatch`, qui dit quelle entité s'écarte et comment. **C'est un avertissement, jamais un refus** : le cas est écrit. Soit le cas se trompe, soit les règles de l'atelier sont incomplètes ; dites-le à l'utilisateur au lieu de corriger l'un pour faire taire l'autre.
+
+- Un cas ne dit pas quels évènements (« tombe en panne »…) ont eu lieu : le site cherche lui-même, parmi ceux que les règles savent traiter, jusqu'à trois évènements qui expliquent le cas.
+- Un cas peut s'arrêter en cours de route : il concorde s'il décrit un moment que les règles traversent.
+- Pour un atelier de périodes, ce sont les lignes de l'historique (entités qui ne sont pas des briques, avec `attrs.start` et `attrs.end`) qui sont comparées à celles que les règles donnent.
+- Un cas sans aucune entité d'une brique de l'atelier n'est pas rejoué. Un cas qui mêle des briques de l'atelier et d'autres types, ou des liens que l'atelier ne déclare pas, n'est pas signalé au dépôt : `GET …/checks` le liste sous `workshop_untranslatable` (information).
+
+`GET /api/v1/studies/{id}/checks` liste les cas qui s'écartent sous `workshop_mismatch`.
+
 ## Valider à blanc
 
 `POST /api/v1/studies/{id}/cases/validate` avec `{"cases": [...]}` — rien n'est écrit. La réponse a la même forme qu'un dépôt, avec `dry_run: true`, et donne la couverture **comme si** le lot était déposé.
@@ -213,7 +224,7 @@ Chaque erreur donne le chemin exact :
  "example": {"key": "RUNNING", "label": "En cours", "role": "active"}}
 ```
 
-Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Pour un cas paramétré : `too_many_combinations`, `unknown_param`, `never_true`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`, `model_mismatch` : le cas annonce un sort des lignes que le jeu de règles de l'étude ne donne pas).
+Codes fréquents : `required`, `format`, `duplicate`, `unknown_entity`, `unknown_status`, `unknown_dimension`, `unknown_value`, `unknown_rule`, `cycle`, `order`, `min_items`, `max_items`. Pour `highlights` : `unknown_highlight`, `unknown_entity`, `unknown_attr`, `unknown_link`, et pour son `style` : `enum`, `type`, `unknown_field`. Pour les champs étendus : `unknown_measure`, `out_of_scale`, `out_of_band`, `no_ruleset`, `unknown_condition`, `forbidden_transition`, `outside_lifecycle`, `enum`, `type`. Pour `compare_with` : `self_reference`. Pour un cas paramétré : `too_many_combinations`, `unknown_param`, `never_true`. Les `warnings` n'empêchent pas l'écriture (`missing_dimension`, `never_changes`, `unknown_field`, `inconsistent_total`, `undeclared_attr`, `model_mismatch` : le cas annonce un sort des lignes que le jeu de règles de l'étude ne donne pas ; `workshop_mismatch` : rejoué dans l'atelier de l'étude, le cas ne donne pas ce qu'il annonce).
 
 ## Lire, retirer, rétablir
 

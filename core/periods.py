@@ -401,7 +401,7 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
             )
         if {"start", "end"} & {o["key"] for o in brick["options"]}:
             report.error(f"{path}.bricks[{i}].options", "duplicate", "« start » et « end » sont les bornes.")
-    settings = _choices(raw.get("settings"), report, f"{path}.settings", "Un réglage", MAX_SETTINGS)
+    settings = _choices(raw.get("settings"), report, f"{path}.settings", "Un réglage", MAX_SETTINGS, True)
     by_type = {b["type"]: b for b in bricks}
     merge = raw.get("merge", True)
     if not isinstance(merge, bool):

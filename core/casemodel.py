@@ -482,6 +482,7 @@ class StudyContext:
     ruleset: dict = field(default_factory=dict)
     lifecycles: list = field(default_factory=list)
     attributes: list = field(default_factory=list)
+    workshop: dict = field(default_factory=dict)
 
     @property
     def status_keys(self) -> set[str]:
@@ -642,7 +643,28 @@ def normalize_case(raw: Any, ctx: StudyContext, path: str = "case") -> tuple[dic
     case, report = _plain_case(raw, ctx, path)
     if case is not None:
         ext.check_ruleset_agreement(case, ctx.ruleset, ctx.dimensions, report, path)
+        _check_workshop_agreement(case, ctx, report, path)
     return case, report
+
+
+def _check_workshop_agreement(case: dict, ctx: StudyContext, report: Report, path: str):
+    """Rejoué dans l'atelier de l'étude, le cas ne donne pas ce qu'il annonce : un avertissement, jamais un
+    refus. Un cas que l'atelier ne sait pas rejouer n'est pas signalé ici : les contrôles d'étude le
+    disent."""
+    from .workshopcheck import agreement
+
+    found = agreement(ctx.workshop, case, ctx.statuses)
+    if not found or found["status"] != "differ":
+        return
+    report.warn(
+        path,
+        "workshop_mismatch",
+        "Rejoué dans l'atelier de l'étude, ce cas ne donne pas ce qu'il annonce : "
+        + " ; ".join(found["differences"][:4])
+        + ". Soit le cas se trompe, soit les règles de l'atelier sont incomplètes : dites-le à l'utilisateur "
+        "au lieu de corriger l'un pour faire taire l'autre.",
+        received=found["differences"][:8],
+    )
 
 
 def _plain_case(raw: Any, ctx: StudyContext, path: str) -> tuple[dict | None, Report]:

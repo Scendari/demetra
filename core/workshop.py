@@ -104,8 +104,61 @@ def _label(item: dict, report: Report, p: str, fallback: str, size: int = 60, na
     return label.strip() or fallback
 
 
-def _choices(raw, report: Report, path: str, what: str, limit: int) -> list[dict]:
-    """Options d'une brique ou réglages de la situation : {key, label, values, default}."""
+def _binding(raw, values: list, report: Report, p: str) -> dict | None:
+    """Un réglage lu dans une dimension de l'étude : {key, values: {valeur de la dimension: valeur du
+    réglage}}. Sert à rejouer un cas, qui dit ses dimensions sans nommer les réglages de l'atelier."""
+    example = {"key": "arret_sur_erreur", "values": {"oui": True, "non": False}}
+    pairs = raw.get("values") if isinstance(raw, dict) else None
+    if (
+        not isinstance(raw, dict)
+        or set(raw) - {"key", "values"}
+        or not (isinstance(raw.get("key"), str) and ID_RE.match(raw["key"]))
+        or not isinstance(pairs, dict)
+        or not pairs
+    ):
+        report.error(p, "type", "Un objet {key, values} : la dimension, puis ses valeurs.", example=example)
+        return None
+    for name, value in pairs.items():
+        if not among(value, values):
+            report.error(f"{p}.values.{name}", "unknown_value", "Une valeur du réglage.", received=value)
+            return None
+    return {
+        "key": raw["key"],
+        "values": {name: next(v for v in values if same(v, value)) for name, value in pairs.items()},
+    }
+
+
+def bound_dimensions(decl: dict, dimensions: list[dict], report: Report, path: str = "workshop") -> None:
+    """Un réglage ne se lit que dans une dimension que l'étude déclare, et parmi ses valeurs."""
+    known = {d["key"]: {v["value"] for v in d["values"]} for d in dimensions}
+    for i, item in enumerate(decl.get("settings") or []):
+        binding = item.get("dimension")
+        if not binding:
+            continue
+        p = f"{path}.settings[{i}].dimension"
+        if binding["key"] not in known:
+            report.error(
+                f"{p}.key",
+                "unknown_dimension",
+                "Dimension inconnue de l'étude.",
+                received=binding["key"],
+                expected=sorted(known),
+            )
+            continue
+        for name in binding["values"]:
+            if name not in known[binding["key"]]:
+                report.error(
+                    f"{p}.values.{name}",
+                    "unknown_value",
+                    "Valeur inconnue de cette dimension.",
+                    received=name,
+                    expected=sorted(known[binding["key"]]),
+                )
+
+
+def _choices(raw, report: Report, path: str, what: str, limit: int, bindable: bool = False) -> list[dict]:
+    """Options d'une brique ou réglages de la situation : {key, label, values, default}. Un réglage
+    (`bindable`) peut dire dans quelle dimension de l'étude il se lit (`dimension`)."""
     if raw in (None, []):
         return []
     if not isinstance(raw, list) or len(raw) > limit:
@@ -137,6 +190,10 @@ def _choices(raw, report: Report, path: str, what: str, limit: int) -> list[dict
             report.error(f"{p}.default", "unknown_value", "La valeur par défaut est une des valeurs.")
             continue
         out.append({"key": key, "label": _label(item, report, p, key), "values": values, "default": default})
+        if bindable and item.get("dimension") is not None:
+            binding = _binding(item["dimension"], values, report, f"{p}.dimension")
+            if binding:
+                out[-1]["dimension"] = binding
     return out
 
 
@@ -444,7 +501,7 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
         report.error(path, "unknown_field", "Champ inconnu dans « workshop ».", received=sorted(unknown))
     bricks = _bricks(raw.get("bricks"), status_keys, report, f"{path}.bricks")
     links = _links(raw.get("links"), [b["type"] for b in bricks], report, f"{path}.links")
-    settings = _choices(raw.get("settings"), report, f"{path}.settings", "Un réglage", MAX_SETTINGS)
+    settings = _choices(raw.get("settings"), report, f"{path}.settings", "Un réglage", MAX_SETTINGS, True)
     voc = vocabulary(bricks, links, settings, status_keys)
     limit = raw.get("max_steps", DEFAULT_RUN_STEPS)
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_RUN_STEPS:
@@ -769,8 +826,9 @@ def holds(cond: dict, world: World, element: dict | None) -> bool:
     return True
 
 
-def world_of(decl: dict, situation: dict, default_status: str) -> World:
-    """Au départ, chaque brique dans l'état de départ de son type, sinon le statut par défaut."""
+def world_of(decl: dict, situation: dict, default_status: str, start: dict | None = None) -> World:
+    """Au départ, chaque brique dans l'état de départ de son type, sinon le statut par défaut — ou dans l'état
+    que donne `start` (un cas rejoué part de son propre état de départ)."""
     initial = {b["type"]: b.get("initial") or default_status for b in decl["bricks"]}
     elements = {e["id"]: e for e in situation["elements"]}
     incoming: dict[str, list] = {key: [] for key in elements}
@@ -784,7 +842,7 @@ def world_of(decl: dict, situation: dict, default_status: str) -> World:
         outgoing=outgoing,
         events={key: set(found) for key, found in situation["events"].items()},
         settings=situation["settings"],
-        states={key: initial[e["type"]] for key, e in elements.items()},
+        states={key: (start or {}).get(key) or initial[e["type"]] for key, e in elements.items()},
     )
 
 
@@ -803,12 +861,12 @@ def _next(decl: dict, world: World) -> list[dict]:
     return changes
 
 
-def run(decl: dict, situation: dict, default_status: str) -> dict:
+def run(decl: dict, situation: dict, default_status: str, start: dict | None = None) -> dict:
     """Déroule la situation jusqu'à ce que plus rien ne bouge.
 
     Rend {steps: [{states, changes}], end: stable | loop | limit}. Le premier pas est la situation de départ.
     `loop` : la situation revient à un état déjà vu ; `limit` : le nombre de pas permis est atteint."""
-    world = world_of(decl, situation, default_status)
+    world = world_of(decl, situation, default_status, start)
     steps = [{"states": dict(world.states), "changes": []}]
     seen = [dict(world.states)]
     end = "stable"

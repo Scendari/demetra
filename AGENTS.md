@@ -45,6 +45,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `workshop.py` | Atelier : déclaration d'une étude (`normalize` : briques, options, évènements, liens, réglages, table de règles), conditions au vocabulaire fermé (`check_condition`, `holds`), situation construite (`situation`, `from_query`, `to_query`), moteur pas à pas (`run`), passage au format de cas (`to_case`) | Pur. Aucun code fourni par l'étude n'est exécuté. Rien n'y nomme une étude : les règles d'une étude vivent dans sa déclaration (`Study.workshop`), jamais ici |
 | `periods.py` | Atelier, famille « périodes » : déclaration (`normalize` : axe, sources, composition d'une image, champs restitués, fusion, périodes invalides), phrases tirées de la déclaration (`principles`), périodes posées (`situation`, `from_query`, `to_query`, `placed`), moteur (`run` : une image par pas, puis réunion), passage au format de cas (`to_case`) | Pur. Mêmes interdits que `workshop.py`. Réutilise ses contrôles de briques et d'options |
 | `families.py` | Les familles d'atelier (`FAMILIES`) et leur interface commune : `normalize`, `declared`, `situation`, `from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `to_case` | Pur. `services`, `api` et `views/atelier` passent par `families.of(decl)` : aucun n'appelle une famille par son nom. Ajouter une famille = un module de plus ici, sans toucher à l'écran ni à l'API |
+| `workshopcheck.py` | Accord entre un cas déposé et l'atelier de son étude (`agreement`) : le cas rejoué comme une situation, évènements supposés, cas arrêté en cours de route ; avertissement `workshop_mismatch` | Pur. Les réglages se lisent dans `config`, sinon dans la dimension déclarée (`settings[].dimension`) |
 | `rulecheck.py` | Accord entre le sort des lignes qu'un cas annonce et ce que calcule le jeu de règles de l'étude (`model_mismatch`) | Pur |
 | `parametric.py` | Cas paramétré : `params`, `when`, rejeu de chaque combinaison au dépôt. En base : la variante par défaut (un cas ordinaire) plus `params` et `source` | Pur. `source_of` rend la forme déposée ; tout nouveau lecteur de `Case.content` qui doit voir les variantes passe par `expand` |
 | `bricks.py` | Catalogue des briques de représentation, schéma JSON, 16 représentations système | La source de vérité des représentations |
@@ -126,6 +127,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   (déclaration, moteur, adresse, API, écran, exemple du guide).
   `test_demo_magasin.py` : l'étude de démonstration qui déclare un atelier de périodes ; onze situations aux
   lignes attendues écrites à la main, le semis, et rien de cette étude dans `core/` hors `core/demo/`.
+  `test_accord_atelier.py` : un cas rejoué dans l'atelier de son étude (concorde, s'écarte, ne s'y traduit pas).
   `test_parametrique.py`, `test_modele.py` : cas paramétrés, accord avec le jeu de règles.
 - `test_contrast.py` : contrastes des deux thèmes. `test_licences.py` : licences et absence de bibliothèque de
   disposition. `test_admin.py`, `test_entreprise.py`, `test_connect.py`, `test_exploitation.py` : administration,

@@ -126,7 +126,12 @@ WORKSHOP = {
     ],
     "links": [{"type": "prerequisite", "label": "précède", "reverse": "dépend de"}],
     "settings": [
-        {"key": "stop_on_error", "label": "Arrêt sur erreur (stop_on_error)", "values": [False, True]}
+        {
+            "key": "stop_on_error",
+            "label": "Arrêt sur erreur (stop_on_error)",
+            "values": [False, True],
+            "dimension": {"key": "arret_sur_erreur", "values": {"non": False, "oui": True}},
+        }
     ],
     "rules": [
         {

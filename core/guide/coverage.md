@@ -43,7 +43,9 @@ La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que
 - `unused_status` : un statut déclaré mais jamais atteint ;
 - `single_step` : un cas d'une seule étape ;
 - `compare_missing_case` : un `compare_with` qui vise un cas absent ou retiré ;
-- `model_mismatch` : des cas annoncent un sort des lignes que le jeu de règles de l'étude ne donne pas (avertissement).
+- `model_mismatch` : des cas annoncent un sort des lignes que le jeu de règles de l'étude ne donne pas (avertissement) ;
+- `workshop_mismatch` : des cas, rejoués dans l'atelier de l'étude, ne donnent pas ce qu'ils annoncent (avertissement ; voir le chapitre `cases`) ;
+- `workshop_untranslatable` : des cas que l'atelier de l'étude ne sait pas rejouer, faute des briques, options ou liens qu'ils utilisent (information).
 
 ## Niveau de preuve
 

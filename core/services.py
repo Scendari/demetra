@@ -20,7 +20,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
-from . import bricks, casemodel, extensions, families, parametric, rulecheck
+from . import bricks, casemodel, extensions, families, parametric, rulecheck, workshop, workshopcheck
 from . import coverage as cov
 from .models import (
     ROLE_RANK,
@@ -253,6 +253,7 @@ def context_of(study: Study) -> casemodel.StudyContext:
         ruleset=study.ruleset or {},
         lifecycles=study.lifecycles or [],
         attributes=study.attributes or [],
+        workshop=study.workshop or {},
     )
 
 
@@ -285,6 +286,11 @@ def _study_definitions(data: dict, report: casemodel.Report, current: Study | No
     elif "statuses" in data and current and current.workshop:
         # Un statut ne se retire pas sous une règle d'atelier qui le nomme.
         families.normalize(current.workshop, status_keys, report)
+    decl = out.get("workshop", current.workshop if current else None)
+    if decl and ("workshop" in data or "dimensions" in data):
+        # Un réglage lu dans une dimension : la dimension et ses valeurs doivent exister.
+        dims = out.get("dimensions", current.dimensions if current else [])
+        workshop.bound_dimensions(decl, dims, report)
     return out
 
 
@@ -1000,9 +1006,55 @@ def _model_findings(study: Study, rows: list[dict]) -> list[dict]:
     ]
 
 
+def _workshop_findings(study: Study, rows: list[dict]) -> list[dict]:
+    """Cas que l'atelier de l'étude, rejoué, ne donne pas comme annoncé ; cas qu'il ne sait pas rejouer."""
+    if not workshop_of(study):
+        return []
+    off: list[str] = []
+    apart: dict[str, str] = {}
+    for row in rows:
+        for _, content in parametric.expand(row["content"]):
+            found = workshopcheck.agreement(study.workshop, content, study.statuses)
+            if found and found["status"] == "differ":
+                off.append(row["key"])
+                break
+            if found and found["status"] == "untranslatable":
+                apart.setdefault(row["key"], found["reason"])
+    out = []
+    if off:
+        out.append(
+            {
+                "code": "workshop_mismatch",
+                "severity": "warning",
+                "cases": off[:50],
+                "message": f"{len(off)} cas, rejoué(s) dans l'atelier de l'étude, ne donne(nt) pas "
+                "ce qu'il(s) annonce(nt) : "
+                + ", ".join(off[:20])
+                + ". Soit le cas se trompe, soit les règles de l'atelier "
+                "sont incomplètes.",
+            }
+        )
+    if apart:
+        first = next(iter(apart.items()))
+        out.append(
+            {
+                "code": "workshop_untranslatable",
+                "severity": "info",
+                "cases": list(apart)[:50],
+                "message": f"{len(apart)} cas ne se rejoue(nt) pas dans l'atelier de l'étude, faute de "
+                f"briques ou de liens qu'il déclare (par exemple {first[0]} : {first[1]}).",
+            }
+        )
+    return out
+
+
 def checks_report(study: Study) -> list[dict]:
     rows = _case_rows(study)
-    return cov.study_checks(study.statuses, study.rules, rows) + _model_findings(study, rows)
+    return (
+        cov.study_checks(study.statuses, study.rules, rows)
+        + _model_findings(study, rows)
+        + _workshop_findings(study, rows)
+    )
 
 
 def study_state(study: Study) -> dict:
