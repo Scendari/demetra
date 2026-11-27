@@ -114,6 +114,10 @@ le révoquer.
 N'autorisez un lien que si vous venez de le demander à votre IA. Demetra ne vous enverra jamais ce lien par
 e-mail ou par message.
 
+Pour qu'elle relève **tous** les cas d'un code ou d'un processus existant, et pas une sélection, donnez-lui
+les prompts du chapitre « Étude complète » ({{origin}}/guide/complete/) : inventaire, construction, reprise,
+contre-vérification.
+
 ## Selon l'outil
 
 - **GitHub Copilot (VS Code)** : utilisez le mode **Agent**, qui peut lancer des commandes dans le terminal, et

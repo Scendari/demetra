@@ -18,6 +18,7 @@ TOPICS = {
     "studies": "Études : statuts, dimensions, règles de gestion",
     "cases": "Cas : format, dépôt en lot, validation à blanc, erreurs",
     "coverage": "Couverture : dimensions, combinaisons manquantes, contrôles",
+    "complete": "Étude complète : inventaire et prompts à copier pour relever tous les cas",
     "review": "Revue : lire les avis et commentaires, liste de travail",
     "atelier": "Atelier : déclarer les règles d'une étude, dérouler une situation construite",
     "representations": "Représentations : briques, création, ajustement, aperçu",
@@ -71,7 +72,26 @@ def to_html(text: str) -> str:
     html = md.markdown(_NESTED_FENCE.sub(keep, text), extensions=extensions, tab_length=3)
     for n, block in enumerate(kept):
         html = re.sub(rf"<p>DEMETRA-CODE-{n}</p>|DEMETRA-CODE-{n}\b", lambda _m, b=block: b, html, count=1)
-    return html
+    return _copyable(html)
+
+
+_PROMPT = re.compile(r'<pre><code class="language-prompt">(.*?)</code></pre>', re.DOTALL)
+
+
+def _copyable(html: str) -> str:
+    """Un bloc ```prompt du guide (un texte à donner à une IA) reçoit un bouton « Copier »."""
+    count = iter(range(1, 1000))
+
+    def wrap(match: re.Match) -> str:
+        n = next(count)
+        return (
+            f'<div class="copy-row copy-block"><pre id="prompt-{n}"><code class="language-prompt">{match[1]}'
+            f'</code></pre><button type="button" class="btn" data-copy="#prompt-{n}"><svg class="ic" '
+            'aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button>'
+            "</div>"
+        )
+
+    return _PROMPT.sub(wrap, html)
 
 
 def notice_block(message: str, html: bool = False) -> str:

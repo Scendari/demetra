@@ -30,6 +30,7 @@ Les rôles sont séparés :
 
 1. `GET /api/v1/me` — vérifiez le jeton et ses portées.
 2. `POST /api/v1/studies` — créez l'étude avec ses **statuts**, ses **dimensions** et ses **règles**, et la définition des options de ses entités (`attributes`) ; au besoin des tranches sur une dimension numérique (`bands`), un jeu de règles (`ruleset`) et des cycles de vie (`lifecycles`). (Chapitre `studies`.)
+   Pour une étude tirée d'un code ou d'un processus existant, relevez d'abord l'**inventaire** de ses points de décision (`inventory`), puis couvrez chaque point par des cas (`covers`) : chapitre `complete`.
 3. `POST /api/v1/studies/{id}/cases/validate` — validez un lot **à blanc** ; corrigez d'après les erreurs. (Chapitre `cases`.)
 4. `POST /api/v1/studies/{id}/cases/batch` — déposez le lot. Rejouer le même lot ne change rien.
 5. `GET /api/v1/studies/{id}/coverage` — lisez les **combinaisons manquantes** et ajoutez les cas qui manquent, ou déclarez une exclusion motivée. (Chapitre `coverage`.)
