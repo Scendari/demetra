@@ -47,3 +47,11 @@ def test_page_avec_boutons_copier(client):
     assert html.count('data-copy="#prompt-') == 4 and html.count('id="prompt-') == 4
     assert "http://testserver/llms.txt" in html
     assert "Étude complète" in client.get("/guide/agents/").content.decode()
+
+
+def test_la_page_des_etudes_y_mene(web):
+    client = web("ana")
+    page = client.get("/etudes/").content.decode()
+    assert (
+        'href="/guide/complete/"' in page and "Prompts d&#x27;analyse" in page or "Prompts d'analyse" in page
+    )

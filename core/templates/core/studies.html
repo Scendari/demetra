@@ -7,6 +7,7 @@
     <div class="page-actions">
       {% if trashed %}<a class="btn" href="{% url 'studies_trash' %}"><svg class="ic" aria-hidden="true"><use href="#ui-retired"/></svg>Corbeille ({{ trashed }})</a>{% endif %}
       {% if rows %}<a class="btn" href="{% url 'tokens' %}"><svg class="ic" aria-hidden="true"><use href="#ui-key"/></svg>Connecter une IA</a>{% endif %}
+      <a class="btn" href="{% url 'guide_topic' 'complete' %}" title="Les prompts à donner à une IA pour relever tous les cas d'un code ou d'un processus existant"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg>Prompts d'analyse</a>
       <a class="btn btn-primary" href="#nouvelle"><svg class="ic" aria-hidden="true"><use href="#ui-plus"/></svg>Nouvelle étude</a>
     </div>
   </header>
@@ -39,7 +40,7 @@
     <h2>Aucune étude pour l'instant</h2>
     <p>Une étude rassemble des règles de gestion et les cas qui en découlent. Le plus simple : confiez-la à votre IA (mode Agent de Copilot, Claude Code, Codex, Cursor…). Dites-lui d'abord :</p>
     <div class="copy-row copy-block"><pre id="start-brief">Connecte-toi à mes études Demetra en suivant {{ request.scheme }}://{{ request.get_host }}/llms.txt</pre><button type="button" class="btn" data-copy="#start-brief"><svg class="ic" aria-hidden="true"><use href="#ui-copy"/></svg><span data-copy-label>Copier</span></button></div>
-    <p>Elle vous donnera un lien : ouvrez-le et cliquez « Autoriser ». Demandez-lui ensuite ce que vous voulez étudier, par exemple « décris le processus d'achat client et dépose tous ses cas ». Vous pouvez aussi créer une étude vous-même ci-dessous.</p>
+    <p>Elle vous donnera un lien : ouvrez-le et cliquez « Autoriser ». Pour qu'elle relève <strong>tous</strong> les cas d'un code ou d'un processus existant, et pas une sélection, donnez-lui ensuite les <a class="link" href="{% url 'guide_topic' 'complete' %}">prompts d'analyse</a>, à copier dans l'ordre : inventaire, construction, puis contre-vérification. Vous pouvez aussi créer une étude vous-même ci-dessous.</p>
   </section>
   {% endif %}
 
