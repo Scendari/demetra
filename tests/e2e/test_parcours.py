@@ -807,6 +807,25 @@ def _centre(locator) -> tuple[float, float]:
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
+_JOURNAL = """
+window.__j = [];
+const say = (x) => window.__j.push(Math.round(performance.now()) + " " + x);
+["pointerdown", "pointermove", "pointerup", "pointercancel", "click"].forEach((t) =>
+  document.addEventListener(t, (e) => {
+    if (t === "pointermove" && !e.buttons) return;
+    const brick = e.target.closest ? (e.target.closest("[data-e]") || {}).dataset?.e : "";
+    say(t + " " + e.clientX + "," + e.clientY + " b" + e.buttons + " " + brick);
+  }, true));
+document.addEventListener("DOMContentLoaded", () => new MutationObserver(() => say("aide " +
+  (document.querySelector("[data-at-hint-text]") || {}).textContent)).observe(document.body,
+  { subtree: true, childList: true, characterData: true }));
+"""
+
+
+def _journal(page) -> str:
+    return "\n".join(page.evaluate("window.__j || []")[-60:])
+
+
 def _glisser(page, start: tuple[float, float], end: tuple[float, float]) -> None:
     """Un glisser à la souris, en plusieurs pas, puis l'attente du fragment redemandé."""
     # WebKit sous Linux (CI) perd un glisser commencé dans la foulée du précédent : un temps de main humaine.
@@ -827,6 +846,9 @@ def test_atelier_glisser_deposer(site, engine):
     context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems = watched(page)
+    page.add_init_script(_JOURNAL)  # provisoire : comprendre l'échec sous WebKit en CI
+    asked: list[str] = []
+    page.on("request", lambda r: asked.append(r.url[-90:]) if "atelier" in r.url else None)
     login(page, site, "demo")
     page.get_by_role("link", name="Catalogue des runs Lancelot").click()
     page.get_by_role("link", name="Atelier", exact=True).click()
@@ -859,7 +881,10 @@ def test_atelier_glisser_deposer(site, engine):
     )
     # Le même lien une seconde fois : rien ne change, le site dit pourquoi.
     _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]')))
-    expect(page.locator("[data-at-hint-text]")).to_have_text("Task B et Task C sont déjà reliées ainsi.")
+    try:
+        expect(page.locator("[data-at-hint-text]")).to_have_text("Task B et Task C sont déjà reliées ainsi.")
+    except AssertionError as error:
+        raise AssertionError(_journal(page) + "\n" + "\n".join(asked[-6:])) from error
     expect(links).to_have_count(2)
     shot(page, "44-atelier-glisser-deposer", full_page=True)
     # Cliquer un lien propose de le retirer.
