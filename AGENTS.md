@@ -23,8 +23,8 @@ uv run python manage.py migrate           # base SQLite locale + représentation
 uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 15 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
-uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium :
-uv run playwright install chromium        #   sinon le test navigateur est sauté, pas en échec
+uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium, et WebKit
+uv run playwright install chromium webkit #   pour l'atelier : sinon ces tests sont sautés, pas en échec
 uv run python scripts/empreinte_rendu.py ecrire   test-results/empreinte-avant.json   # avant un remaniement
 uv run python scripts/empreinte_rendu.py comparer test-results/empreinte-avant.json   # après : doit être « identique »
 ```
@@ -134,7 +134,9 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   SSO/LDAP/HTTPS, lien d'autorisation, sonde, sauvegarde et kit `deploiement/`.
   `test_message_organisation.py` : message de l'organisation dans le mode d'emploi.
   `test_corbeille.py` : suppression d'une étude (corbeille, restauration, effacement réservé aux humains).
-- `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque).
+- `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
+  passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils
+  sont sautés si WebKit manque ou ne reçoit aucun clic (sonde sur une page minimale).
 - `scripts/empreinte_rendu.py` : empreinte de tout ce que le site calcule sur les études de démonstration
   (données produites par `core/demo/*`, normalisation, rejeu, empreintes, couverture, recommandation,
   16 rendus × 2 étapes par cas ; environ 16 000 empreintes). **Avant un remaniement, écrivez-la ; après,

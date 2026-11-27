@@ -71,14 +71,51 @@ def site(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def browser():
+def playwright():
     with playwright_api.sync_playwright() as pw:
-        try:
-            chromium = pw.chromium.launch()
-        except Exception as error:  # Chromium absent : `uv run playwright install chromium`
-            pytest.skip(f"Chromium indisponible : {error}")
-        yield chromium
-        chromium.close()
+        yield pw
+
+
+def _launch(playwright, name: str):
+    try:
+        return getattr(playwright, name).launch()
+    except Exception as error:  # navigateur absent : `uv run playwright install chromium webkit`
+        pytest.skip(f"{name} indisponible : {error}")
+
+
+@pytest.fixture(scope="module")
+def browser(playwright):
+    chromium = _launch(playwright, "chromium")
+    yield chromium
+    chromium.close()
+
+
+@pytest.fixture(scope="module", params=["chromium", "webkit"])
+def engine(request, playwright):
+    """Les tests de l'atelier passent aussi dans WebKit (le moteur de Safari) : Safari ne donne pas le focus à
+    une case ou à un bouton qu'on clique, et l'atelier en dépend."""
+    launched = _launch(playwright, request.param)
+    if not _clicks(launched):
+        launched.close()
+        pytest.skip(
+            f"{request.param} ne reçoit aucun clic, même sur une page minimale : ses résultats ne diraient "
+            "rien du site (cause probable sur macOS : écran en veille ou verrouillé)"
+        )
+    yield launched
+    launched.close()
+
+
+def _clicks(launched) -> bool:
+    """Le navigateur reçoit-il un clic sur une page minimale ? Sinon, ses échecs ne diraient rien du site."""
+    page = launched.new_page()
+    try:
+        page.set_content("<button onclick=\"this.textContent='ok'\">clic</button>")
+        page.click("button", timeout=3000)
+        return page.inner_text("button") == "ok"
+    except playwright_api.Error:
+        return False
+    finally:
+        page.close()
 
 
 def shot(page, name: str, full_page: bool = False):
@@ -638,13 +675,13 @@ def test_representations_elargies(site, browser):
     assert not problems, problems
 
 
-def test_atelier(site, browser):
+def test_atelier(site, engine):
     """L'onglet « Atelier » : on part d'une page vide, on pose trois Tasks, on les relie, on change une
     option, on provoque un échec, on déroule, et on lit l'état final de chaque Task. Aucun cas déposé
     n'apparaît. Le résultat se redessine sur place, le schéma ne bouge pas d'un pas à l'autre. Une seconde
     étude sans rapport a son atelier par ses seules déclarations ; une étude sans règles le dit. En clair, en
     sombre et sur mobile."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
@@ -718,7 +755,7 @@ def test_atelier(site, browser):
     expect(page.get_by_role("button", name="Dérouler")).to_be_visible()
 
     # La même adresse, ouverte sans script, donne la même situation et le même résultat.
-    plain = browser.new_context(
+    plain = engine.new_context(
         java_script_enabled=False, storage_state=context.storage_state(), locale="fr-FR"
     )
     static = plain.new_page()
@@ -795,12 +832,12 @@ def _glisser(page, start: tuple[float, float], end: tuple[float, float]) -> None
     expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
 
 
-def test_atelier_glisser_deposer(site, browser):
+def test_atelier_glisser_deposer(site, engine):
     """Dans l'atelier, à la souris : glisser une brique de la palette sur la page vide, sur le schéma, sur une
     autre brique (elle s'y enchaîne) ; tirer un lien d'une brique à l'autre ; retirer un lien en le cliquant ;
     cliquer une brique mène à sa fiche. Un simple clic sur la palette pose toujours une brique. Une étude à
     plusieurs types de briques ne relie que ce qu'elle permet."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
@@ -936,7 +973,7 @@ print(study.public_id)
 """
 
 
-def test_atelier_periodes(site, browser):
+def test_atelier_periodes(site, engine):
     """L'atelier d'une étude qui déclare des périodes : on part d'une page vide, on pose un contrat, une
     remise et un barème, on change des bornes au clavier puis un réglage, on vide une borne, et l'historique
     obtenu suit à chaque geste. La touche Entrée dans une borne ne pose pas de période. Tout l'état tient
@@ -950,7 +987,7 @@ def test_atelier_periodes(site, browser):
         text=True,
     )
     sid = made.stdout.strip().splitlines()[-1]
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
@@ -1104,10 +1141,10 @@ def test_atelier_frise_au_doigt(site, browser):
     context.close()
 
 
-def test_atelier_garde_le_champ_touche_pendant_le_calcul(site, browser):
+def test_atelier_garde_le_champ_touche_pendant_le_calcul(site, engine):
     """Un geste relance le calcul ; si l'on passe à une autre fiche avant la réponse, c'est elle qui garde le
     focus quand le nouveau résultat arrive."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems = watched(page)
     login(page, site, "demo")
@@ -1133,10 +1170,35 @@ def test_atelier_garde_le_champ_touche_pendant_le_calcul(site, browser):
     context.close()
 
 
-def test_atelier_executions_successives(site, browser):
+def test_atelier_option_garde_la_fiche_et_le_defilement(site, engine):
+    """Cocher une option d'une brique, loin dans le panneau « Construire la situation » : la case garde le
+    focus, sa fiche reste choisie, et le panneau ne remonte pas (Safari ne donne pas le focus à une case
+    cliquée : c'est la case elle-même qui doit le retrouver)."""
+    context = engine.new_context(viewport={"width": 1280, "height": 800}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.goto(page.url.split("?")[0] + "atelier/?" + "&".join(f"e={k}%3Atask" for k in "ABCDE"))
+    box = page.locator('[data-brick="E"] input[name="o.E.always_run"]')
+    box.scroll_into_view_if_needed()
+    top = page.evaluate("document.querySelector('.at-build').scrollTop")
+    assert top > 0
+    box.click()
+    expect(page).to_have_url(re.compile(r"o\.E\.always_run=true"))
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator('[data-brick="E"] input[name="o.E.always_run"]')).to_be_focused()
+    expect(page.locator('.at-card[data-brick="E"]')).to_have_class(re.compile(r"\bis-shown\b"))
+    assert page.evaluate("document.querySelector('.at-build').scrollTop") == top
+    assert not problems, problems
+    context.close()
+
+
+def test_atelier_executions_successives(site, engine):
     """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
     partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems = watched(page)
     login(page, site, "demo")
@@ -1206,11 +1268,11 @@ def test_atelier_executions_successives(site, browser):
     context.close()
 
 
-def test_atelier_etude_de_periodes_semee(site, browser):
+def test_atelier_etude_de_periodes_semee(site, engine):
     """L'étude de démonstration qui déclare un atelier de périodes : on y arrive par la liste des études, la
     page part vide, et une situation à trois sources donne l'historique attendu, avec des jours sans
     responsable gardés puis retirés."""
-    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
     problems = watched(page)
     login(page, site, "demo")

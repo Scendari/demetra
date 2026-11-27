@@ -29,8 +29,8 @@ jobs:
       - name: Analyse du code
         run: uv run ruff check .
 
-      - name: Chromium pour le test navigateur
-        run: uv run playwright install --with-deps chromium
+      - name: Chromium et WebKit pour les tests navigateur
+        run: uv run playwright install --with-deps chromium webkit
 
       - name: Tests
         run: uv run pytest

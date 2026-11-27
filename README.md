@@ -446,7 +446,7 @@ propose le cas jumeau quand le type de client change la décision.
 
 ```bash
 uv run pytest                 # 135 tests : services, API, interface, représentations, format étendu, démonstration, contrastes, navigateur
-uv run pytest tests/e2e       # le parcours dans Chromium seul
+uv run pytest tests/e2e       # le parcours dans Chromium, et l'atelier aussi dans WebKit
 DEMETRA_CAPTURES=docs/captures uv run pytest tests/e2e   # régénère les captures d'écran
 uv run ruff check .
 ```
@@ -550,6 +550,7 @@ Le client OpenID Connect est écrit avec la bibliothèque standard.
 | SQLite | — | domaine public | base de données |
 | Police Archivo | variable | SIL OFL 1.1 | interface ; fichier et licence dans `core/static/core/fonts/` |
 | Chromium | — | BSD-3-Clause et autres licences permissives | téléchargé par Playwright sur le poste, **non redistribué** |
+| WebKit | — | LGPL-2.1 et BSD (WebCore, JavaScriptCore) | **tests seulement** : téléchargé par Playwright pour les tests de l'atelier, jamais redistribué ni mis dans l'image ; à confirmer par le porteur du projet (copyleft faible) |
 
 Les icônes, les dessins et tout le JavaScript de l'interface sont écrits pour ce projet : aucune bibliothèque
 côté navigateur. Le personnage de Demetra (accueil, logo du menu, icône d'onglet et du site) est une image générée et fournie
@@ -607,7 +608,8 @@ Choix du POC :
   code avec PKCE) et un annuaire simulé. Aucun essai contre un vrai Entra ID, Keycloak ou Active Directory.
 - **Charge** : le flux d'événements en direct occupe un fil par étude ouverte, à dimensionner avant tout usage
   réel.
-- **Navigateurs** : Chromium uniquement. Firefox et Safari n'ont pas été essayés.
+- **Navigateurs** : Chromium ; l'atelier est aussi testé dans WebKit (le moteur de Safari). Firefox n'a pas été
+  essayé.
 - **Catalogue élargi** : la stabilité de l'affichage est vérifiée sur les cas des études de démonstration, pas
   sur des jeux de règles ou des cycles de vie de grande taille (le plus gros essayé : 9 lignes de règles,
   8 états, 15 transitions, 4 acteurs). Sur petit écran, les schémas larges (séquence, arbre) défilent dans leur
