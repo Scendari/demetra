@@ -105,6 +105,7 @@ def studies_trash(request):
     me = actor(request)
     if request.method == "POST":
         sid, action = request.POST.get("study", ""), request.POST.get("action")
+        request.session.pop("undo_trash", None)
         if action == "restore":
             study = svc.restore_study(me, sid)
             messages.success(request, f"Étude « {study.title} » restaurée.")
@@ -130,10 +131,13 @@ def study_setup(request, sid: str):
         action = data.get("action")
         if action == "trash":
             study = svc.trash_study(me, svc.get_study(me, sid, Role.OWNER, "studies:write"))
+            # Le message porte un bouton « Annuler » : l'étude à restaurer est gardée dans la session.
+            request.session["undo_trash"] = study.public_id
             messages.success(
                 request,
                 f"Étude « {study.title} » mise à la corbeille. Vous pouvez la restaurer pendant "
                 f"{settings.DEMETRA_TRASH_DAYS} jours depuis la corbeille.",
+                extra_tags="undo-trash",
             )
             return redirect("studies")
         if action == "archive":

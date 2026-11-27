@@ -52,7 +52,7 @@
     </nav>
   </header>
   <main id="main" tabindex="-1">
-    {% if messages %}<div class="flashes" role="status">{% for message in messages %}<p class="flash flash-{{ message.tags }}"><svg class="ic" aria-hidden="true"><use href="#ui-{% if message.tags == 'error' %}warning{% else %}check{% endif %}"/></svg><span>{{ message }}</span></p>{% endfor %}</div>{% endif %}
+    {% if messages %}<div class="flashes" role="status">{% for message in messages %}<div class="flash flash-{{ message.level_tag }}"><svg class="ic" aria-hidden="true"><use href="#ui-{% if message.level_tag == 'error' %}warning{% else %}check{% endif %}"/></svg><span>{{ message }}</span>{% if message.extra_tags == 'undo-trash' and request.session.undo_trash %}<form class="flash-undo" method="post" action="{% url 'studies_trash' %}">{% csrf_token %}<input type="hidden" name="study" value="{{ request.session.undo_trash }}"><input type="hidden" name="action" value="restore"><button class="btn btn-quiet" type="submit">Annuler</button></form>{% endif %}</div>{% endfor %}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

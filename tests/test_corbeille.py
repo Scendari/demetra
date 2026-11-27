@@ -99,3 +99,20 @@ def test_a_token_limited_to_other_studies_does_not_see_this_trash(api, filled, t
     limited = Api(token_for("ana", studies=[other["id"]]))
     assert limited.get("/trash")[1]["items"] == []
     assert limited.post(f"/trash/{filled}/restore")[0] == 404
+
+
+def test_the_trash_message_offers_to_undo(api, filled, web):
+    ana = web("ana")
+    page = ana.post(f"/etudes/{filled}/definitions/", {"action": "trash"}, follow=True).content.decode()
+    assert "mise à la corbeille" in page and 'class="flash-undo"' in page
+    assert f'name="study" value="{filled}"' in page and ">Annuler</button>" in page
+    response = ana.post("/etudes/corbeille/", {"study": filled, "action": "restore"})
+    assert response.url == f"/etudes/{filled}/"
+    assert Study.objects.get(public_id=filled).deleted_at is None
+    assert "flash-undo" not in ana.get("/etudes/").content.decode()  # le bouton ne survit pas au message
+
+
+def test_only_the_trash_message_carries_the_undo_button(api, filled, web):
+    ana = web("ana")
+    page = ana.post("/etudes/", {"title": "Une autre", "kind": "mixed"}, follow=True).content.decode()
+    assert "flash-success" in page and "flash-undo" not in page

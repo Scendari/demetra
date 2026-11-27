@@ -91,6 +91,9 @@ main { min-width: 0; outline: none; }
 .flashes { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-5) 0; }
 .flash { display: flex; gap: var(--s-2); align-items: flex-start; padding: var(--s-2) var(--s-3); border: 1px solid var(--r-success-line); border-radius: var(--radius); background: var(--r-success-bg); color: var(--r-success-fg); font-weight: 560; }
 .flash .ic { margin-top: 0.2em; }
+.flash > span { flex: 1; }
+.flash-undo { flex: none; margin: calc(-1 * var(--s-1)) 0; }
+.flash-undo .btn { border-color: currentColor; color: inherit; }
 .flash-error { border-color: var(--r-error-line); background: var(--r-error-bg); color: var(--r-error-fg); }
 
 /* ------------------------------------------------------------------ Boutons, champs */

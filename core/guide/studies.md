@@ -139,6 +139,7 @@ Seul le **propriétaire** supprime une étude, et une suppression passe d'abord 
 - **L'effacement définitif n'est pas dans l'API.** Il se fait dans l'interface (*Études › Corbeille*), par une
   personne, ou d'office à la fin du délai (30 jours par défaut). Ne supprimez une étude que si la personne vous
   l'a demandé, et dites-lui qu'elle peut la restaurer.
+- Dans l'interface, le message « mise à la corbeille » porte un bouton **Annuler**, qui la restaure aussitôt.
 
 ## Trois familles, un seul format
 
