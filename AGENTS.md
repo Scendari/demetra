@@ -148,7 +148,8 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   sont sautés si WebKit manque ou ne reçoit aucun clic (sonde sur une page minimale).
 - `scripts/empreinte_rendu.py` : empreinte de tout ce que le site calcule sur les études de démonstration
   (données produites par `core/demo/*`, normalisation, rejeu, empreintes, couverture, recommandation,
-  16 rendus × 2 étapes par cas ; environ 16 000 empreintes). **Avant un remaniement, écrivez-la ; après,
+  16 rendus × 2 étapes par cas ; environ 16 000 empreintes). Il travaille sur sa propre base
+  (`test-results/empreinte.sqlite3`, semée à chaque lancement), jamais sur la base locale ni `DEMETRA_DB`. **Avant un remaniement, écrivez-la ; après,
   comparez : une seule différence signifie que le comportement a changé.** Après un ajout (étude, cas, atelier),
   la comparaison ne doit montrer que des lignes « nouvelles » : aucune « changée », aucune « absente ». L'intégration continue la rejoue
   aussi (écriture puis comparaison, pour vérifier qu'elle reste déterministe).

@@ -14,6 +14,11 @@ Usage :
 
 « comparer » recalcule tout et dit ce qui diffère : lignes changées, absentes, nouvelles (comptées par
 étude) ; code de sortie 1 s'il y en a. Après un ajout, seules des lignes nouvelles sont attendues.
+
+Le script travaille sur sa propre base, test-results/empreinte.sqlite3, créée puis remise à jour par
+`migrate` et `seed_demo` à chaque lancement : il ne lit jamais la base locale ni DEMETRA_DB, qui peuvent
+contenir des études personnelles. La même base sert d'une mesure à l'autre : les identifiants des études ne
+changent pas entre « ecrire » et « comparer ».
 """
 
 from __future__ import annotations
@@ -28,10 +33,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "demetra.settings")
+BASE = ROOT / "test-results" / "empreinte.sqlite3"
+BASE.parent.mkdir(parents=True, exist_ok=True)
+os.environ["DEMETRA_DB"] = str(BASE)  # jamais la base locale : elle peut contenir des études personnelles
+
+import io
 
 import django
+from django.core.management import call_command
 
 django.setup()
+call_command("migrate", verbosity=0)
+call_command("seed_demo", no_verdicts=True, verbosity=0, stdout=io.StringIO())
 
 from core import casemodel
 from core import services as svc

@@ -37,8 +37,6 @@ jobs:
 
       - name: Empreinte de rendu sur les études de démonstration
         run: |
-          uv run python manage.py migrate -v0
-          uv run python manage.py seed_demo --no-verdicts -v0
           uv run python scripts/empreinte_rendu.py ecrire test-results/empreinte.json
           uv run python scripts/empreinte_rendu.py comparer test-results/empreinte.json
 
