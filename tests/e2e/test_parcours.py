@@ -208,12 +208,7 @@ def api_call(base: str, token: str, method: str, path: str, body=None):
 def test_parcours_complet(site, browser):
     context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="fr-FR")
     page = context.new_page()
-    problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+    problems = watched(page)
     page.on(
         "response",
         lambda response: (
@@ -548,12 +543,7 @@ def test_representations_elargies(site, browser):
     étape à l'autre, thèmes clair et sombre, largeur mobile, choix à trois niveaux dans l'interface."""
     context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="fr-FR")
     page = context.new_page()
-    problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+    problems = watched(page)
     page.on(
         "response",
         lambda response: (
@@ -683,12 +673,7 @@ def test_atelier(site, engine):
     sombre et sur mobile."""
     context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
-    problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+    problems = watched(page)
     login(page, site, "demo")
     page.get_by_role("link", name="Catalogue des runs Lancelot").click()
     page.get_by_role("link", name="Atelier", exact=True).click()
@@ -822,6 +807,17 @@ def _centre(locator) -> tuple[float, float]:
     return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
 
 
+def _under(page, point: tuple[float, float]) -> str:
+    """L'élément sous un point de la page, et sa brique ou son lien : pour dire pourquoi un geste a manqué."""
+    return page.evaluate(
+        """([x, y]) => { const el = document.elementFromPoint(x, y); if (!el) return "rien";
+        const owner = el.closest("[data-e], [data-l]");
+        const where = owner ? owner.outerHTML.slice(0, 60) : "—";
+        return el.tagName + "." + el.className.baseVal + " dans " + where; }""",
+        list(point),
+    )
+
+
 def _glisser(page, start: tuple[float, float], end: tuple[float, float]) -> None:
     """Un glisser à la souris, en plusieurs pas, puis l'attente du fragment redemandé."""
     page.mouse.move(*start)
@@ -839,12 +835,7 @@ def test_atelier_glisser_deposer(site, engine):
     plusieurs types de briques ne relie que ce qu'elle permet."""
     context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
-    problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+    problems = watched(page)
     login(page, site, "demo")
     page.get_by_role("link", name="Catalogue des runs Lancelot").click()
     page.get_by_role("link", name="Atelier", exact=True).click()
@@ -876,8 +867,12 @@ def test_atelier_glisser_deposer(site, engine):
         "?e=A%3Atask&e=B%3Atask&e=C%3Atask&l=A%3Aprerequisite%3AC&l=B%3Aprerequisite%3AC"
     )
     # Le même lien une seconde fois : rien ne change, le site dit pourquoi.
-    _glisser(page, _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]')))
-    expect(page.locator("[data-at-hint-text]")).to_have_text("Task B et Task C sont déjà reliées ainsi.")
+    ends = _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]'))
+    under = [_under(page, point) for point in ends]
+    _glisser(page, *ends)
+    expect(page.locator("[data-at-hint-text]"), f"sous la souris : {under}").to_have_text(
+        "Task B et Task C sont déjà reliées ainsi."
+    )
     expect(links).to_have_count(2)
     shot(page, "44-atelier-glisser-deposer", full_page=True)
     # Cliquer un lien propose de le retirer.
@@ -989,12 +984,7 @@ def test_atelier_periodes(site, engine):
     sid = made.stdout.strip().splitlines()[-1]
     context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
     page = context.new_page()
-    problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+    problems = watched(page)
     login(page, site, "demo")
     page.goto(f"{site}/etudes/{sid}/atelier/")
     rows = page.locator(".at-history tbody tr[data-start]")
@@ -1078,14 +1068,22 @@ def test_atelier_periodes(site, engine):
     context.close()
 
 
+def _stream_cut(text: str) -> bool:
+    """Le flux des changements (/events) se ferme de lui-même au bout de DEMETRA_SSE_MAX_SECONDS et le
+    navigateur s'y reconnecte : WebKit sous Linux le signale comme une erreur, sans que la page en souffre."""
+    return "/events due to access control checks" in text
+
+
 def watched(page) -> list[str]:
     """Les erreurs de script et de console d'une page, relevées au fil du test."""
     problems: list[str] = []
-    page.on("pageerror", lambda error: problems.append(f"erreur de script : {error}"))
-    page.on(
-        "console",
-        lambda message: problems.append(f"console : {message.text}") if message.type == "error" else None,
-    )
+
+    def note(text: str) -> None:
+        if not _stream_cut(text):
+            problems.append(text)
+
+    page.on("pageerror", lambda error: note(f"erreur de script : {error}"))
+    page.on("console", lambda message: note(f"console : {message.text}") if message.type == "error" else None)
     return problems
 
 
