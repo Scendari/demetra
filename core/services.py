@@ -20,7 +20,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
-from . import bricks, casemodel, extensions, families, parametric, rulecheck, workshop, workshopcheck
+from . import bricks, casemodel, extensions, families, parametric, rulecheck, rules, workshopcheck
 from . import coverage as cov
 from .models import (
     ROLE_RANK,
@@ -290,7 +290,7 @@ def _study_definitions(data: dict, report: casemodel.Report, current: Study | No
     if decl and ("workshop" in data or "dimensions" in data):
         # Un réglage lu dans une dimension : la dimension et ses valeurs doivent exister.
         dims = out.get("dimensions", current.dimensions if current else [])
-        workshop.bound_dimensions(decl, dims, report)
+        rules.bound_dimensions(decl, dims, report)
     return out
 
 

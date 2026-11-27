@@ -3,6 +3,7 @@
 Chaque famille est un module pur qui offre les mêmes fonctions — `normalize`, `declared`, `situation`,
 `from_query`, `to_query`, `placed`, `run`, `outcome`, `extra`, `plan`, `to_case` — : l'écran, l'API et la
 couche de services ne connaissent que cette interface. Ajouter une famille, c'est ajouter un module ici.
+Ce que les familles partagent (valeurs, briques de déclaration, comparaisons) vit dans le socle, `rules.py`.
 """
 
 from __future__ import annotations

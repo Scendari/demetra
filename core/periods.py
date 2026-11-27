@@ -19,24 +19,13 @@ import math
 from typing import Any
 
 from .casemodel import Report
-from .workshop import (
-    LETTERS,
-    MAX_ELEMENTS,
-    MAX_OUTCOMES,
-    MAX_SETTINGS,
-    _bricks,
-    _choices,
-    _chosen,
-    _key,
-    _label,
-    _listed,
-    _typed,
-    among,
-    as_list,
-    next_id,
-    same,
-    text_of,
-)
+from .rules import among, as_list, pairs_hold, same, text_of
+from .rules import bricks as _bricks
+from .rules import choices as _choices
+from .rules import chosen as _chosen
+from .rules import item_key as _key
+from .rules import item_label as _label
+from .workshop import LETTERS, MAX_ELEMENTS, MAX_OUTCOMES, MAX_SETTINGS, _listed, _typed, next_id
 
 FAMILY = "periods"
 MAX_GRAINS = 400
@@ -809,7 +798,7 @@ def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> tuple[d
         when = rule["when"]
         fine = not when.get("missing") or any(b in missing for b in when["missing"])
         fine = fine and all(b not in missing for b in when.get("present", []))
-        fine = fine and all(same(settings[k], v) for k, v in when.get("setting", {}).items())
+        fine = fine and pairs_hold(when.get("setting", {}), settings)
         if fine:
             status = rule["then"]
             break
