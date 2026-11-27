@@ -34,6 +34,24 @@ Aucun de ces champs ne remet en cause les avis déjà rendus.
 
 `on_current_content: false` signifie que l'avis portait sur une version antérieure du déroulé.
 
+## Les refus regroupés
+
+`GET /api/v1/studies/{id}/refusals` (portée `studies:read`, lecture seule) range les cas **refusés** par au moins un relecteur, et les cas laissés **à analyser avec un commentaire**, par règle puis par valeur de dimension :
+
+```json
+{
+  "rejected_cases": 4, "to_analyze_with_comment": 1,
+  "by_rule": [{"rule": "R3", "title": "…", "cases": 6, "rejected": 4, "to_analyze": 0, "share_rejected": 0.667,
+               "case_keys": ["remb-07", "…"], "comments": [{"case": "remb-07", "reviewer": "lea", "decision": "rejected",
+               "comment": "…", "on_current_content": true}]}],
+  "by_dimension": [{"dimension": "etat", "label": "État", "value": "ouvert", "value_label": "Ouvert", "cases": 5,
+                    "rejected": 3, "to_analyze": 1, "share_rejected": 0.6, "case_keys": [ … ], "comments": [ … ]}],
+  "without_rule": ["cas-sans-regle"]
+}
+```
+
+Les groupes sont triés du plus refusé au moins refusé ; `cases` compte tous les cas actifs du groupe, `share_rejected` la part refusée, `comments` en garde 5 au plus. Commencez par le groupe en tête : une règle ou une valeur qui concentre les refus désigne une cause commune (une règle mal comprise, un facteur oublié). Corrigez la cause, puis les cas, et dites à l'utilisateur ce que vous avez compris des commentaires.
+
 ## Tous les avis
 
 `GET /api/v1/studies/{id}/verdicts` — filtres : `decision`, `since` (date ISO), `commented=true`.

@@ -141,7 +141,7 @@ else:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Demetra
-DEMETRA_GUIDE_VERSION = "2026-11-27.4"
+DEMETRA_GUIDE_VERSION = "2026-11-27.5"
 DEMETRA_TOKEN_PREFIX = "dmt"
 DEMETRA_SSE_MAX_SECONDS = int(os.environ.get("DEMETRA_SSE_MAX_SECONDS", "55"))
 # Une étude mise à la corbeille est effacée pour de bon après ce délai (jours), sauf restauration.

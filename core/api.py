@@ -774,6 +774,16 @@ def verdicts(
 
 
 @api.get(
+    "/studies/{sid}/refusals",
+    tags=["Revue"],
+    summary="Refus et « à analyser » commentés, regroupés par règle et par valeur de dimension",
+)
+def refusals(request, sid: str):
+    """Lecture seule : pour corriger une cause commune plutôt qu'un cas après l'autre."""
+    return svc.refusal_patterns(svc.get_study(actor_of(request), sid))
+
+
+@api.get(
     "/studies/{sid}/worklist",
     tags=["Revue"],
     summary="Ce qu'il reste à faire : cas refusés ou à analyser commentés, manques de couverture, alertes",
