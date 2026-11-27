@@ -1093,11 +1093,42 @@ def test_atelier_frise_au_doigt(site, browser):
     finger("touchEnd")
     expect(page.locator('input[name="de.B"]')).to_have_value("3")
     expect(page.locator('input[name="a.B"]')).to_have_value("5")
+    # Le dessin se refait après le geste : la barre A ne se mesure qu'une fois le nouveau dessin en place.
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
     # Toucher sans glisser : la fiche de la période.
     box = page.locator('[data-at-plan] .tl-bar[data-p="A"] .n-shape').bounding_box()
     page.touchscreen.tap(box["x"] + 20, box["y"] + box["height"] / 2)
     expect(page.locator("#at-name-A")).to_be_focused()
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+    assert not problems, problems
+    context.close()
+
+
+def test_atelier_garde_le_champ_touche_pendant_le_calcul(site, browser):
+    """Un geste relance le calcul ; si l'on passe à une autre fiche avant la réponse, c'est elle qui garde le
+    focus quand le nouveau résultat arrive."""
+    context = browser.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.goto(page.url.split("?")[0] + "atelier/?e=A%3Atask&e=B%3Atask")
+    slow = {"on": True}
+
+    def delayed(route):
+        if slow["on"] and route.request.headers.get("x-requested-with") == "fetch":
+            time.sleep(0.8)
+        route.continue_()
+
+    page.route("**/atelier/**", delayed)
+    page.check('input[name="o.A.always_run"]')
+    page.locator("#at-name-B").focus()
+    expect(page).to_have_url(re.compile(r"o\.A\.always_run=true"), timeout=8000)
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator("#at-name-B")).to_be_focused()
+    expect(page.locator('.at-card[data-brick="B"]')).to_have_class(re.compile(r"\bis-shown\b"))
+    slow["on"] = False
     assert not problems, problems
     context.close()
 

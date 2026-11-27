@@ -400,10 +400,7 @@
     const load = (url, from) => {
       const mine = ++turn;
       const before = historyNow();
-      const key = focusKey(from || doc.activeElement);
-      const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
-      // Le panneau de construction et la table de l'historique défilent à part : remplacés, ils repartiraient du haut.
-      const scrolled = [".at-build", ".at-history-wrap"].map((sel) => { const el = $(sel, atelier); return [sel, el ? el.scrollTop : 0, el ? el.scrollLeft : 0]; });
+      const active = doc.activeElement;
       stop();
       closePop();
       atelier.setAttribute("aria-busy", "true");
@@ -411,6 +408,13 @@
         .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.text().then((html) => [html, response.url]); })
         .then(([html, landed]) => {
           if (mine !== turn) return;   // une réponse plus récente est attendue
+          // Ce qu'on rend après le remplacement se lit à l'arrivée : pendant la requête, on a pu toucher une fiche,
+          // ouvrir un volet ou faire défiler. Sinon, c'est le contrôle du geste qui garde le focus.
+          const moved = doc.activeElement !== active && doc.activeElement !== doc.body;
+          const key = focusKey(moved ? doc.activeElement : from || active);
+          const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
+          // Le panneau de construction et la table de l'historique défilent à part : remplacés, ils repartiraient du haut.
+          const scrolled = [".at-build", ".at-history-wrap"].map((sel) => { const el = $(sel, atelier); return [sel, el ? el.scrollTop : 0, el ? el.scrollLeft : 0]; });
           atelier.innerHTML = html;
           atelier.removeAttribute("aria-busy");
           open.forEach((name) => { const d = $('details[data-keep="' + name + '"]', atelier); if (d) d.open = true; });
