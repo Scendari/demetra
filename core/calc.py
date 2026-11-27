@@ -262,11 +262,16 @@ def check_value(raw, scope: Scope, report: Report, p: str, depth: int = 0) -> bo
     return False
 
 
-def _check_number_test(expected, report: Report, p: str) -> bool:
-    if is_number(expected) or (isinstance(expected, dict) and not comparison_issue(expected, Numbers())):
+def _check_number_test(expected, report: Report, p: str, settings: dict | None = None) -> bool:
+    fine = isinstance(expected, dict) and not comparison_issue(expected, Numbers(), settings)
+    if is_number(expected) or fine:
         return True
     report.error(
-        p, "type", "Un nombre, ou une comparaison à un nombre.", received=expected, example={"gte": 100}
+        p,
+        "type",
+        "Un nombre, ou une comparaison à un nombre ou à un réglage numérique.",
+        received=expected,
+        example={"lt": {"setting": "seuil"}},
     )
     return False
 
@@ -285,7 +290,7 @@ def _check_lines_test(expected, scope: Scope, report: Report, p: str) -> bool:
             )
             ok = False
         else:
-            ok &= _check_number_test(value, report, f"{p}.{key}")
+            ok &= _check_number_test(value, report, f"{p}.{key}", scope.settings)
     return ok
 
 
@@ -305,7 +310,7 @@ def _check_elements(expected, scope: Scope, report: Report, p: str, depth: int) 
         return False
     inner = scope.inside(types)
     if quantifiers == ["count"]:
-        ok = check_count(expected["count"], report, f"{p}.count")
+        ok = check_count(expected["count"], report, f"{p}.count", scope.settings)
         if "where" in expected:
             ok &= check_condition(expected["where"], inner, report, f"{p}.where", depth + 1)
         return ok
@@ -329,13 +334,13 @@ def check_condition(cond, scope: Scope, report: Report, path: str, depth: int = 
             report.error(p, "unknown_test", "Test inconnu ici.", expected=list(tests))
             ok = False
         elif key == "setting":
-            ok &= check_pairs(expected, scope.settings, report, p, "setting")
+            ok &= check_pairs(expected, scope.settings, report, p, "setting", scope.settings)
         elif key == "option":
-            ok &= check_pairs(expected, scope.options, report, p, "option")
+            ok &= check_pairs(expected, scope.options, report, p, "option", scope.settings)
         elif key == "type":
             ok &= _types(expected, scope.decl, report, p) is not None
         elif key == "total":
-            ok &= _check_number_test(expected, report, p)
+            ok &= _check_number_test(expected, report, p, scope.settings)
         elif key == "line":
             ok &= _check_lines_test(expected, scope, report, p)
         elif key == "elements":
@@ -613,16 +618,17 @@ def value_of(raw, ctx: dict, element: dict | None = None) -> float:
 def holds(cond: dict, ctx: dict, element: dict | None = None) -> bool:
     for key, expected in cond.items():
         if key == "setting":
-            fine = pairs_hold(expected, ctx["settings"])
+            fine = pairs_hold(expected, ctx["settings"], ctx["settings"])
         elif key == "option":
-            fine = pairs_hold(expected, element["options"])
+            fine = pairs_hold(expected, element["options"], ctx["settings"])
         elif key == "type":
             fine = element["type"] in as_list(expected)
         elif key == "total":
-            fine = matches(ctx["total"], expected)
+            fine = matches(ctx["total"], expected, ctx["settings"])
         elif key == "line":
             fine = all(
-                ctx["lines"].get(k) is not None and matches(ctx["lines"][k], v) for k, v in expected.items()
+                ctx["lines"].get(k) is not None and matches(ctx["lines"][k], v, ctx["settings"])
+                for k, v in expected.items()
             )
         elif key == "elements":
             fine = _elements_hold(expected, ctx)
@@ -642,7 +648,8 @@ def _elements_hold(expected: dict, ctx: dict) -> bool:
     pool = [e for e in ctx["elements"] if types is None or e["type"] in types]
     if "count" in expected:
         where = expected.get("where")
-        return matches(sum(1 for e in pool if where is None or holds(where, ctx, e)), expected["count"])
+        found = sum(1 for e in pool if where is None or holds(where, ctx, e))
+        return matches(found, expected["count"], ctx["settings"])
     if "all" in expected:
         return all(holds(expected["all"], ctx, e) for e in pool)
     if "any" in expected:

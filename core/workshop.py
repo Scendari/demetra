@@ -166,7 +166,7 @@ def _check_quantified(expected, voc: Vocabulary, report: Report, p: str, depth: 
         allowed = voc.types if scope == "elements" else voc.links
         ok = _known(expected[extra], allowed, report, f"{p}.{extra}", "unknown_" + extra, "Nom")
     if counted:
-        ok = check_count(expected["count"], report, f"{p}.count") and ok
+        ok = check_count(expected["count"], report, f"{p}.count", voc.settings) and ok
         if "where" in expected:
             ok = check_condition(expected["where"], voc, report, f"{p}.where", depth + 1, True) and ok
         return ok
@@ -198,9 +198,9 @@ def check_condition(
         elif key == "event":
             ok &= _known(expected, voc.events, report, p, "unknown_event", "Évènement")
         elif key == "option":
-            ok &= _check_pairs(expected, voc.options, report, p, "option")
+            ok &= _check_pairs(expected, voc.options, report, p, "option", voc.settings)
         elif key == "setting":
-            ok &= _check_pairs(expected, voc.settings, report, p, "setting")
+            ok &= _check_pairs(expected, voc.settings, report, p, "setting", voc.settings)
         elif key in (*NEIGHBOURS, "elements"):
             ok &= _check_quantified(expected, voc, report, p, depth, key)
         elif key in ("all", "any"):
@@ -559,7 +559,7 @@ def _quantified(expected: dict, world: World, items: list[dict]) -> bool:
     if "count" in expected:
         where = expected.get("where")
         found = sum(1 for item in items if where is None or holds(where, world, item))
-        return matches(found, expected["count"])
+        return matches(found, expected["count"], world.settings)
     if "all" in expected:
         return all(holds(expected["all"], world, item) for item in items)
     if "any" in expected:
@@ -593,9 +593,9 @@ def holds(cond: dict, world: World, element: dict | None) -> bool:
         elif key == "event":
             fine = bool(world.events.get(element["id"], set()) & set(as_list(expected)))
         elif key == "option":
-            fine = pairs_hold(expected, element["options"])
+            fine = pairs_hold(expected, element["options"], world.settings)
         elif key == "setting":
-            fine = pairs_hold(expected, world.settings)
+            fine = pairs_hold(expected, world.settings, world.settings)
         elif key in NEIGHBOURS:
             fine = _quantified(expected, world, _neighbours(world, element, key, expected))
         elif key == "elements":

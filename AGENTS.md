@@ -23,7 +23,7 @@ uv run python manage.py migrate           # base SQLite locale + représentation
 uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 16 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
-uv run pytest                             # toute la suite (~3 min) ; tests/e2e demande Chromium, et WebKit
+uv run pytest                             # toute la suite (~7 min) ; tests/e2e demande Chromium, et WebKit
 uv run playwright install chromium webkit #   pour l'atelier : sinon ces tests sont sautés, pas en échec
 uv run python scripts/empreinte_rendu.py ecrire   test-results/empreinte-avant.json   # avant un remaniement
 uv run python scripts/empreinte_rendu.py comparer test-results/empreinte-avant.json   # après : doit être « identique »
@@ -42,7 +42,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `casemodel.py` | Validation et normalisation d'un cas et des définitions d'étude (`normalize_*`), rejeu des étapes (`replay`), empreintes (`semantic_hash`, `presentation_hash`) | Pur : aucun accès à la base. Un rapport (`Report`) porte erreurs et avertissements |
 | `extensions.py` | Champs étendus d'un cas : jeu de règles, cycles de vie, mesures, calculs, bandes | Appelé par `casemodel` |
 | `coverage.py` | Couverture des dimensions, combinaisons manquantes, contrôles d'étude, sort des points de l'inventaire (`inventory`) | Pur. « Couvert » = cité par un cas, jamais « vérifié » |
-| `rules.py` | Socle commun des familles d'atelier : valeurs (`same`, `among`, `text_of`), briques de déclaration (`item_key`, `item_label`, `choices` et leur `dimension`, `chosen`, `events`, `bricks`, `bound_dimensions`), comparaison d'une valeur déclarée (`check_pairs`, `pairs_hold`) | Pur. Ce qui sert toutes les familles s'écrit ici, une fois ; rien de propre à une famille ni à une étude |
+| `rules.py` | Socle commun des familles d'atelier : valeurs (`same`, `among`, `text_of`), briques de déclaration (`item_key`, `item_label`, `choices` et leur `dimension`, `chosen`, `events`, `bricks`, `bound_dimensions`), comparaison d'une valeur déclarée (`check_pairs`, `pairs_hold`, `matches` ; opérande lu dans un réglage : `setting_ref`, `operand_of`) | Pur. Ce qui sert toutes les familles s'écrit ici, une fois ; rien de propre à une famille ni à une étude |
 | `workshop.py` | Atelier : déclaration d'une étude (`normalize` : briques, options, évènements, liens, réglages, table de règles), conditions au vocabulaire fermé (`check_condition`, `holds`), situation construite (`situation`, `from_query`, `to_query`), moteur pas à pas (`run`), passage au format de cas (`to_case`) | Pur. Aucun code fourni par l'étude n'est exécuté. Rien n'y nomme une étude : les règles d'une étude vivent dans sa déclaration (`Study.workshop`), jamais ici |
 | `periods.py` | Atelier, famille « périodes » : déclaration (`normalize` : axe, sources, composition d'une image, champs restitués, fusion, périodes invalides), phrases tirées de la déclaration (`principles`), périodes posées (`situation`, `from_query`, `to_query`, `placed`), moteur (`run` : une image par pas, puis réunion), passage au format de cas (`to_case`) | Pur. Mêmes interdits que `workshop.py`. Prend au socle (`rules.py`) ses briques de déclaration et ses comparaisons |
 | `calc.py` | Atelier, famille « calcul » : briques aux options numériques, lignes de calcul (`lines` : `op`, `value`, `when`) appliquées dans l'ordre à un cumul, expressions et conditions au vocabulaire fermé (`check_value`, `check_condition`, `value_of`, `holds`), moteur (`run` : un pas par ligne), passage au format de cas (`to_case`, lignes dans `values`) | Pur. Mêmes interdits que `workshop.py`. Aucune chaîne n'est interprétée |
@@ -143,6 +143,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_dimension_recopie.py` : avertissement d'une dimension qui décrit les cas un par un.
   `test_inventaire.py` : inventaire des points de décision (déclaration, `covers`, couverture, contrôles, pages).
   `test_prompts_etude.py` : chapitre « Étude complète » (quatre prompts à copier, adresse insérée, aucun secret).
+  `test_seuil_reglage.py` : seuil d'une comparaison lu dans un réglage, dans les trois familles.
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

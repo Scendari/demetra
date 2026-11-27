@@ -238,7 +238,7 @@ def _check_when(when, known: dict, report: Report, p: str) -> dict:
                 and (
                     among(value, allowed[key])
                     or isinstance(value, dict)
-                    and not comparison_issue(value, allowed[key])
+                    and not comparison_issue(value, allowed[key], allowed)
                 )
                 for key, value in expected.items()
             )
@@ -804,7 +804,7 @@ def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> tuple[d
         when = rule["when"]
         fine = not when.get("missing") or any(b in missing for b in when["missing"])
         fine = fine and all(b not in missing for b in when.get("present", []))
-        fine = fine and pairs_hold(when.get("setting", {}), settings)
+        fine = fine and pairs_hold(when.get("setting", {}), settings, settings)
         if fine:
             status = rule["then"]
             break

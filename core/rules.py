@@ -26,6 +26,21 @@ EXAMPLE_BRICK = {
 COMPARISONS = ("gt", "gte", "lt", "lte", "ne", "in")
 ORDERED = ("gt", "gte", "lt", "lte")
 EXAMPLE_COMPARISON = {"gte": 100}
+EXAMPLE_SETTING_OPERAND = {"lt": {"setting": "capacite"}}
+
+
+def setting_ref(operand) -> str | None:
+    """La clé du réglage quand l'opérande d'une comparaison est lu dans un réglage : {"setting": "clé"}."""
+    if isinstance(operand, dict) and len(operand) == 1 and isinstance(operand.get("setting"), str):
+        return operand["setting"]
+    return None
+
+
+def operand_of(operand, settings: dict | None):
+    """L'opérande d'une comparaison, avec un réglage remplacé par sa valeur dans la situation (None si
+    absent)."""
+    key = setting_ref(operand)
+    return operand if key is None else (settings or {}).get(key)
 
 
 def is_number(value) -> bool:
@@ -61,16 +76,20 @@ def values_of(item: dict) -> list:
     return item["values"]
 
 
-def matches(actual, wanted) -> bool:
-    """La valeur `actual` satisfait-elle `wanted` : une valeur (égalité stricte) ou une comparaison ?"""
+def matches(actual, wanted, settings: dict | None = None) -> bool:
+    """La valeur `actual` satisfait-elle `wanted` : une valeur (égalité stricte) ou une comparaison ? Un
+    opérande {"setting": clé} se lit dans les réglages de la situation (`settings`)."""
     if not isinstance(wanted, dict):
         return same(actual, wanted)
     op, operand = next(iter(wanted.items()))
+    operand = operand_of(operand, settings)
+    if operand is None:
+        return False
     if op == "ne":
         return not same(actual, operand)
     if op == "in":
         return among(actual, operand)
-    if not is_number(actual):
+    if not is_number(actual) or not is_number(operand):
         return False
     return {
         "gt": actual > operand,
@@ -80,12 +99,33 @@ def matches(actual, wanted) -> bool:
     }[op]
 
 
-def comparison_issue(wanted, allowed) -> tuple[str, str, str] | None:
+def _numeric(allowed) -> bool:
+    return isinstance(allowed, Numbers) or (bool(allowed) and all(is_number(v) for v in allowed))
+
+
+def _setting_operand_issue(op: str, key: str, settings: dict | None) -> tuple[str, str, str] | None:
+    if op not in (*ORDERED, "ne"):
+        return f".{op}", "type", "Seules gt, gte, lt, lte et ne comparent à un réglage."
+    if key not in (settings or {}):
+        return f".{op}.setting", "unknown_setting", f"Réglage inconnu : « {key} »."
+    if op in ORDERED and not _numeric(settings[key]):
+        return f".{op}.setting", "not_numeric", f"Le réglage « {key} » n'a pas que des nombres."
+    return None
+
+
+def comparison_issue(wanted, allowed, settings: dict | None = None) -> tuple[str, str, str] | None:
     """Ce qui ne va pas dans une comparaison {op: valeur} : (suffixe du chemin, code, message), ou None.
-    `allowed` : les valeurs déclarées de l'option ou du réglage comparé."""
+    `allowed` : les valeurs déclarées de l'option ou du réglage comparé ; `settings` : les valeurs
+    déclarées de chaque réglage, pour un opérande {"setting": clé}."""
     if not isinstance(wanted, dict) or len(wanted) != 1 or next(iter(wanted)) not in COMPARISONS:
         return "", "type", "Une comparaison s'écrit {gt | gte | lt | lte | ne | in: valeur}."
     op, operand = next(iter(wanted.items()))
+    key = setting_ref(operand)
+    if key is not None:
+        issue = _setting_operand_issue(op, key, settings)
+        if issue or op not in ORDERED or _numeric(allowed) or isinstance(allowed, Numbers):
+            return issue
+        return f".{op}", "not_numeric", "Ces valeurs ne sont pas des nombres : elles ne se comparent pas."
     if op in ORDERED:
         if not is_number(operand):
             return f".{op}", "type", "On compare à un nombre."
@@ -99,8 +139,9 @@ def comparison_issue(wanted, allowed) -> tuple[str, str, str] | None:
     return None if fine else (f".{op}", "unknown_value", "Valeur inconnue.")
 
 
-def check_count(value, report: Report, p: str) -> bool:
-    """Un nombre d'éléments attendu : un entier, ou une comparaison à un entier ({"gte": 2})."""
+def check_count(value, report: Report, p: str, settings: dict | None = None) -> bool:
+    """Un nombre d'éléments attendu : un entier, ou une comparaison à un entier ({"gte": 2}) ou à un réglage
+    numérique ({"lt": {"setting": "capacite"}})."""
 
     def whole(v) -> bool:
         return isinstance(v, int) and not isinstance(v, bool) and v >= 0
@@ -109,6 +150,14 @@ def check_count(value, report: Report, p: str) -> bool:
         return True
     if isinstance(value, dict) and len(value) == 1:
         op, operand = next(iter(value.items()))
+        key = setting_ref(operand)
+        if key is not None:
+            issue = _setting_operand_issue(op, key, settings)
+            if issue is None:
+                return True
+            suffix, code, message = issue
+            report.error(f"{p}{suffix}", code, message, received=value, example=EXAMPLE_SETTING_OPERAND)
+            return False
         if (op in ORDERED and is_number(operand)) or (op == "ne" and whole(operand)):
             return True
         if op == "in" and isinstance(operand, list) and operand and all(whole(v) for v in operand):
@@ -116,16 +165,19 @@ def check_count(value, report: Report, p: str) -> bool:
     report.error(
         p,
         "type",
-        "« count » : un entier, ou une comparaison à un entier.",
+        "« count » : un entier, ou une comparaison à un entier ou à un réglage.",
         received=value,
         example={"gte": 2},
     )
     return False
 
 
-def pairs_hold(expected: dict, values: dict) -> bool:
-    """Vrai si chaque nom cité a la valeur attendue, ou satisfait la comparaison (`option`, `setting`)."""
-    return all(name in values and matches(values[name], wanted) for name, wanted in expected.items())
+def pairs_hold(expected: dict, values: dict, settings: dict | None = None) -> bool:
+    """Vrai si chaque nom cité a la valeur attendue, ou satisfait la comparaison (`option`, `setting`).
+    `settings` : les réglages de la situation, pour un opérande {"setting": clé}."""
+    return all(
+        name in values and matches(values[name], wanted, settings) for name, wanted in expected.items()
+    )
 
 
 def same(a, b) -> bool:
@@ -358,7 +410,9 @@ def bricks(raw, status_keys: set[str], report: Report, path: str, numeric: bool 
     return out
 
 
-def check_pairs(expected, allowed: dict, report: Report, p: str, what: str) -> bool:
+def check_pairs(
+    expected, allowed: dict, report: Report, p: str, what: str, settings: dict | None = None
+) -> bool:
     if not isinstance(expected, dict) or not expected:
         report.error(p, "type", f"« {what} » compare des valeurs : {{nom: valeur}}.", received=expected)
         return False
@@ -370,7 +424,7 @@ def check_pairs(expected, allowed: dict, report: Report, p: str, what: str) -> b
             )
             ok = False
         elif isinstance(value, dict):
-            issue = comparison_issue(value, allowed[key])
+            issue = comparison_issue(value, allowed[key], settings)
             if issue:
                 suffix, code, message = issue
                 report.error(f"{p}.{key}{suffix}", code, message, received=value, example=EXAMPLE_COMPARISON)
