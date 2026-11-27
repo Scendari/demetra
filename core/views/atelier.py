@@ -215,9 +215,12 @@ def _links_of(decl: dict, sit: dict, element: dict, names: dict) -> list[dict]:
     return out
 
 
-def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> list[dict]:
-    """Une fiche par brique posée : son nom, ses options, ce qu'on y provoque, ses liens, son état final —
-    ou, pour une période, les lignes de l'historique qu'elle alimente (`feeds`)."""
+def _cards(
+    study: Study, sit: dict, final: dict, feeds: dict | None = None, waiting: dict | None = None
+) -> list[dict]:
+    """Une fiche par brique posée : son nom, ses options, ce qu'on y provoque, ses liens, son état final et,
+    s'il attend encore, ce qui le retient (`waiting`) — ou, pour une période, les lignes de l'historique
+    qu'elle alimente (`feeds`)."""
     decl, smap = study.workshop, status_map(study.statuses)
     bricks = {b["type"]: b for b in decl["bricks"]}
     names = {e["id"]: e["label"] for e in sit["elements"]}
@@ -246,6 +249,7 @@ def _cards(study: Study, sit: dict, final: dict, feeds: dict | None = None) -> l
                 ],
                 "links": _links_of(decl, sit, element, names),
                 "link_choices": _link_choices(decl, sit, element, names),
+                "wait": (waiting or {}).get(key),
                 "final": {
                     "key": final.get(key) if status else None,
                     "label": status.get("label", ""),
@@ -565,7 +569,13 @@ def study_workshop(request, sid: str):
         declared=True,
         title=decl["title"],
         palette=_palette(decl, sit),
-        cards=_cards(study, sit, final, _feeds(decl, run["extra"], final) if run else None),
+        cards=_cards(
+            study,
+            sit,
+            final,
+            _feeds(decl, run["extra"], final) if run else None,
+            run["extra"].get("waiting") if run else None,
+        ),
         hidden=[(name, value) for name, value in family.to_query(decl, sit) if name in ("e", "l")],
         words=WORDS[families.name_of(decl)],
         rules=_rules(decl, run),

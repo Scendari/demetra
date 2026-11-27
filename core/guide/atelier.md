@@ -192,12 +192,15 @@ Réponse :
  "final": {"A": "ECHEC", "B": "BLOQUEE", "C": "A_FAIRE"},
  "outcome": {"label": "Enchaînement en échec", "status": "ECHEC"},
  "rules_applied": [{"key": "R2", "title": "…"}, {"key": "R3", "title": "…"}, {"key": "R1", "title": "…"}],
+ "waiting": {"C": {"rule": "R4", "title": "…", "test": "incoming",
+                   "why": "la condition sur ses liens entrants n'est pas remplie"}},
  "case": { … le même déroulé, au format d'un cas … },
  "web_url": "/etudes/ab12cd34ef/atelier/?e=A%3Atache&e=B%3Atache&…"}
 ```
 
 - `steps[0]` est la situation de départ ; chaque pas suivant donne les états et, pour chaque changement, la règle appliquée.
 - `outcome` vaut `null` si l'étude ne déclare pas de résultat d'ensemble, si aucun ne correspond, ou si le déroulé ne s'est pas stabilisé (`end` vaut `"loop"` ou `"limit"`) : un résultat d'ensemble ne se dit que d'une situation qui a abouti. Dites alors que la situation ne se stabilise pas, et ne concluez rien de `final`.
+- `waiting` (situation stabilisée seulement ; absent si rien n'attend) : pour chaque brique qu'une règle pourrait encore faire changer, **pourquoi elle reste ainsi** : la règle la plus proche de jouer (celle à qui il manque le moins de conditions) et la première condition fausse (`test` : `option`, `setting`, `event`, `incoming`, `outgoing`, `upstream`, `downstream`, `elements`, ou une condition composée). Une brique qu'aucune règle ne fait sortir de son état n'y figure pas. L'atelier l'écrit sur la fiche de la brique (« Reste ainsi : la règle R4 ne joue pas, … »). Les autres familles l'expliquent à leur façon : une période devancée est « retenue devant » une autre dans `why` de l'historique, une ligne de calcul sans objet porte sa raison dans `lines[].why`.
 - `web_url` ouvre l'atelier sur cette situation : donnez ce lien à l'utilisateur pour qu'il la voie et la modifie. Tout l'état tient dans l'adresse.
 - `case` vaut `null` si la situation ne donne pas un cas que le site sait valider (par exemple un changement d'état qu'un cycle de vie de l'étude interdit).
 

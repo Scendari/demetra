@@ -699,9 +699,68 @@ def plan(decl: dict) -> dict:
     return {}
 
 
+SIDES = {
+    "incoming": "ses liens entrants",
+    "outgoing": "ses liens sortants",
+    "upstream": "ce qui le précède",
+    "downstream": "ce qui le suit",
+    "elements": "l'ensemble des briques",
+}
+
+
+def _missing(key: str, expected, decl: dict, element: dict) -> str:
+    """Ce qui manque, en une phrase, pour qu'un test d'une condition soit vrai."""
+    if key == "event":
+        return "l'évènement « " + " » ou « ".join(map(str, as_list(expected))) + " » n'a pas eu lieu"
+    if key in ("option", "setting"):
+        brick = next(b for b in decl["bricks"] if b["type"] == element["type"])
+        declared = brick["options"] if key == "option" else decl.get("settings", [])
+        labels = {item["key"]: item["label"] for item in declared}
+        names = ", ".join(f"« {labels.get(name, name)} »" for name in expected)
+        what = "l'option" if key == "option" else "le réglage"
+        return f"{what} {names} n'a pas la valeur voulue"
+    if key in SIDES:
+        return f"la condition sur {SIDES[key]} n'est pas remplie"
+    if key == "status":
+        return "son état n'est pas celui que la règle attend"
+    return "la condition composée de la règle n'est pas remplie"
+
+
+def waiting(decl: dict, world: World) -> dict[str, dict]:
+    """Pour chaque brique qu'une règle pourrait encore faire changer, la règle la plus proche de jouer et ce
+    qui lui manque (la première condition fausse). Une brique qu'aucune règle ne fait sortir de son état n'y
+    figure pas : rien ne l'attend. Au plus une raison par brique."""
+    out = {}
+    for key, element in world.elements.items():
+        state, best = world.states[key], None
+        for rule in decl["rules"]:
+            if element["type"] not in rule["on"] or rule["then"] == state:
+                continue
+            when = rule["when"]
+            if "status" in when and state not in as_list(when["status"]):
+                continue
+            failing = [k for k, v in when.items() if not holds({k: v}, world, element)]
+            if failing and (best is None or len(failing) < len(best[1])):
+                best = (rule, failing)
+        if best:
+            rule, failing = best
+            first = failing[0]
+            out[key] = {
+                "rule": rule["key"],
+                "title": rule["title"],
+                "test": first,
+                "why": _missing(first, rule["when"][first], decl, element),
+            }
+    return out
+
+
 def extra(decl: dict, result: dict) -> dict:
-    """Ce que cette famille ajoute à la réponse d'un déroulé : rien."""
-    return {}
+    """Ce que cette famille ajoute à la réponse d'un déroulé : pour une situation stabilisée, ce qui retient
+    chaque brique qui attend encore (`waiting`)."""
+    if result["end"] != "stable":
+        return {}
+    found = waiting(decl, result["world"])
+    return {"waiting": found} if found else {}
 
 
 END_NOTES = {

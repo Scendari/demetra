@@ -144,6 +144,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_inventaire.py` : inventaire des points de décision (déclaration, `covers`, couverture, contrôles, pages).
   `test_prompts_etude.py` : chapitre « Étude complète » (quatre prompts à copier, adresse insérée, aucun secret).
   `test_seuil_reglage.py` : seuil d'une comparaison lu dans un réglage, dans les trois familles.
+  `test_pourquoi_rien.py` : ce qui retient une brique qui attend encore (`waiting`), moteur, API et écran.
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils
