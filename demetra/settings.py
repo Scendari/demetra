@@ -131,6 +131,13 @@ if os.environ.get("DEMETRA_STATIC_MANIFEST") == "1":
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
         "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
+else:
+    # Sans manifeste, l'adresse d'un fichier statique porte sa date de modification (`?v=…`) : un navigateur
+    # ne garde pas un ancien app.js en cache après une modification.
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "core.storage.VersionedStaticFilesStorage"},
+    }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Demetra
