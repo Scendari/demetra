@@ -1231,6 +1231,34 @@ def test_atelier_se_met_a_jour_sans_tout_remplacer(site, engine):
     context.close()
 
 
+def test_atelier_annonce_le_resultat(site, engine):
+    """Après un geste, une phrase dit le résultat aux lecteurs d'écran, dans une zone que la fusion ne touche
+    pas ; elle est redite quand le résultat ne change pas."""
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.goto(page.url.split("?")[0] + "atelier/?e=A%3Atask&e=B%3Atask&l=A%3Aprerequisite%3AB")
+    said = page.locator("[data-at-said]")
+    expect(said).to_have_attribute("aria-live", "polite")
+    assert page.locator(".at-out[aria-live]").count() == 0
+    page.check('input[name="ev"][value="A:echec"]')
+    expect(said).to_contain_text("Résultat : Workflow FINISHED_KO")
+    expect(said).to_contain_text("Obtenu en")
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+    page.evaluate("document.querySelector('[data-at-said]').textContent = 'ancien'")
+    page.check('input[name="o.B.ignore_on_error"]')  # un geste qui ne change pas le résultat
+    expect(said).to_contain_text("Résultat : Workflow FINISHED_KO")
+    page.locator('button[name="del"][value="A"]').click()
+    expect(page.locator(".at-card")).to_have_count(1)
+    page.locator('button[name="del"][value="B"]').click()
+    expect(said).to_have_text("La situation est vide : aucune brique posée.")
+    assert not problems, problems
+    context.close()
+
+
 def test_atelier_executions_successives(site, engine):
     """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
     partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""

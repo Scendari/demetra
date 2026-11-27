@@ -441,6 +441,18 @@
       olds.forEach((node) => { if (!used.has(node) && node.parentNode === parent) node.remove(); });
     };
 
+    // Une phrase courte, dans une zone que la fusion ne touche pas : ce qu'on vient d'obtenir. Vidée puis
+    // réécrite, elle est relue même quand le résultat ne change pas.
+    const announce = () => {
+      const said = $("[data-at-said]");
+      if (!said) return;
+      const text = (sel) => { const el = $(sel, atelier); return el ? el.textContent.replace(/\s+/g, " ").trim() : ""; };
+      const parts = $(".at-result", atelier)
+        ? ["Résultat : " + (text("[data-result]") || "aucun résultat d'ensemble") + ".", text(".at-source span"), text("[data-at-delta]")]
+        : ["La situation est vide : aucune brique posée."];
+      said.textContent = "";
+      setTimeout(() => { said.textContent = parts.filter(Boolean).join(" "); }, 60);
+    };
     // « from » : le contrôle qui a lancé le geste. Safari ne donne pas le focus à une case ou à un bouton
     // qu'on clique : c'est à lui qu'on le rend quand le nouveau résultat arrive.
     const load = (url, from) => {
@@ -461,6 +473,7 @@
           ready();
           showDelta(before);
           history.replaceState(history.state, "", landed || url);   // le serveur a rangé l'adresse : on garde la sienne
+          announce();
           const lost = !atelier.contains(doc.activeElement);
           if (lost && from && from.isConnected && !from.disabled) from.focus({ preventScroll: true });
           else if (lost && inside) $("#at-build-title", atelier).focus({ preventScroll: true });   // le contrôle a disparu

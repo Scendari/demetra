@@ -12,6 +12,8 @@
   </section>
   {% else %}
   <div class="atelier" data-atelier>{% include "core/_workshop.html" %}</div>
+  {# Hors du fragment redessiné : ce qu'un geste a donné, dit en une phrase aux lecteurs d'écran. #}
+  <p class="sr-only" role="status" aria-live="polite" data-at-said></p>
   {% endif %}
 </div>
 {% endblock %}
