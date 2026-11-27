@@ -869,7 +869,18 @@ def test_atelier_glisser_deposer(site, engine):
     # Le même lien une seconde fois : rien ne change, le site dit pourquoi.
     ends = _centre(page.locator('.n[data-e="B"]')), _centre(page.locator('.n[data-e="C"]'))
     under = [_under(page, point) for point in ends]
+    page.evaluate(
+        """() => { window.__said = [];
+        const log = (e) => window.__said.push(e.type + ":" + (e.target.tagName || ""));
+        ["pointerdown", "pointerup", "pointercancel", "click"]
+          .forEach((t) => document.addEventListener(t, log, true));
+        new MutationObserver(() => window.__said.push("aide:" + document.querySelector("[data-at-hint-text]")
+          ?.textContent.slice(0, 30))).observe(document.querySelector("[data-atelier]"),
+          { subtree: true, childList: true, characterData: true }); }"""
+    )
     _glisser(page, *ends)
+    page.wait_for_timeout(300)
+    under.append(page.evaluate("window.__said"))
     expect(page.locator("[data-at-hint-text]"), f"sous la souris : {under}").to_have_text(
         "Task B et Task C sont déjà reliées ainsi."
     )
