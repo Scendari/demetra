@@ -52,8 +52,9 @@ OP_WORDS = {
     "arrondi": "arrondit au pas de",
 }
 STATES = ("applied", "skipped", "blocked")
-FIELDS = {"family", "title", "bricks", "settings", "lines", "result", "states", "outcome"}
-SITUATION_TESTS = ("setting", "elements", "total", "line", "all", "any", "not")
+FIELDS = {"family", "title", "bricks", "settings", "lines", "result", "states", "outcome", "accumulators"}
+SITUATION_TESTS = ("setting", "elements", "total", "line", "accumulator", "all", "any", "not")
+MAX_ACCUMULATORS = 4
 ELEMENT_TESTS = ("type", "option", "all", "any", "not")
 LINE_PREFIX = "ligne-"  # l'entité d'une ligne, dans le cas produit : elle ne croise jamais une brique (A, B…)
 __all__ = ["LETTERS", "MAX_ELEMENTS", "next_id", "same", "text_of"]  # ce que l'écran lit dans toute famille
@@ -126,6 +127,7 @@ class Scope:
     def __init__(self, decl: dict, earlier: list[str], types: list[str] | None = None):
         self.decl, self.earlier, self.types = decl, earlier, types
         self.settings = {s["key"]: values_of(s) for s in decl["settings"]}
+        self.accumulators = [a["key"] for a in decl.get("accumulators", [])]
 
     def inside(self, types: list[str]) -> Scope:
         return Scope(self.decl, self.earlier, types)
@@ -301,6 +303,16 @@ def check_value(raw, scope: Scope, report: Report, p: str, depth: int = 0) -> bo
     name, inner = next(iter(raw.items()))
     if name in ("setting", "option", "line", "total"):
         return _check_named(name, inner, scope, report, f"{p}.{name}")
+    if name == "accumulator":
+        if inner not in scope.accumulators:
+            report.error(
+                f"{p}.accumulator",
+                "unknown_accumulator",
+                "Cumul inconnu.",
+                received=inner,
+                expected=scope.accumulators,
+            )
+        return inner in scope.accumulators
     if name in ("add", "sub", "mul", "div", "min", "max", "pct"):
         return _check_terms(name, inner, scope, report, f"{p}.{name}", depth)
     if name in ("sum", "count"):
@@ -327,6 +339,7 @@ def check_value(raw, scope: Scope, report: Report, p: str, depth: int = 0) -> bo
             "sum",
             "count",
             "scale",
+            "accumulator",
         ],
     )
     return False
@@ -413,6 +426,13 @@ def check_condition(cond, scope: Scope, report: Report, path: str, depth: int = 
             ok &= _check_number_test(expected, report, p, scope.settings)
         elif key == "line":
             ok &= _check_lines_test(expected, scope, report, p)
+        elif key == "accumulator":
+            fine = isinstance(expected, dict) and bool(expected) and set(expected) <= set(scope.accumulators)
+            if not fine:
+                report.error(p, "unknown_accumulator", "« accumulator » : {cumul: nombre ou comparaison}.")
+            ok &= fine and all(
+                _check_number_test(v, report, f"{p}.{k}", scope.settings) for k, v in expected.items()
+            )
         elif key == "elements":
             ok &= _check_elements(expected, scope, report, p, depth)
         elif key in ("all", "any"):
@@ -431,9 +451,12 @@ def _line(item, decl: dict, earlier: list[str], seen: set, report: Report, p: st
     key = _key(item, "key", seen, report, p, "Une ligne")
     if key is None:
         return None
-    if set(item) - {"key", "label", "op", "value", "when", "unit"}:
+    if set(item) - {"key", "label", "op", "value", "when", "unit", "into"}:
         report.error(
-            p, "unknown_field", "Une ligne : {key, label, op, value, when, unit}.", received=sorted(item)
+            p,
+            "unknown_field",
+            "Une ligne : {key, label, op, value, when, unit, into}.",
+            received=sorted(item),
         )
     op = item.get("op")
     if op not in OPS:
@@ -447,6 +470,17 @@ def _line(item, decl: dict, earlier: list[str], seen: set, report: Report, p: st
     if not check_value(value, scope, report, f"{p}.value"):
         return None
     out = {"key": key, "label": _label(item, report, p, key, 80), "op": op, "value": value}
+    if "into" in item:
+        if item["into"] in scope.accumulators:
+            out["into"] = item["into"]
+        else:
+            report.error(
+                f"{p}.into",
+                "unknown_accumulator",
+                "Cumul inconnu.",
+                received=item["into"],
+                expected=scope.accumulators,
+            )
     if "when" in item and check_condition(item["when"], scope, report, f"{p}.when"):
         out["when"] = item["when"]
     unit = item.get("unit")
@@ -487,12 +521,31 @@ def _states(raw, statuses: set[str], report: Report, p: str) -> dict:
     return dict(raw)
 
 
+def _accumulators(raw, report: Report, p: str) -> list[dict]:
+    """Plusieurs cumuls menés en parallèle (une base et une taxe…) ; chaque ligne dit lequel elle touche."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list) or not 2 <= len(raw) <= MAX_ACCUMULATORS:
+        report.error(p, "type", f"« accumulators » : de 2 à {MAX_ACCUMULATORS} cumuls {{key, label, unit}}.")
+        return []
+    out, seen = [], set()
+    for i, item in enumerate(raw):
+        key = _key(item, "key", seen, report, f"{p}[{i}]", "Un cumul")
+        if key is None:
+            continue
+        entry = {"key": key, "label": _label(item, report, f"{p}[{i}]", key, 40)}
+        if isinstance(item.get("unit"), str) and 0 < len(item["unit"]) <= 12:
+            entry["unit"] = item["unit"]
+        out.append(entry)
+    return out
+
+
 def _result(raw, report: Report, p: str) -> dict:
     out = {"label": "Résultat"}
     if raw is None:
         return out
-    if not isinstance(raw, dict) or set(raw) - {"label", "unit"}:
-        report.error(p, "type", "« result » : {label, unit}.", received=raw)
+    if not isinstance(raw, dict) or set(raw) - {"label", "unit", "of"}:
+        report.error(p, "type", "« result » : {label, unit, of}.", received=raw)
         return out
     out["label"] = _label(raw, report, p, "Résultat", 60)
     if isinstance(raw.get("unit"), str) and 0 < len(raw["unit"]) <= 12:
@@ -547,8 +600,20 @@ def normalize(raw: Any, status_keys: set[str], report: Report, path: str = "work
         "links": [],
         "settings": settings,
     }
+    accumulators = _accumulators(raw.get("accumulators"), report, f"{path}.accumulators")
+    if accumulators:  # absent sinon : une déclaration à un seul cumul ne change pas d'un octet
+        decl["accumulators"] = accumulators
     decl["lines"] = _lines(raw.get("lines"), decl, report, f"{path}.lines") if bricks else []
     decl["result"] = _result(raw.get("result"), report, f"{path}.result")
+    of = (raw.get("result") or {}).get("of") if isinstance(raw.get("result"), dict) else None
+    if of is not None:
+        scope = Scope(decl, [line["key"] for line in decl["lines"]])
+        if accumulators and check_value(of, scope, report, f"{path}.result.of"):
+            decl["result"]["of"] = of
+        elif not accumulators:
+            report.error(
+                f"{path}.result.of", "type", "« of » combine des cumuls : déclarez « accumulators »."
+            )
     decl["states"] = _states(raw.get("states"), status_keys, report, f"{path}.states")
     decl["outcome"] = _outcomes(raw.get("outcome"), decl, status_keys, report, f"{path}.outcome")
     decl["rules"] = [{"key": line["key"], "title": rule_text(line)} for line in decl["lines"]]
@@ -658,6 +723,8 @@ def value_of(raw, ctx: dict, element: dict | None = None) -> float:
     name, inner = next(iter(raw.items()))
     if name == "total":
         return ctx["total"]
+    if name == "accumulator":
+        return ctx["acc"][inner]
     if name == "setting":
         return ctx["settings"][inner]
     if name == "option":
@@ -697,6 +764,8 @@ def holds(cond: dict, ctx: dict, element: dict | None = None) -> bool:
             fine = element["type"] in as_list(expected)
         elif key == "total":
             fine = matches(ctx["total"], expected, ctx["settings"])
+        elif key == "accumulator":
+            fine = all(matches(ctx["acc"][k], v, ctx["settings"]) for k, v in expected.items())
         elif key == "line":
             fine = all(
                 ctx["lines"].get(k) is not None and matches(ctx["lines"][k], v, ctx["settings"])
@@ -773,8 +842,13 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
     states |= {LINE_PREFIX + line["key"]: default_status for line in decl["lines"]}
     steps = [{"states": dict(states), "changes": []}]
     ctx = {"settings": situation["settings"], "elements": situation["elements"], "total": 0, "lines": {}}
+    accs = [a["key"] for a in decl.get("accumulators", [])]
+    ctx["acc"] = {key: 0 for key in accs}
     entries, used, blocked = [], [], False
     for line in decl["lines"]:
+        into = line.get("into", accs[0]) if accs else None
+        if into:  # « total » est le cumul que la ligne touche
+            ctx["total"] = ctx["acc"][into]
         before, amount, status, reason = ctx["total"], None, "applied", ""
         if "when" in line and not holds(line["when"], ctx):
             status = "skipped"
@@ -785,6 +859,8 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
                 ctx["total"] = neat(apply(line["op"], before, amount))
             except Blocked as error:
                 status, reason, amount, blocked = "blocked", str(error), None, True
+        if into:
+            ctx["acc"][into] = ctx["total"]
         ctx["lines"][line["key"]] = amount if status == "applied" else None
         if status == "applied":
             used.append(line["key"])
@@ -807,8 +883,11 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
                 "why": _why(line, status, amount, reason),
             }
             | ({"detail": ctx.pop("detail")} if ctx.get("detail") and status == "applied" else {})
+            | ({"into": into} if into else {})
         )
         ctx.pop("detail", None)
+    if accs and not blocked:
+        blocked = not _combine_result(decl, ctx, accs)
     return {
         "steps": steps,
         "end": "blocked" if blocked else "stable",
@@ -816,7 +895,19 @@ def run(decl: dict, situation: dict, default_status: str) -> dict:
         "total": ctx["total"],
         "used": used,
         "ctx": ctx,
-    }
+    } | ({"accumulators": dict(ctx["acc"])} if accs else {})
+
+
+def _combine_result(decl: dict, ctx: dict, accs: list[str]) -> bool:
+    """Le résultat d'un calcul à plusieurs cumuls : `result.of`, sinon le premier cumul. Faux s'il ne se
+    calcule pas (une division par zéro…)."""
+    try:
+        ctx["total"] = (
+            neat(value_of(decl["result"]["of"], ctx)) if "of" in decl["result"] else ctx["acc"][accs[0]]
+        )
+    except Blocked:
+        return False
+    return True
 
 
 def outcome(decl: dict, result: dict) -> dict | None:
@@ -836,11 +927,17 @@ def plan(decl: dict) -> dict:
 
 def extra(decl: dict, result: dict) -> dict:
     """Ce que cette famille ajoute à la réponse d'un déroulé : les lignes, leur montant et le cumul."""
-    return {
+    out = {
         "lines": result["entries"],
         "total": result["total"],
-        "result": {**decl["result"], "value": result["total"] if result["end"] == "stable" else None},
+        "result": {
+            **{k: v for k, v in decl["result"].items() if k != "of"},
+            "value": result["total"] if result["end"] == "stable" else None,
+        },
     }
+    if "accumulators" in result:
+        out["accumulators"] = [{**a, "value": result["accumulators"][a["key"]]} for a in decl["accumulators"]]
+    return out
 
 
 # ---------------------------------------------------------------------------

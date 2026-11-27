@@ -152,6 +152,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_duree.py` : durée d'un état (`since`, le temps qui avance, `waited`).
   `test_periodes_combinees.py` : périodes simultanées combinées (`several: combine`) et la démo qui le déclare.
   `test_bareme.py` : barème par tranches (`scale` : à taux, à montant), détail sous la ligne.
+  `test_cumuls.py` : plusieurs cumuls dans un calcul (`accumulators`, `into`, `result.of`).
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

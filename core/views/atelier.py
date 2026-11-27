@@ -451,6 +451,7 @@ def _calc(study: Study, extra: dict) -> dict:
         return {}
     decl, smap = study.workshop, status_map(study.statuses)
     result = extra["result"]
+    accs = {a["key"]: a["label"] for a in decl.get("accumulators", [])}
     rows = []
     for entry in extra["lines"]:
         status = decl["states"][entry["status"]]
@@ -466,6 +467,7 @@ def _calc(study: Study, extra: dict) -> dict:
                 "applied": entry["status"] == "applied",
                 "why": entry["why"],
                 "detail": [line.replace(".", ",") for line in entry.get("detail", [])],
+                "into": accs.get(entry.get("into"), ""),
             }
         )
     return {
@@ -474,6 +476,10 @@ def _calc(study: Study, extra: dict) -> dict:
             "label": result["label"],
             "value": _amount(result.get("value"), result.get("unit", "")),
             "blocked": result.get("value") is None,
+            "accumulators": [
+                {"label": a["label"], "value": _amount(a["value"], a.get("unit", ""))}
+                for a in extra.get("accumulators", [])
+            ],
         }
     }
 

@@ -574,6 +574,7 @@ dialog.help form { display: grid; gap: var(--s-4); padding: var(--s-4); }
 .at-wait { margin: 0.2rem 0 0; color: var(--ink-3); font-size: var(--t-xs); }
 .at-resource { margin: var(--s-2) 0 0; color: var(--ink-2); font-size: var(--t-sm); }
 .at-link-options { flex-basis: 100%; margin-top: var(--s-1); }
+.at-accumulators { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0; padding: 0; list-style: none; color: var(--ink-2); }
 .cov-inventory .sub { color: var(--ink-3); font-size: var(--t-xs); overflow-wrap: anywhere; }
 .pick-number input { width: 7.5rem; }
 .at-calc-total { font-size: var(--t-lg); }
