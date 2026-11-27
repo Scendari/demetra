@@ -35,6 +35,8 @@ Un **cas paramétré** (chapitre `cases`) compte pour toutes les combinaisons de
 
 La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que les dimensions ne décrivent pas n'apparaît pas comme manquante. Si vous découvrez un facteur qui change le comportement, ajoutez-le comme dimension.
 
+Ne tirez pas les dimensions des cas déjà écrits. Une dimension dont chaque valeur nomme un cas (13 cas, 13 valeurs, une par cas) donne 100 % par construction : elle ne mesure rien. Une dimension décrit un **facteur** qui fait varier le comportement (un réglage, un type d'élément, une erreur, une limite), et plusieurs cas partagent chacune de ses valeurs. Le site signale ce piège (`dimension_echoes_cases`, ci-dessous).
+
 ## Contrôles de structure
 
 `GET /api/v1/studies/{id}/checks` signale, à l'échelle de l'étude :
@@ -44,6 +46,7 @@ La couverture ne vaut que ce que vaut la liste des dimensions. Une situation que
 - `case_without_rule` : des cas rattachés à aucune règle ;
 - `unused_status` : un statut déclaré mais jamais atteint ;
 - `single_step` : un cas d'une seule étape ;
+- `dimension_echoes_cases` : une dimension d'au moins 5 valeurs dont chaque valeur n'est portée que par un cas, avec autant de valeurs que de cas : elle décrit les cas un par un, et sa couverture de 100 % ne prouve rien (avertissement ; le champ `dimension` la nomme) ;
 - `compare_missing_case` : un `compare_with` qui vise un cas absent ou retiré ;
 - `model_mismatch` : des cas annoncent un sort des lignes que le jeu de règles de l'étude ne donne pas (avertissement) ;
 - `workshop_mismatch` : des cas, rejoués dans l'atelier de l'étude, ne donnent pas ce qu'ils annoncent (avertissement ; voir le chapitre `cases`) ;

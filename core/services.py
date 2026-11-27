@@ -1189,6 +1189,7 @@ def checks_report(study: Study) -> list[dict]:
     rows = _case_rows(study)
     return (
         cov.study_checks(study.statuses, study.rules, rows)
+        + cov.dimension_echoes(study.dimensions, rows)
         + _model_findings(study, rows)
         + _workshop_findings(study, rows)
     )

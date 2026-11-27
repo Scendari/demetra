@@ -140,6 +140,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   SSO/LDAP/HTTPS, lien d'autorisation, sonde, sauvegarde et kit `deploiement/`.
   `test_message_organisation.py` : message de l'organisation dans le mode d'emploi.
   `test_corbeille.py` : suppression d'une étude (corbeille, restauration, effacement réservé aux humains).
+  `test_dimension_recopie.py` : avertissement d'une dimension qui décrit les cas un par un.
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

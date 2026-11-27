@@ -245,6 +245,38 @@ def _definition_findings(
     return findings
 
 
+MIN_ECHO_VALUES = 5  # en dessous, une valeur par cas est banale : deux ou trois cas, deux ou trois valeurs
+
+
+def dimension_echoes(dimensions: list[dict], cases: list[dict]) -> list[dict]:
+    """Dimensions qui décrivent les cas un par un : chaque valeur portée par exactement un cas, autant de
+    valeurs que de cas. La couverture y est de 100 % par construction : elle ne mesure rien."""
+    counted = {c["key"] for c in cases if c.get("dimensions")}
+    findings = []
+    for dim in dimensions:
+        values = [v["value"] for v in dim["values"]]
+        if len(values) < MIN_ECHO_VALUES or len(values) != len(counted):
+            continue
+        users: dict[str, set[str]] = {value: set() for value in values}
+        for case in cases:
+            value = (case.get("dimensions") or {}).get(dim["key"])
+            if value in users:
+                users[value].add(case["key"])
+        if all(len(found) == 1 for found in users.values()):
+            label = dim.get("label") or dim["key"]
+            findings.append(
+                {
+                    "code": "dimension_echoes_cases",
+                    "severity": "warning",
+                    "dimension": dim["key"],
+                    "message": f"La dimension « {label} » semble décrire les cas un par un : chacune de ses "
+                    f"{len(values)} valeurs n'est portée que par un cas. Une couverture de 100 % n'y mesure "
+                    "pas l'exhaustivité ; déclarez plutôt les facteurs qui font varier les cas.",
+                }
+            )
+    return findings
+
+
 def study_checks(statuses: list[dict], rules: list[dict], cases: list[dict]) -> list[dict]:
     """Contrôles de structure à l'échelle de l'étude (niveau 0) : doublons, éléments jamais utilisés."""
     by_hash, used_statuses, used_rules, findings = _usage(cases)
