@@ -8,7 +8,18 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from core import services as svc
-from core.demo import catalogue, circuit, decision, elargi, librairie, magasin, mairie, parametre, temporal
+from core.demo import (
+    catalogue,
+    circuit,
+    decision,
+    elargi,
+    garanties,
+    librairie,
+    magasin,
+    mairie,
+    parametre,
+    temporal,
+)
 from core.models import Decision, Membership, Representation, Role, Study
 
 PASSWORD = "demetra-demo"
@@ -118,6 +129,8 @@ class Command(BaseCommand):
             (librairie.DEFINITION, librairie.cases(), True, "calcul-pas-a-pas"),
             # Un atelier à places limitées : des demandes et des guichets.
             (mairie.DEFINITION, mairie.cases(), True, None),
+            # Des périodes combinées : des garanties qui se chevauchent, lues sur une frise.
+            (garanties.DEFINITION, garanties.cases(), True, "frise-temporelle"),
             # Une étude par représentation du catalogue élargi : elle porte la représentation qu'elle
             # illustre.
             *[(definition, build(), True, slug) for slug, definition, build in elargi.STUDIES],

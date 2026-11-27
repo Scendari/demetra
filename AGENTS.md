@@ -20,7 +20,7 @@ Vue d'ensemble, limites connues, licences : `README.md`. Mise en production : `D
 ```bash
 uv sync                                   # dépendances (ajouter --extra ldap pour l'annuaire LDAP)
 uv run python manage.py migrate           # base SQLite locale + représentations système
-uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 17 études
+uv run python manage.py seed_demo         # comptes demo/lea/marc (mot de passe demetra-demo) et 18 études
 uv run python manage.py runserver         # http://127.0.0.1:8000
 uv run ruff check . --fix                 # analyse du code (doit être propre)
 uv run pytest                             # toute la suite (~7 min) ; tests/e2e demande Chromium, et WebKit
@@ -62,7 +62,7 @@ Tout le code applicatif est dans `core/`. Les couches, de bas en haut :
 | `storage.py` | Fichiers statiques sans manifeste (développement, tests) : l'adresse porte la date du fichier (`?v=…`) | En production, le manifeste de WhiteNoise met l'empreinte dans le nom |
 | `admin.py` | Administration Django : comptes, accès, jetons, journal en lecture seule, message de l'organisation (`SiteNotice`, une seule ligne) | Le contenu des études n'y est pas modifiable |
 | `guide.py` + `guide/*.md` | Mode d'emploi, servi à l'identique sur `/guide/`, `/api/v1/guide` et `/llms.txt` | Une seule source Markdown ; le message de l'organisation (`SiteNotice`) s'y insère à la lecture, échappé sur `/guide/`. Un bloc ```` ```prompt ```` (texte à donner à une IA) reçoit un bouton « Copier » sur `/guide/` |
-| `demo/` | Données des 17 études de démonstration (`seed_demo`) ; trois déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`, `mairie.WORKSHOP`, qui déclare une ressource à places), une un atelier de périodes (`magasin.WORKSHOP` (qui déclare aussi des exécutions successives)), une un atelier de calcul (`librairie.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
+| `demo/` | Données des 18 études de démonstration (`seed_demo`) ; trois déclarent des règles d'atelier (`catalogue.WORKSHOP`, `circuit.WORKSHOP`, `mairie.WORKSHOP`, qui déclare une ressource à places), deux un atelier de périodes (`magasin.WORKSHOP`, qui déclare aussi des exécutions successives ; `garanties.WORKSHOP`, qui combine des périodes simultanées), une un atelier de calcul (`librairie.WORKSHOP`) | Le catalogue vient de `sources/catalogue` |
 | `static/core/` | `tokens.css` (variables), `app.css` (interface), `rep.css` (schémas), `app.js` (**seul** script, sans framework) | Aucune bibliothèque côté navigateur |
 | `templates/core/` | Gabarits Django ; `templates/` à la racine : socle, comptes, admin | |
 
@@ -150,6 +150,7 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_options_lien.py` : options portées par un lien (`link_option`), trace d'une demande (`by`), demande sans
   effet (`no_effect`), adresse et case décochée.
   `test_duree.py` : durée d'un état (`since`, le temps qui avance, `waited`).
+  `test_periodes_combinees.py` : périodes simultanées combinées (`several: combine`) et la démo qui le déclare.
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

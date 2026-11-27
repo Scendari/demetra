@@ -19,7 +19,7 @@ import math
 from typing import Any
 
 from .casemodel import Report
-from .rules import among, as_list, comparison_issue, pairs_hold, same, text_of
+from .rules import among, as_list, comparison_issue, is_number, pairs_hold, same, text_of, values_of
 from .rules import bricks as _bricks
 from .rules import choices as _choices
 from .rules import chosen as _chosen
@@ -33,7 +33,8 @@ MAX_FIELDS = 8
 MAX_STATUS_RULES = 12
 MAX_SITUATION_LINKS = 0
 DEFAULT_RUN_STEPS = MAX_GRAINS
-SEVERAL = ("latest_start", "earliest_start", "block")
+SEVERAL = ("latest_start", "earliest_start", "block", "combine")
+COMBINE = ("sum", "min", "max", "list")
 TIES = ("block", "first")
 STATES = ("active", "past", "ignored", "invalid", "blocked")
 INVALID = {"zero": "ignore", "missing": "block", "inverted": "block"}
@@ -166,6 +167,8 @@ def _source(item, n: int, named: list[str], bricks: dict, settings: list[dict], 
             report.error(f"{p}.{name}", "enum", "Valeur inconnue.", received=item.get(name), expected=allowed)
         else:
             source[name] = item.get(name, source[name])
+    if source["several"] == "combine":
+        source["combine"] = _combine(item.get("combine"), bricks[kind], report, f"{p}.combine")
     if n == 0:
         if item.get("match") or item.get("mode") not in (None, "inner"):
             report.error(p, "type", "La première source est la base : ni « match » ni « mode ».")
@@ -183,6 +186,26 @@ def _source(item, n: int, named: list[str], bricks: dict, settings: list[dict], 
         if ref:
             source["match"][key] = ref
     return source
+
+
+def _combine(raw, brick: dict, report: Report, p: str) -> dict:
+    """Comment combiner les champs de périodes en vigueur en même temps : {champ: sum | min | max | list}.
+    Un champ non cité garde la valeur de la période qui a commencé le plus tôt."""
+    options = {o["key"]: o for o in brick["options"]}
+    if not isinstance(raw, dict) or not raw:
+        report.error(p, "required", "« combine » : {champ: sum | min | max | list}.", example={"taux": "sum"})
+        return {}
+    out = {}
+    for key, how in raw.items():
+        if key not in options:
+            report.error(f"{p}.{key}", "unknown_option", "Champ inconnu.", expected=sorted(options))
+        elif how not in COMBINE:
+            report.error(f"{p}.{key}", "enum", "Combinaison inconnue.", received=how, expected=COMBINE)
+        elif how != "list" and not all(is_number(v) for v in values_of(options[key])):
+            report.error(f"{p}.{key}", "not_numeric", f"« {how} » ne combine que des nombres.")
+        else:
+            out[key] = how
+    return out
 
 
 def _sources(raw, bricks: dict, settings: list[dict], report: Report, p: str) -> list[dict]:
@@ -439,6 +462,7 @@ HOW_SEVERAL = {
     "latest_start": "celle qui a commencé le plus tard l'emporte",
     "earliest_start": "celle qui a commencé le plus tôt l'emporte",
     "block": "le traitement est bloqué",
+    "combine": "les périodes en vigueur sont combinées",
 }
 HOW_INVALID = {
     "zero": "une période de durée nulle",
@@ -774,6 +798,8 @@ def _pick(source: dict, candidates: list[dict], picked: dict) -> tuple[dict | No
         candidates = [c for c in candidates if same(c["options"][own], other["options"][option])]
     if len(candidates) < 2:
         return (candidates[0], "", []) if candidates else (None, "missing", [])
+    if source["several"] == "combine":
+        return _combined(source["combine"], candidates), "combine", []
     if source["several"] == "block":
         return None, "tie", []
     edge = (max if source["several"] == "latest_start" else min)(c["start"] for c in candidates)
@@ -781,6 +807,19 @@ def _pick(source: dict, candidates: list[dict], picked: dict) -> tuple[dict | No
     if len(tied) > 1 and source["tie"] == "block":
         return None, "tie", []
     return tied[0], "several", [c["id"] for c in candidates if c is not tied[0]]
+
+
+def _combined(combine: dict, candidates: list[dict]) -> dict:
+    """Les périodes en vigueur, fondues en une : chaque champ cité combiné, les autres pris à la première."""
+    ordered = sorted(candidates, key=lambda c: (c["start"], c["id"]))
+    options = dict(ordered[0]["options"])
+    for key, how in combine.items():
+        values = [c["options"][key] for c in ordered if c["options"].get(key) is not None]
+        if how == "list":
+            options[key] = " + ".join(dict.fromkeys(text_of(v) for v in values))
+        elif values:
+            options[key] = _neat({"sum": sum, "min": min, "max": max}[how](values))
+    return {**ordered[0], "options": options, "ids": [c["id"] for c in ordered]}
 
 
 def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> tuple[dict | None, str | None]:
@@ -814,6 +853,7 @@ def _row(decl: dict, usable: list[dict], settings: dict, edge: float) -> tuple[d
     }
     row = {
         "picked": {b: p["id"] if p else None for b, p in picked.items()},
+        "together": {b: p["ids"] for b, p in picked.items() if p and "ids" in p},
         "how": how,
         "lost": lost,
         "fields": fields,
@@ -862,8 +902,9 @@ def _gather(image: dict, row: dict) -> None:
     """Ce qu'un pas de plus apporte à la provenance d'une image : les périodes retenues, comment, et celles
     qu'elles ont devancées."""
     for brick, picked in row["picked"].items():
-        if picked and picked not in image["sources"][brick]:
-            image["sources"][brick].append(picked)
+        for key in row["together"].get(brick) or ([picked] if picked else []):
+            if key not in image["sources"][brick]:
+                image["sources"][brick].append(key)
         if row["how"][brick] not in image["hows"][brick]:
             image["hows"][brick].append(row["how"][brick])
     image["beaten"] += [key for key in row["lost"] if key not in image["beaten"]]
@@ -880,6 +921,8 @@ def _why(decl: dict, situation: dict, image: dict) -> tuple[str, list[str]]:
         said = ", puis ".join(names[key] for key in keys)
         if "tie" in hows:
             said = "plusieurs en vigueur, à égalité"
+        elif "combine" in hows:
+            said = _listed([names[key] for key in keys]) + ", combinées"
         elif not keys:
             said = "aucune en vigueur, la ligne est gardée"
         else:
@@ -898,7 +941,10 @@ def _why(decl: dict, situation: dict, image: dict) -> tuple[str, list[str]]:
 
 def _state_at(period: dict, row: dict | None, edge: float) -> str | None:
     """L'état d'une période source à un pas : en vigueur, devancée, passée, ou pas encore commencée."""
-    if row and row["picked"].get(period["type"]) == period["id"]:
+    if row and (
+        row["picked"].get(period["type"]) == period["id"]
+        or period["id"] in row["together"].get(period["type"], [])
+    ):
         return "active"
     if period["start"] < edge - EPSILON <= period["end"] - EPSILON:
         return "ignored" if row and period["id"] in row["lost"] else "active"
@@ -1131,6 +1177,9 @@ def _notes(decl: dict, situation: dict, row: dict) -> str:
         if key is None:
             none = "plusieurs en vigueur, à égalité" if how == "tie" else "aucune en vigueur"
             parts.append(f"{labels[brick]} : {none}")
+        elif how == "combine":
+            together = [names[k] for k in row["together"][brick]]
+            parts.append(f"{labels[brick]} : {_listed(together)}, combinées")
         else:
             several = ", retenue parmi plusieurs" if how == "several" else ""
             parts.append(f"{labels[brick]} : {names[key]}{several}")

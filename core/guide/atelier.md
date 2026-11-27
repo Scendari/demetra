@@ -174,7 +174,7 @@ La réponse, toujours `200` :
   {"path": "workshop", "code": "unknown_field", "message": "Champ inconnu dans « workshop ».",
    "severity": "error", "received": ["rules"]},
   {"path": "workshop.image.sources[0].several", "code": "enum", "message": "Valeur inconnue.",
-   "severity": "error", "received": "newest", "expected": ["latest_start", "earliest_start", "block"]}],
+   "severity": "error", "received": "newest", "expected": ["latest_start", "earliest_start", "block", "combine"]}],
  "warnings": [], "rules": [], "workshop": null, "study_revision": 0,
  "hint": "Corrigez les erreurs puis revalidez ; PATCH /studies/{id} refuserait cette déclaration."}
 ```
@@ -299,7 +299,8 @@ Une source rattachée (toute source après la première) :
 | `"mode": "inner"` | faute de période en vigueur, aucune image |
 | `"mode": {"setting": "sans_remise", "inner": ["retirés"]}` | `inner` quand le réglage a l'une de ces valeurs, `left` sinon |
 | `"match": {"code": "remise.code"}` | on ne retient que les périodes dont le champ `code` vaut le champ `code` de la période retenue pour `remise` (une source déjà nommée) |
-| `"several"` | quand plusieurs périodes sont en vigueur : `"latest_start"` (par défaut : celle qui a commencé le plus tard), `"earliest_start"`, ou `"block"` (le traitement est bloqué) |
+| `"several"` | quand plusieurs périodes sont en vigueur : `"latest_start"` (par défaut : celle qui a commencé le plus tard), `"earliest_start"`, `"block"` (le traitement est bloqué), ou `"combine"` (elles comptent toutes, combinées : voir `combine`) |
+| `"combine"` | avec `"several": "combine"` seulement : comment combiner chaque champ, `{"surprime": "sum", "nom": "list"}`. `sum`, `min`, `max` pour un champ numérique (sinon `not_numeric`) ; `list` réunit les valeurs distinctes, dans l'ordre des débuts (« Vol + Bris de glace »). Un champ non cité garde la valeur de la période qui a commencé le plus tôt. Toutes les périodes combinées sont en vigueur ; aucune n'est devancée. Erreurs : `required`, `unknown_option`, `enum`, `not_numeric` |
 | `"tie"` | quand elles ont le même début : `"block"` (par défaut) ou `"first"` (la première posée) |
 
 La base accepte `several` et `tie`, pas `mode` ni `match` : sans période de base en vigueur, il n'y a pas d'image.
