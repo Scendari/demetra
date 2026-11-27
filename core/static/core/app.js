@@ -237,21 +237,6 @@
     let playing = null;
     atelier.classList.add("is-live");
     const walk = () => $("[data-panel]", atelier);
-    const focusKey = (el) => {
-      if (!el || !atelier.contains(el)) return null;
-      if (el.id) return { id: el.id };
-      if (el.name) return { name: el.name, value: el.type === "text" ? null : el.value };
-      return { text: el.textContent.trim() };
-    };
-    const refocus = (key) => {
-      if (!key) return;
-      let el = null;
-      if (key.id) el = doc.getElementById(key.id);
-      else if (key.name) el = $$("[name]", atelier).find((f) => f.name === key.name && (key.value === null || f.value === key.value));
-      else el = $$("a", atelier).find((a) => a.textContent.trim() === key.text);
-      if (!el || el.disabled) el = $("#at-build-title", atelier);
-      if (el) el.focus({ preventScroll: true });
-    };
     // Le pas affiché suit dans l'adresse ; le départ est celui qu'on voit par défaut, il ne s'écrit pas.
     const writeStep = () => {
       const panel = walk();
@@ -395,12 +380,72 @@
       note.textContent = parts.length ? "Votre dernier geste : " + parts.join(", ") + "." : "Votre dernier geste n'a pas changé l'historique.";
     };
 
+    /* Le nouveau résultat se fond dans la page au lieu de la remplacer : les éléments qui restent sont les
+       mêmes, si bien que le focus, la saisie en cours, les volets ouverts et le défilement tiennent d'eux-mêmes.
+       Un élément se reconnaît à son identifiant, sa brique, son volet, son nœud, sa période, son lien, ou au nom
+       et à la valeur d'une case ; les autres se suivent dans l'ordre. */
+    const keyOf = (node) => {
+      if (node.nodeType !== 1) return null;
+      if (node.id) return "#" + node.id;
+      for (const name of ["data-brick", "data-keep", "data-e", "data-p", "data-l", "data-start"]) {
+        if (node.hasAttribute(name)) return node.tagName + "[" + name + "=" + node.getAttribute(name) + "]";
+      }
+      if (node.tagName === "INPUT" && node.name && node.type !== "text" && node.type !== "number") return "input[" + node.name + "=" + node.value + "]";
+      return null;
+    };
+    const CACHES = ["_steps", "_statuses", "_emph", "_tx", "_cls"];   // ce que le script a tiré des attributs
+    const morphAttributes = (old, fresh) => {
+      let changed = false;
+      for (const attr of Array.from(fresh.attributes)) {
+        if (old.getAttribute(attr.name) !== attr.value) { old.setAttribute(attr.name, attr.value); changed = true; }
+      }
+      for (const attr of Array.from(old.attributes)) {
+        if (fresh.hasAttribute(attr.name)) continue;
+        if (attr.name === "open" && old.matches("details[data-keep]")) continue;   // le volet reste comme on l'a laissé
+        old.removeAttribute(attr.name);
+        changed = true;
+      }
+      if (changed) CACHES.forEach((name) => { delete old[name]; });
+    };
+    const morphField = (old, fresh) => {
+      if (old.tagName === "INPUT" && (old.type === "checkbox" || old.type === "radio")) old.checked = fresh.hasAttribute("checked");
+      else if (old.tagName === "INPUT" && old !== doc.activeElement) old.value = fresh.getAttribute("value") || "";
+      else if (old.tagName === "SELECT") old.selectedIndex = Math.max(0, Array.from(fresh.options).findIndex((o) => o.hasAttribute("selected")));
+      else if (old.tagName === "TEXTAREA" && old !== doc.activeElement) old.value = fresh.textContent;
+    };
+    const morph = (old, fresh) => {
+      if (old.nodeType !== 1) { if (old.nodeValue !== fresh.nodeValue) old.nodeValue = fresh.nodeValue; return; }
+      morphAttributes(old, fresh);
+      if (old.tagName !== "TEXTAREA") morphChildren(old, fresh);
+      morphField(old, fresh);
+    };
+    const sameKind = (a, b) => a.nodeType === b.nodeType && (a.nodeType !== 1 || (a.tagName === b.tagName && a.namespaceURI === b.namespaceURI));
+    const morphChildren = (parent, freshParent) => {
+      const olds = Array.from(parent.childNodes);
+      const keyed = new Map();
+      olds.forEach((node) => { const key = keyOf(node); if (key && !keyed.has(key)) keyed.set(key, node); });
+      const used = new Set();
+      let cursor = 0;
+      Array.from(freshParent.childNodes).forEach((fresh, index) => {
+        const key = keyOf(fresh);
+        let match = key ? keyed.get(key) : null;
+        if (!key) {
+          while (cursor < olds.length && (keyOf(olds[cursor]) || used.has(olds[cursor]))) cursor += 1;
+          if (cursor < olds.length && sameKind(olds[cursor], fresh)) match = olds[cursor++];
+        }
+        if (match && (used.has(match) || !sameKind(match, fresh))) match = null;
+        const node = match || doc.importNode(fresh, true);
+        if (match) { used.add(match); morph(match, fresh); }
+        if (parent.childNodes[index] !== node) parent.insertBefore(node, parent.childNodes[index] || null);
+      });
+      olds.forEach((node) => { if (!used.has(node) && node.parentNode === parent) node.remove(); });
+    };
+
     // « from » : le contrôle qui a lancé le geste. Safari ne donne pas le focus à une case ou à un bouton
-    // qu'on clique : c'est lui, et non l'élément actif, qu'on rend après le nouveau résultat.
+    // qu'on clique : c'est à lui qu'on le rend quand le nouveau résultat arrive.
     const load = (url, from) => {
       const mine = ++turn;
       const before = historyNow();
-      const active = doc.activeElement;
       stop();
       closePop();
       atelier.setAttribute("aria-busy", "true");
@@ -408,21 +453,17 @@
         .then((response) => { if (!response.ok) throw new Error(String(response.status)); return response.text().then((html) => [html, response.url]); })
         .then(([html, landed]) => {
           if (mine !== turn) return;   // une réponse plus récente est attendue
-          // Ce qu'on rend après le remplacement se lit à l'arrivée : pendant la requête, on a pu toucher une fiche,
-          // ouvrir un volet ou faire défiler. Sinon, c'est le contrôle du geste qui garde le focus.
-          const moved = doc.activeElement !== active && doc.activeElement !== doc.body;
-          const key = focusKey(moved ? doc.activeElement : from || active);
-          const open = $$("details[data-keep]", atelier).filter((d) => d.open).map((d) => d.dataset.keep);
-          // Le panneau de construction et la table de l'historique défilent à part : remplacés, ils repartiraient du haut.
-          const scrolled = [".at-build", ".at-history-wrap"].map((sel) => { const el = $(sel, atelier); return [sel, el ? el.scrollTop : 0, el ? el.scrollLeft : 0]; });
-          atelier.innerHTML = html;
+          const inside = atelier.contains(doc.activeElement) || !!from;
+          const fresh = doc.createElement("template");
+          fresh.innerHTML = html;
+          morphChildren(atelier, fresh.content);
           atelier.removeAttribute("aria-busy");
-          open.forEach((name) => { const d = $('details[data-keep="' + name + '"]', atelier); if (d) d.open = true; });
-          scrolled.forEach(([sel, top, left]) => { const el = $(sel, atelier); if (el) { el.scrollTop = top; el.scrollLeft = left; } });
           ready();
           showDelta(before);
           history.replaceState(history.state, "", landed || url);   // le serveur a rangé l'adresse : on garde la sienne
-          refocus(key);
+          const lost = !atelier.contains(doc.activeElement);
+          if (lost && from && from.isConnected && !from.disabled) from.focus({ preventScroll: true });
+          else if (lost && inside) $("#at-build-title", atelier).focus({ preventScroll: true });   // le contrôle a disparu
         })
         .catch(() => { location.href = url; });   // le serveur répondra par la page entière, ou par son erreur
     };

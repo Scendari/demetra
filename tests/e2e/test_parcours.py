@@ -1195,6 +1195,42 @@ def test_atelier_option_garde_la_fiche_et_le_defilement(site, engine):
     context.close()
 
 
+def test_atelier_se_met_a_jour_sans_tout_remplacer(site, engine):
+    """Le nouveau résultat se fond dans la page : les fiches restent les mêmes éléments, un nom tapé pendant le
+    calcul n'est pas écrasé, un volet qu'on a ouvert le reste."""
+    context = engine.new_context(viewport={"width": 1280, "height": 900}, locale="fr-FR")
+    page = context.new_page()
+    problems = watched(page)
+    login(page, site, "demo")
+    page.goto(f"{site}/etudes/")
+    page.get_by_role("link", name="Catalogue des runs Lancelot").click()
+    page.goto(page.url.split("?")[0] + "atelier/?e=A%3Atask&e=B%3Atask&ev=A%3Aechec")
+    page.evaluate("window.__fiche = document.querySelector('.at-card[data-brick=\"B\"]')")
+    why = page.locator('details[data-keep="why"]')
+    if why.count():
+        why.locator("summary").click()
+    opened = why.count() and why.evaluate("d => d.open")
+
+    def delayed(route):
+        if route.request.headers.get("x-requested-with") == "fetch":
+            time.sleep(0.8)
+        route.continue_()
+
+    page.route("**/atelier/**", delayed)
+    page.check('input[name="o.A.always_run"]')
+    page.locator("#at-name-B").select_text()
+    page.keyboard.type("Nom tapé")
+    expect(page).to_have_url(re.compile(r"o\.A\.always_run=true"), timeout=8000)
+    expect(page.locator("[data-atelier]")).not_to_have_attribute("aria-busy", "true")
+    assert page.evaluate("window.__fiche === document.querySelector('.at-card[data-brick=\"B\"]')")
+    expect(page.locator("#at-name-B")).to_have_value("Nom tapé")
+    expect(page.locator("#at-name-B")).to_be_focused()
+    if opened:
+        assert why.evaluate("d => d.open")
+    assert not problems, problems
+    context.close()
+
+
 def test_atelier_executions_successives(site, engine):
     """L'étude de démonstration déclare des exécutions successives : on dit qu'une période n'est connue qu'à
     partir d'une exécution, et chaque exécution montre ce qu'elle ajoute, ferme, modifie, retire ou laisse."""
