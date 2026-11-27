@@ -29,10 +29,10 @@
     <h2>Combinaisons manquantes <span class="count">{{ report.missing_count }}</span></h2>
     {% if missing %}
     <ul class="missing">
-      {% for combo in missing %}<li><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>{% for part in combo %}<span class="pair"><span>{{ part.dim }}</span> <b>{{ part.value }}</b></span>{% if not forloop.last %}<span class="times" aria-hidden="true">×</span><span class="sr-only"> avec </span>{% endif %}{% endfor %}</li>{% endfor %}
+      {% for combo in missing %}<li><svg class="ic" aria-hidden="true"><use href="#ui-to_analyze"/></svg>{% for part in combo.parts %}<span class="pair"><span>{{ part.dim }}</span> <b>{{ part.value }}</b></span>{% if not forloop.last %}<span class="times" aria-hidden="true">×</span><span class="sr-only"> avec </span>{% endif %}{% endfor %}{% if combo.workshop %}<a class="link missing-try" href="{{ combo.workshop.web_url }}">Dérouler dans l'atelier{% if combo.workshop.from_case %} <span class="sub">d'après {{ combo.workshop.from_case }}</span>{% endif %}</a>{% endif %}</li>{% endfor %}
     </ul>
     {% if report.missing_count > missing|length %}<p class="hint">{{ missing|length }} premières affichées sur {{ report.missing_count }}. La liste complète est servie par l'API.</p>{% endif %}
-    <p class="hint">Pour chacune : ajouter un cas, déclarer la combinaison impossible avec sa raison, ou la laisser en le sachant.</p>
+    <p class="hint">Pour chacune : ajouter un cas, déclarer la combinaison impossible avec sa raison, ou la laisser en le sachant.{% if report.workshop %} « Dérouler dans l'atelier » montre ce que les règles de l'étude donnent pour cette combinaison, sans rien enregistrer.{% endif %}</p>
     {% else %}
     <p class="ok-line"><svg class="ic" aria-hidden="true"><use href="#ui-check"/></svg>À ce niveau de finesse, chaque combinaison possible est illustrée par au moins un cas.</p>
     {% endif %}

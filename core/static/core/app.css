@@ -569,6 +569,7 @@ dialog.help form { display: grid; gap: var(--s-4); padding: var(--s-4); }
 .missing { display: grid; gap: 1px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--line); overflow: hidden; }
 .missing li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem var(--s-2); padding: 0.45rem 0.75rem; background: var(--raised); font-size: var(--t-sm); }
 .missing .ic { color: var(--r-warning-fg); }
+.missing-try { margin-left: auto; }
 .pair span { color: var(--ink-3); }
 .pair b { font-weight: 660; }
 .times { color: var(--ink-3); margin-inline: 0.4em; }

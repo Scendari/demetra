@@ -27,6 +27,8 @@ Pour chaque combinaison de `missing`, vous avez trois issues honnêtes :
 2. **Déclarer une exclusion** dans l'étude si la combinaison est impossible, avec sa raison (`PATCH /studies/{id}`, champ `exclusions`).
 3. **La laisser** et le dire à l'utilisateur.
 
+Quand l'étude déclare un atelier dont des réglages se lisent dans des dimensions (`settings[].dimension`, chapitre `atelier`), la réponse porte aussi `workshop` : une entrée par combinaison de `missing`, dans le même ordre (60 au plus). Elle vaut `null` quand l'atelier n'a aucun réglage pour ces dimensions ; sinon `{"settings": {…}, "from_case": "<clé ou null>", "web_url": "/etudes/…/atelier/?…"}` : l'atelier ouvert sur cette combinaison, à partir d'un cas existant qui a déjà les autres valeurs (`from_case`), ou vide. **Rien n'est déposé** : c'est une piste pour voir ce que les règles donnent avant d'écrire le cas. Si le résultat vous convient, déposez le cas vous-même (`POST …/cases/batch`) ; il sera rejoué et comparé à l'atelier comme les autres.
+
 Un **cas paramétré** (chapitre `cases`) compte pour toutes les combinaisons de dimensions que ses paramètres permettent, et pour un seul cas dans `cases_counted` et `by_dimension`. Dans l'interface, la case qu'il couvre est marquée « paramétré ».
 
 ## Limite à dire à l'utilisateur

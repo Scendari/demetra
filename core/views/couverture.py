@@ -26,9 +26,15 @@ def study_coverage(request, sid: str):
         }
         for d in study.dimensions
     }
+    hints = report.get("workshop") or []
     missing = [
-        [{"dim": labels[k]["label"], "value": labels[k]["values"].get(v, v)} for k, v in combo.items()]
-        for combo in report["missing"][:60]
+        {
+            "parts": [
+                {"dim": labels[k]["label"], "value": labels[k]["values"].get(v, v)} for k, v in combo.items()
+            ],
+            "workshop": hints[n] if n < len(hints) else None,
+        }
+        for n, combo in enumerate(report["missing"][:60])
     ]
     keys = [d["key"] for d in study.dimensions]
     row_key = request.GET.get("lignes") if request.GET.get("lignes") in keys else (keys[0] if keys else None)

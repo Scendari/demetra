@@ -219,3 +219,30 @@ def test_the_demo_period_study_agrees_with_its_cases():
     for case in magasin.cases():
         found = workshopcheck.agreement(decl, case, statuses)
         assert found is None or found["status"] == "agree", (case["key"], found)
+
+
+def test_coverage_offers_to_unroll_a_missing_combination_in_the_workshop(api, bound, web):
+    """La nuit, l'atelier se règle en alerte : la combinaison manquante « valide × nuit » se déroule à partir
+    du cas « valide × jour » ; « valide × week-end » n'a pas de réglage, donc pas de piste."""
+    case = case_of(
+        CHAIN, [("A", "B")], [{"A": "EN_COURS"}, {"A": "OK", "B": "EN_COURS"}, {"B": "OK"}], key="jour"
+    )
+    deposit(api, bound, case)
+    report = api.get(f"/studies/{bound}/coverage")[1]
+    hints = dict(zip((tuple(sorted(c.items())) for c in report["missing"]), report["workshop"]))
+    night = hints[(("badge", "valide"), ("horaire", "nuit"))]
+    assert night["settings"] == {"alerte": True} and night["from_case"] == "jour"
+    assert night["web_url"].startswith(f"/etudes/{bound}/atelier/?e=A%3Aporte&e=B%3Asas")
+    assert "r.alerte=true" in night["web_url"]
+    assert hints[(("badge", "valide"), ("horaire", "week-end"))] is None
+    expired = hints[(("badge", "expiré"), ("horaire", "nuit"))]
+    assert expired["from_case"] is None and expired["web_url"] == f"/etudes/{bound}/atelier/?r.alerte=true"
+    ana = web("ana")
+    assert ana.get(night["web_url"]).status_code == 200  # l'adresse est déjà rangée : pas de redirection
+    page = ana.get(f"/etudes/{bound}/couverture/").content.decode()
+    assert "Dérouler dans l&#x27;atelier" in page or "Dérouler dans l'atelier" in page
+    assert "d&#x27;après jour" in page or "d'après jour" in page
+
+
+def test_coverage_without_a_workshop_offers_nothing(api, study):
+    assert "workshop" not in api.get(f"/studies/{study}/coverage")[1]

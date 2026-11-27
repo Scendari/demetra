@@ -35,6 +35,21 @@ def agreement(decl: dict | None, case: dict, statuses: list[dict]) -> dict | Non
     return _linked(decl, case, statuses)
 
 
+def situation_of(decl: dict | None, case: dict, statuses: list[dict]) -> dict | None:
+    """La situation d'atelier que décrit un cas (avec les évènements qui l'expliquent, s'il y en a), ou None
+    quand il ne s'y traduit pas. Sert à ouvrir l'atelier sur un cas existant."""
+    if not decl or not case.get("entities"):
+        return None
+    bricks = {b["type"]: b for b in decl["bricks"]}
+    if (decl.get("family") or "linked") == "periods":
+        return _period_situation(decl, case, bricks)[0]
+    sit, _ = _situation_of(decl, case, bricks)
+    if sit is None:
+        return None
+    found = _linked(decl, case, statuses) or {}
+    return {**sit, "events": found.get("events") or {}}
+
+
 def settings_of(decl: dict, case: dict) -> dict:
     """Les réglages de l'atelier que porte un cas : dans sa configuration, sinon dans la dimension où l'étude
     dit qu'ils se lisent."""
@@ -182,12 +197,9 @@ def _linked(decl: dict, case: dict, statuses: list[dict]) -> dict | None:
 # ---------------------------------------------------------------------------
 
 
-def _periods(decl: dict, case: dict, statuses: list[dict]) -> dict | None:
-    bricks = {b["type"]: b for b in decl["bricks"]}
+def _period_situation(decl: dict, case: dict, bricks: dict) -> tuple[dict | None, str]:
+    """Les périodes posées que décrit le cas (ses entités qui sont des briques), ou la raison du refus."""
     sources = [e for e in case["entities"] if e["type"] in bricks]
-    if not sources:
-        return None
-    images = [e for e in case["entities"] if e["type"] not in bricks]
     raw = {
         "elements": [
             {
@@ -210,7 +222,18 @@ def _periods(decl: dict, case: dict, statuses: list[dict]) -> dict | None:
     sit = periods.situation(decl, raw, report)
     if not report.ok:
         issue = report.errors[0]
-        return _untranslatable(f"{issue.path.removeprefix('situation.')} : {issue.message.rstrip('.')}")
+        return None, f"{issue.path.removeprefix('situation.')} : {issue.message.rstrip('.')}"
+    return sit, ""
+
+
+def _periods(decl: dict, case: dict, statuses: list[dict]) -> dict | None:
+    bricks = {b["type"]: b for b in decl["bricks"]}
+    if not any(e["type"] in bricks for e in case["entities"]):
+        return None
+    images = [e for e in case["entities"] if e["type"] not in bricks]
+    sit, reason = _period_situation(decl, case, bricks)
+    if sit is None:
+        return _untranslatable(reason)
     result = periods.run(decl, sit, default_status(statuses))
     found = [(i["start"], i["end"]) for i in result["images"]]
     announced = sorted(

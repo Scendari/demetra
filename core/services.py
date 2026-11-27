@@ -980,7 +980,49 @@ def _case_rows(study: Study, extra_cases: list[dict] | None = None, variants: bo
 
 def coverage_report(study: Study, strength: int = 2, extra_cases: list[dict] | None = None) -> dict:
     rows = _case_rows(study, extra_cases, variants=True)
-    return cov.coverage(study.dimensions, study.exclusions, rows, strength)
+    report = cov.coverage(study.dimensions, study.exclusions, rows, strength)
+    if workshop_of(study):
+        report["workshop"] = _workshop_suggestions(study, report["missing"], rows)
+    return report
+
+
+MAX_WORKSHOP_SUGGESTIONS = 60
+
+
+def _workshop_suggestions(study: Study, missing: list[dict], rows: list[dict]) -> list[dict | None]:
+    """Pour chaque combinaison manquante (dans le même ordre), de quoi la dérouler dans l'atelier : les
+    réglages que l'étude lit dans ces dimensions, posés sur un cas existant qui a déjà les autres valeurs.
+    None quand l'atelier n'a aucun réglage pour ces dimensions. Rien n'est déposé : c'est une piste."""
+    from urllib.parse import urlencode
+
+    decl, family = study.workshop, families.of(study.workshop)
+    bound = {item["dimension"]["key"]: item for item in decl.get("settings", []) if item.get("dimension")}
+    variants = [(row["key"], content) for row in rows for _, content in parametric.expand(row["content"])]
+    out: list[dict | None] = []
+    for combo in missing[:MAX_WORKSHOP_SUGGESTIONS]:
+        settings = {
+            bound[dim]["key"]: bound[dim]["dimension"]["values"][value]
+            for dim, value in combo.items()
+            if dim in bound and value in bound[dim]["dimension"]["values"]
+        }
+        if not settings:
+            out.append(None)
+            continue
+        rest = {dim: value for dim, value in combo.items() if dim not in bound}
+        base, situation = None, None
+        for key, content in variants:
+            if all((content.get("dimensions") or {}).get(d) == v for d, v in rest.items()):
+                situation = workshopcheck.situation_of(decl, content, study.statuses)
+                if situation is not None:
+                    base = key
+                    break
+        if situation is None:
+            situation = family.situation(decl, {}, casemodel.Report())
+        situation["settings"] = {**situation["settings"], **settings}
+        query = family.to_query(decl, situation)
+        url = f"/etudes/{study.public_id}/atelier/" + (f"?{urlencode(query)}" if query else "")
+        out.append({"settings": settings, "from_case": base, "web_url": url})
+    return out
 
 
 def _model_findings(study: Study, rows: list[dict]) -> list[dict]:
