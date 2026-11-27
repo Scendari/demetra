@@ -1,10 +1,12 @@
 """Mode d'emploi de Demetra : un seul texte source en Markdown, servi par l'API
 (/api/v1/guide), par /llms.txt et par la page publique /guide/."""
 
+import re
 from functools import cache
 from html import escape
 from pathlib import Path
 
+import markdown as md
 from django.conf import settings
 
 from .models import SiteNotice
@@ -41,6 +43,35 @@ def markdown(topic: str, origin: str = "https://votre-site-demetra", html: bool 
     échappé (le bloc à copier l'est déjà par le rendu des blocs de code)."""
     text = _with_notice(topic, _read(topic), SiteNotice.current(), html)
     return text.replace("{{version}}", settings.DEMETRA_GUIDE_VERSION).replace("{{origin}}", origin)
+
+
+# Un bloc de code délimité, en retrait : il appartient à l'élément de liste au-dessus de lui.
+_NESTED_FENCE = re.compile(
+    r"^(?P<pad>[ ]+)```(?P<lang>[\w-]*)[ ]*\n(?P<body>.*?)^(?P=pad)```[ ]*$", re.MULTILINE | re.DOTALL
+)
+
+
+def to_html(text: str) -> str:
+    """Le Markdown du mode d'emploi en HTML, pour la page /guide/.
+
+    Python-Markdown ne reconnaît pas un bloc ``` placé dans un élément de liste : il en ferait un paragraphe
+    d'une ligne. Ces blocs sont mis de côté, remplacés par une marque à la même place, puis rendus en
+    <pre>."""
+    kept: list[str] = []
+
+    def keep(match: re.Match) -> str:
+        pad, lang = match["pad"], match["lang"]
+        body = "".join(line.removeprefix(pad) for line in match["body"].splitlines(keepends=True))
+        cls = f' class="language-{lang}"' if lang else ""
+        kept.append(f"<pre><code{cls}>{escape(body, quote=False)}</code></pre>")
+        return f"{pad}DEMETRA-CODE-{len(kept) - 1}"
+
+    # Le guide met 3 espaces sous un élément de liste numérotée (« 1. ») ; Python-Markdown en attend 4.
+    extensions = ["tables", "fenced_code", "toc"]
+    html = md.markdown(_NESTED_FENCE.sub(keep, text), extensions=extensions, tab_length=3)
+    for n, block in enumerate(kept):
+        html = re.sub(rf"<p>DEMETRA-CODE-{n}</p>|DEMETRA-CODE-{n}\b", lambda _m, b=block: b, html, count=1)
+    return html
 
 
 def notice_block(message: str, html: bool = False) -> str:

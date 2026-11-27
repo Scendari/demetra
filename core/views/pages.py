@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-import markdown as md
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
@@ -134,10 +133,7 @@ def home(request):
 def guide_page(request, topic: str = "index"):
     if topic not in guide.TOPICS:
         raise Http404
-    html = md.markdown(
-        guide.markdown(topic, request.build_absolute_uri("/").rstrip("/"), html=True),
-        extensions=["tables", "fenced_code", "toc"],
-    )
+    html = guide.to_html(guide.markdown(topic, request.build_absolute_uri("/").rstrip("/"), html=True))
     return render(
         request,
         "core/guide.html",

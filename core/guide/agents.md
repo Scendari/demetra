@@ -18,9 +18,11 @@ faites la démarche :
 
    Mettez dans `client_name` le nom de votre outil : la personne le verra. La réponse contient `verification_url`,
    `user_code` et `device_code`. Le lien et le code expirent au bout de 10 minutes.
+
 2. **Donnez à la personne le lien `verification_url` et le code `user_code`**, et rien d'autre. Elle ouvre le lien,
    se connecte si besoin, vérifie le code, choisit les permissions et clique « Autoriser ». Le `device_code` est
    secret : ne le montrez pas.
+
 3. **Quand elle vous dit que c'est autorisé, récupérez le jeton et rangez-le sans l'afficher**, en une seule
    commande.
 
@@ -42,9 +44,11 @@ faites la démarche :
    ```
 
    Avec `Accept: text/plain`, la réponse ne contient que le jeton ; sinon c'est un JSON avec `token`.
+
    - **202** `pending` : la personne n'a pas encore cliqué. Attendez qu'elle le dise, puis relancez la commande.
      Laissez au moins 3 secondes entre deux appels.
    - **403** : elle a refusé. **410** : le lien a expiré ou le jeton a déjà été remis ; recommencez à l'étape 1.
+
 4. **Vérifiez** avec `GET /api/v1/me` (voir « Premier appel »). Si une nouvelle commande ne voit pas la variable,
    relisez le profil (`source ~/.zshrc`) ou demandez de relancer l'éditeur.
 
@@ -54,15 +58,20 @@ faites la démarche :
    jamais dans la conversation : obtenez-le par le lien d'autorisation. Ne l'affichez pas : pas de
    `echo $DEMETRA_TOKEN`, pas de `env` ni de `printenv`, pas de `set -x`. Ne l'écrivez dans aucun fichier de
    projet, script ou commit (seul le profil du shell le contient). Ne le mettez **jamais** dans une URL.
+
 2. **Écrivez toujours `$DEMETRA_TOKEN` dans vos commandes, jamais sa valeur.** Une commande qui contient la
    valeur la laisse dans l'historique de la conversation et du terminal.
+
 3. **Appelez l'API depuis un terminal (curl) ou un client HTTP qui envoie des en-têtes.** Les outils de lecture
    de page web (« fetch », « browse », « ouvrir l'URL ») peuvent lire ce mode d'emploi, qui est public. Ils ne
    peuvent pas s'authentifier, car ils n'envoient pas l'en-tête `Authorization` : l'API répond alors **401**.
+
 4. **Si l'API répond 401 avec un jeton** (révoqué ou expiré), recommencez le lien d'autorisation. Ne demandez
    pas le jeton à la personne.
+
 5. **Si un jeton apparaît en clair** (dans la conversation, une capture, un fichier), dites-le et conseillez de
    le révoquer dans *Compte › Jetons d'accès*. La révocation est immédiate.
+
 6. Un jeton ne permet jamais de rendre un avis ni de partager sans confirmation humaine : ces gestes restent
    réservés aux humains, dans l'interface.
 

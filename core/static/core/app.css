@@ -712,6 +712,8 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .prose ul, .prose ol { padding-left: 1.3em; display: grid; gap: 0.35em; }
 .prose ul { list-style: disc; }
 .prose ol { list-style: decimal; }
+.prose li { min-width: 0; }   /* élément de grille : sans cela, une longue ligne de code l'élargit */
+.prose li > pre { max-width: 100%; }
 .prose code { padding: 0.05em 0.3em; border-radius: var(--radius-sm); background: var(--sunken); font-size: 0.85em; overflow-wrap: anywhere; }
 .prose pre { font-size: var(--t-sm); max-width: calc(100vw - 2rem); }
 .prose pre code { padding: 0; background: none; font-size: inherit; }
