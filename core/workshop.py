@@ -11,11 +11,14 @@ vocabulaire fermé que ce module compare à des valeurs.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
 
 from .casemodel import ID_RE, Report, _is_str
 from .rules import (
+    ORDERED,
+    Numbers,
     among,
     as_list,
     check_count,
@@ -46,7 +49,8 @@ MAX_ELEMENTS = 24
 MAX_SITUATION_LINKS = 60
 QUANTIFIERS = ("all", "any", "none")
 NEIGHBOURS = ("incoming", "outgoing", "upstream", "downstream")
-ELEMENT_TESTS = ("status", "type", "option", "event", *NEIGHBOURS)
+ELEMENT_TESTS = ("status", "type", "option", "event", "since", *NEIGHBOURS)
+MAX_WAIT = 20  # pas d'attente d'un coup, quand seule une durée peut encore faire bouger la situation
 SHARED_TESTS = ("setting", "elements", "all", "any", "not")
 
 EXAMPLE = {
@@ -205,6 +209,40 @@ def _check_quantified(expected, voc: Vocabulary, report: Report, p: str, depth: 
     return check_condition(expected[used[0]], voc, report, f"{p}.{used[0]}", depth + 1, True, via) and ok
 
 
+def _check_since(expected, voc: Vocabulary, report: Report, p: str) -> bool:
+    """Depuis combien de pas la brique est dans son état : un entier, ou une comparaison d'ordre à un nombre,
+    à un réglage numérique ou à une option numérique de la brique ({"gte": {"option": "duree"}})."""
+    if isinstance(expected, int) and not isinstance(expected, bool) and expected >= 0:
+        return True
+    op, operand = (
+        next(iter(expected.items())) if isinstance(expected, dict) and len(expected) == 1 else ("", None)
+    )
+    option = operand.get("option") if isinstance(operand, dict) and len(operand) == 1 else None
+    if op in ORDERED and isinstance(option, str):
+        values = voc.options.get(option)
+        if values is None:
+            report.error(
+                f"{p}.{op}.option", "unknown_option", "Option inconnue.", expected=sorted(voc.options)
+            )
+            return False
+        if not all(is_number(v) for v in values):
+            report.error(f"{p}.{op}.option", "not_numeric", f"L'option « {option} » n'a pas que des nombres.")
+            return False
+        return True
+    if op in ORDERED and (is_number(operand) or setting_ref(operand)):
+        return _check_pairs(
+            {"since": expected}, {"since": Numbers()}, report, p.rsplit(".", 1)[0], "since", voc.settings
+        )
+    report.error(
+        p,
+        "type",
+        "« since » : un nombre de pas, ou une comparaison à un nombre, à un réglage ou à une option.",
+        received=expected,
+        example={"gte": {"option": "duree"}},
+    )
+    return False
+
+
 def check_condition(
     cond, voc: Vocabulary, report: Report, path: str, depth: int = 0, element: bool = True, via: bool = False
 ) -> bool:
@@ -234,6 +272,8 @@ def check_condition(
             ok &= _check_pairs(expected, voc.options, report, p, "option", voc.settings)
         elif key == "setting":
             ok &= _check_pairs(expected, voc.settings, report, p, "setting", voc.settings)
+        elif key == "since":
+            ok &= _check_since(expected, voc, report, p)
         elif key == "link_option":
             if via:
                 ok &= _check_pairs(expected, voc.link_options, report, p, "link_option", voc.settings)
@@ -702,6 +742,7 @@ class World:
     settings: dict[str, Any]
     states: dict[str, str]
     link_options: dict[tuple, dict] = field(default_factory=dict)  # (de, type, vers) → options du lien
+    ages: dict[str, int] = field(default_factory=dict)  # pas passés par chaque brique dans son état
 
 
 def _quantified(expected: dict, world: World, items: list[tuple[dict, dict | None]]) -> bool:
@@ -760,6 +801,8 @@ def holds(cond: dict, world: World, element: dict | None, via: dict | None = Non
             )
         elif key == "link_option":
             fine = via is not None and pairs_hold(expected, via, world.settings)
+        elif key == "since":
+            fine = _since_holds(expected, world.ages.get(element["id"], 0), element, world)
         elif key == "all":
             fine = all(holds(c, world, element, via) for c in expected)
         elif key == "any":
@@ -769,6 +812,15 @@ def holds(cond: dict, world: World, element: dict | None, via: dict | None = Non
         if not fine:
             return False
     return True
+
+
+def _since_holds(expected, age: int, element: dict, world: World) -> bool:
+    if not isinstance(expected, dict):
+        return age == expected
+    op, operand = next(iter(expected.items()))
+    if isinstance(operand, dict) and "option" in operand:
+        operand = element["options"].get(operand["option"])
+    return operand is not None and matches(age, {op: operand}, world.settings)
 
 
 def world_of(decl: dict, situation: dict, default_status: str, start: dict | None = None) -> World:
@@ -859,6 +911,28 @@ def _next(decl: dict, world: World) -> list[dict]:
     return _arbitrate(decl, world, _proposed(decl, world))[0]
 
 
+def _uses_since(decl: dict) -> bool:
+    """Une règle tient-elle à une durée (`since`) ? Sinon le temps n'avance jamais seul."""
+    return '"since"' in json.dumps([r["when"] for r in decl["rules"]])
+
+
+def _next_step(decl: dict, world: World, timed: bool) -> tuple[list[dict], list[dict], int]:
+    """Le pas suivant : chaque brique a passé un pas de plus dans son état, puis les règles jouent. Si rien ne
+    bouge et qu'une règle tient à une durée, le temps avance, pas à pas (au plus MAX_WAIT), jusqu'à ce qu'une
+    règle joue ; le troisième terme compte ces pas d'attente."""
+    passes = MAX_WAIT + 1 if timed else 1
+    refused: list[dict] = []
+    for waited in range(passes):
+        for key in world.elements:
+            world.ages[key] = world.ages.get(key, 0) + 1
+        changes, refused = _arbitrate(decl, world, _proposed(decl, world))
+        if changes:
+            return changes, refused, waited
+    for key in world.elements:  # rien ne viendra : le temps n'a avancé que d'un pas
+        world.ages[key] -= passes - 1
+    return [], refused, 0
+
+
 def run(decl: dict, situation: dict, default_status: str, start: dict | None = None) -> dict:
     """Déroule la situation jusqu'à ce que plus rien ne bouge.
 
@@ -868,8 +942,9 @@ def run(decl: dict, situation: dict, default_status: str, start: dict | None = N
     steps = [{"states": dict(world.states), "changes": []}]
     seen = [dict(world.states)]
     end = "stable"
+    timed = _uses_since(decl)
     while True:
-        changes, refused = _arbitrate(decl, world, _proposed(decl, world))
+        changes, refused, waited = _next_step(decl, world, timed)
         if not changes:
             break
         if len(steps) > decl["max_steps"]:
@@ -877,9 +952,9 @@ def run(decl: dict, situation: dict, default_status: str, start: dict | None = N
             break
         for change in changes:
             world.states[change["id"]] = change["to"]
-        steps.append(
-            {"states": dict(world.states), "changes": changes} | ({"refused": refused} if refused else {})
-        )
+            world.ages[change["id"]] = 0
+        extras = ({"refused": refused} if refused else {}) | ({"waited": waited} if waited else {})
+        steps.append({"states": dict(world.states), "changes": changes} | extras)
         if world.states in seen:
             end = "loop"
             break
@@ -935,6 +1010,8 @@ def _missing(key: str, expected, decl: dict, element: dict) -> str:
         return f"la condition sur {SIDES[key]} n'est pas remplie"
     if key == "status":
         return "son état n'est pas celui que la règle attend"
+    if key == "since":
+        return "elle n'est pas encore restée assez longtemps dans cet état"
     return "la condition composée de la règle n'est pas remplie"
 
 
@@ -1048,6 +1125,8 @@ def _step(decl: dict, situation: dict, step: dict) -> dict:
     else:
         title = f"{len(used)} règles s'appliquent en même temps"
         note = " ".join(f"Règle {key}, pour {_listed(by_rule[key])} : {rules[key]['title']}." for key in used)
+    if step.get("waited"):
+        note = f"Après {step['waited']} pas sans changement. " + note
     if step.get("refused"):
         resources = {r["key"]: r["label"] for r in decl.get("resources", [])}
         waiting = {}

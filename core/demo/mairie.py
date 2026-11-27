@@ -22,7 +22,10 @@ WORKSHOP = {
         {
             "type": "demande",
             "label": "Demande",
-            "options": [{"key": "complet", "label": "Dossier complet", "values": [True, False]}],
+            "options": [
+                {"key": "complet", "label": "Dossier complet", "values": [True, False]},
+                {"key": "duree", "label": "Durée du traitement (pas)", "values": [1, 2, 3]},
+            ],
             "events": [{"key": "retrait", "label": "Retirée par l'usager"}],
         }
     ],
@@ -88,8 +91,8 @@ WORKSHOP = {
         },
         {
             "key": "M4",
-            "title": "Une demande traitée libère son guichet",
-            "when": {"status": "AU_GUICHET"},
+            "title": "Une demande traitée, au bout de sa durée, libère son guichet",
+            "when": {"status": "AU_GUICHET", "since": {"gte": {"option": "duree"}}},
             "then": "TRAITEE",
         },
     ],
@@ -162,7 +165,12 @@ DEFINITION = {
             "text": "Une demande passe au guichet dès qu'il y en a un de libre ; jamais plus de demandes au "
             "guichet que de guichets ouverts. Les premières arrivées passent d'abord.",
         },
-        {"key": "M4", "title": "Fin de traitement", "text": "Une demande traitée libère son guichet."},
+        {
+            "key": "M4",
+            "title": "Fin de traitement",
+            "text": "Une demande reste au guichet le temps de son traitement (un à trois pas), puis libère "
+            "son guichet.",
+        },
         {
             "key": "M5",
             "title": "Remplacement",
@@ -172,7 +180,8 @@ DEFINITION = {
         },
     ],
     "attributes": [
-        {"key": "complet", "label": "Dossier complet", "text": "Toutes les pièces sont fournies."}
+        {"key": "complet", "label": "Dossier complet", "text": "Toutes les pièces sont fournies."},
+        {"key": "duree", "label": "Durée du traitement", "text": "Les pas que la demande passe au guichet."},
     ],
     "workshop": WORKSHOP,
 }
@@ -182,13 +191,9 @@ def _replaces(new: str, old: str, immediat: bool = True) -> dict:
     return {"from": new, "to": old, "type": "remplace", "options": {"immediat": immediat}}
 
 
-def _ask(key: str, *, complet: bool = True, retrait: bool = False) -> dict:
-    return {
-        "id": key,
-        "type": "demande",
-        "options": {"complet": complet},
-        "events": ["retrait"] if retrait else [],
-    }
+def _ask(key: str, *, complet: bool = True, retrait: bool = False, duree: int = 1) -> dict:
+    options = {"complet": complet, "duree": duree}
+    return {"id": key, "type": "demande", "options": options, "events": ["retrait"] if retrait else []}
 
 
 # (clé, titre, résumé, demandes, guichets, affluence, incident, règles)
@@ -228,6 +233,26 @@ _SITUATIONS = [
         "Trois demandes pour deux guichets",
         "Les deux premières passent ; la troisième attend qu'un guichet se libère.",
         [_ask("A"), _ask("B"), _ask("C")],
+        2,
+        "au-dela",
+        "aucun",
+        ["M3", "M4"],
+    ),
+    (
+        "un-long-traitement",
+        "Un long traitement retient le guichet",
+        "A reste trois pas au guichet : B attend tout ce temps, puis passe à son tour.",
+        [_ask("A", duree=3), _ask("B")],
+        1,
+        "au-dela",
+        "aucun",
+        ["M3", "M4"],
+    ),
+    (
+        "durees-differentes",
+        "Deux guichets, des traitements de durées différentes",
+        "Le guichet de B, au traitement court, se libère le premier : C y passe pendant que A est traitée.",
+        [_ask("A", duree=3), _ask("B"), _ask("C", duree=2)],
         2,
         "au-dela",
         "aucun",

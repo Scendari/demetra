@@ -85,6 +85,7 @@ Une condition est un objet ; **toutes** ses entrées doivent être vraies.
 | `"type": "tache"` | l'élément est une brique de ce type |
 | `"option": {"obligatoire": true}` | chaque option citée a cette valeur (ou satisfait une comparaison, voir plus bas) |
 | `"event": "echec"` | cet évènement a été provoqué sur l'élément |
+| `"since": {"gte": 3}` | l'élément est dans son état **depuis** au moins 3 pas ; le nombre peut venir d'un réglage (`{"setting": "delai"}`) ou d'une option numérique de la brique (`{"gte": {"option": "duree"}}`) ; un entier seul = exactement ce nombre de pas |
 | `"setting": {"arret": true}` | chaque réglage cité a cette valeur (ou satisfait une comparaison) |
 | `"incoming": {"link": "avant", "all": { … }}` | les éléments **d'où part** un lien vers celui-ci satisfont la condition |
 | `"outgoing": { … }` | les éléments **vers lesquels** part un lien depuis celui-ci |
@@ -107,6 +108,7 @@ Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `un
 1. Au départ, chaque élément est dans l'état `initial` de sa brique, sinon dans le statut par défaut de l'étude.
 2. À chaque pas, chaque élément suit **la première règle de la table qui lui correspond**. Toutes les règles lisent l'état du pas précédent : les changements d'un même pas sont simultanés.
 3. Le déroulé s'arrête quand plus rien ne bouge (`end: "stable"`), quand la situation revient à un état déjà vu (`loop`) ou quand `max_steps` est atteint (`limit`).
+4. **Durées** : à chaque pas, chaque élément a passé un pas de plus dans son état (un élément qui vient de changer en est à 1 au pas suivant). Si plus rien ne bouge mais qu'une règle porte un `since`, **le temps avance** pas à pas, sans changement, jusqu'à ce qu'une règle joue (au plus 20 pas d'un coup ; au-delà, la situation est stable) : le pas qui suit porte `waited` (le nombre de pas d'attente), et l'étape du cas commence par « Après N pas sans changement ». Une durée sert à **tenir une place** le temps d'un traitement : `{"status": "EN_COURS", "since": {"gte": {"option": "duree"}}}` puis `"then": "FINI"`. Sans `since` dans les règles, le temps n'avance jamais seul. Erreurs : `type`, `unknown_option`, `not_numeric`, `unknown_setting`.
 
 L'ordre des règles fait donc la priorité : placez les règles d'arrêt (blocage, désactivation) avant les règles de démarrage. Une règle dont l'état d'arrivée est l'état actuel ne change rien, mais elle empêche les suivantes de s'appliquer à cet élément.
 
