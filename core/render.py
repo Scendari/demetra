@@ -786,10 +786,10 @@ def _draw_graph(
     ms = time.get("transition_ms", 160)
     label = escape(view.get("title") or "Schéma du cas", quote=True)
     return (
-        f'<svg class="rep-svg{hl}{dim}" style="--w:{width:.0f}" '
+        f'<svg class="rep-svg{hl}{dim}" style="--w:{width:.0f};--tm-ms:{ms}ms" '
         f'viewBox="{x0:.0f} {y0:.0f} {width:.0f} {height:.0f}" '
         f'width="{width:.0f}" height="{height:.0f}" '
-        f'style="--tm-ms:{ms}ms" role="group" aria-label="{label}">{"".join(parts)}</svg>'
+        f'role="group" aria-label="{label}">{"".join(parts)}</svg>'
     )
 
 

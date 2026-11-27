@@ -292,8 +292,19 @@ def test_every_demo_case_renders_in_every_system_representation(demo):
                 for step in (0, last - 1):
                     html, summary, frames = svc.render_case(study, case, spec, step=step, siblings=siblings)
                     assert html.startswith("<") and summary["views"]
+                    assert not _repeated_attributes(html), (case.key, spec.get("title"))
                     renders += 1
     assert renders == 160 * 7 * 2
+
+
+def _repeated_attributes(html: str) -> list[str]:
+    """Les balises qui portent deux fois le même attribut : le navigateur n'en garde que le premier."""
+    out = []
+    for tag in re.findall(r"<[a-zA-Z][^<>]*>", html):
+        names = re.findall(r'\s([a-zA-Z_:][-a-zA-Z0-9_:.]*)=(?:"[^"]*"|\'[^\']*\')', tag)
+        if len(names) != len(set(names)):
+            out.append(tag[:120])
+    return out
 
 
 def test_reimporting_the_catalogue_changes_nothing(demo):
