@@ -26,6 +26,17 @@ WORKSHOP = {
             "events": [{"key": "retrait", "label": "Retirée par l'usager"}],
         }
     ],
+    "links": [
+        {
+            "type": "remplace",
+            "label": "remplace",
+            "reverse": "remplacée par",
+            "from": ["demande"],
+            "to": ["demande"],
+            "request": True,
+            "options": [{"key": "immediat", "label": "Retrait immédiat", "values": [True, False]}],
+        }
+    ],
     "settings": [
         {
             "key": "guichets",
@@ -38,6 +49,24 @@ WORKSHOP = {
         {"key": "guichet", "label": "Guichets", "places": {"setting": "guichets"}, "held": ["AU_GUICHET"]}
     ],
     "rules": [
+        {
+            "key": "M5",
+            "title": "Retrait immédiat : la demande remplacée part quand la nouvelle passe au guichet",
+            "when": {
+                "status": "EN_FILE",
+                "incoming": {
+                    "link": "remplace",
+                    "any": {"status": "AU_GUICHET", "link_option": {"immediat": True}},
+                },
+            },
+            "then": "ANNULEE",
+        },
+        {
+            "key": "M6",
+            "title": "Une demande remplacée est retirée quand la nouvelle est traitée",
+            "when": {"status": "EN_FILE", "incoming": {"link": "remplace", "any": {"status": "TRAITEE"}}},
+            "then": "ANNULEE",
+        },
         {
             "key": "M1",
             "title": "Une demande retirée quitte la file",
@@ -112,6 +141,7 @@ DEFINITION = {
                 {"value": "aucun", "label": "Aucun"},
                 {"value": "retrait", "label": "Une demande retirée"},
                 {"value": "incomplet", "label": "Un dossier incomplet"},
+                {"value": "remplacement", "label": "Une demande en remplace une autre"},
             ],
         },
     ],
@@ -133,12 +163,23 @@ DEFINITION = {
             "guichet que de guichets ouverts. Les premières arrivées passent d'abord.",
         },
         {"key": "M4", "title": "Fin de traitement", "text": "Une demande traitée libère son guichet."},
+        {
+            "key": "M5",
+            "title": "Remplacement",
+            "text": "Une demande peut en remplacer une autre encore en file : celle-ci est retirée, aussitôt "
+            "que la nouvelle passe au guichet si le retrait est immédiat, sinon quand la nouvelle est "
+            "traitée. Une demande déjà passée au guichet n'est plus retirée.",
+        },
     ],
     "attributes": [
         {"key": "complet", "label": "Dossier complet", "text": "Toutes les pièces sont fournies."}
     ],
     "workshop": WORKSHOP,
 }
+
+
+def _replaces(new: str, old: str, immediat: bool = True) -> dict:
+    return {"from": new, "to": old, "type": "remplace", "options": {"immediat": immediat}}
 
 
 def _ask(key: str, *, complet: bool = True, retrait: bool = False) -> dict:
@@ -215,6 +256,39 @@ _SITUATIONS = [
 ]
 
 
+# Remplacements : (clé, titre, résumé, demandes, liens, guichets, règles). La nouvelle demande est posée
+# avant l'ancienne quand elle doit passer la première.
+_REPLACEMENTS = [
+    (
+        "remplacement-immediat",
+        "Une demande en remplace une autre, retrait immédiat",
+        "B remplace A : dès que B passe au guichet, A est retirée de la file.",
+        [_ask("B"), _ask("A")],
+        [_replaces("B", "A")],
+        1,
+        ["M5", "M3", "M4"],
+    ),
+    (
+        "remplacement-differe",
+        "Une demande en remplace une autre, retrait à la fin",
+        "B remplace A sans retrait immédiat : A attend dans la file et n'est retirée qu'une fois B traitée.",
+        [_ask("B"), _ask("A")],
+        [_replaces("B", "A", immediat=False)],
+        1,
+        ["M5", "M3", "M4"],
+    ),
+    (
+        "remplacement-trop-tard",
+        "Un remplacement qui arrive trop tard",
+        "A est déjà passée au guichet quand B, qui la remplace, est traitée : la demande reste sans effet.",
+        [_ask("A"), _ask("B")],
+        [_replaces("B", "A", immediat=False)],
+        1,
+        ["M5", "M3", "M4"],
+    ),
+]
+
+
 def declaration() -> dict:
     """La déclaration d'atelier, validée : c'est elle que le moteur lit."""
     return workshop.normalize(WORKSHOP, {s["key"] for s in DEFINITION["statuses"]}, Report())
@@ -224,11 +298,16 @@ def cases() -> list[dict]:
     decl = declaration()
     default = next(s["key"] for s in DEFINITION["statuses"] if s.get("default"))
     out = []
-    for key, title, summary, elements, guichets, affluence, incident, rules in _SITUATIONS:
-        raw = {"elements": elements, "settings": {"guichets": guichets}}
+    rows = [(k, t, s, e, [], g, a, i, r) for k, t, s, e, g, a, i, r in _SITUATIONS]
+    rows += [
+        (k, t, s, e, links, g, "au-dela", "remplacement", r) for k, t, s, e, links, g, r in _REPLACEMENTS
+    ]
+    for key, title, summary, elements, links, guichets, affluence, incident, rules in rows:
+        raw = {"elements": elements, "links": links, "settings": {"guichets": guichets}}
         situation = workshop.situation(decl, raw, Report())
         case = workshop.to_case(decl, situation, workshop.run(decl, situation, default), default)
         dims = {"guichets": str(guichets), "affluence": affluence, "incident": incident}
-        case.update(key=key, family="Matinées", title=title, summary=summary, rules=rules, dimensions=dims)
+        family = "Remplacements" if links else "Matinées"
+        case.update(key=key, family=family, title=title, summary=summary, rules=rules, dimensions=dims)
         out.append(case)
     return out

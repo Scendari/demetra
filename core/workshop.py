@@ -93,6 +93,9 @@ def _ends(item: dict, name: str, types: list[str], report: Report, p: str) -> li
     return wanted
 
 
+MAX_LINK_OPTIONS = 4
+
+
 def _links(raw, types: list[str], report: Report, path: str) -> list[dict]:
     if raw in (None, []):
         return []
@@ -106,15 +109,22 @@ def _links(raw, types: list[str], report: Report, path: str) -> list[dict]:
         if kind is None:
             continue
         label = _label(item, report, p, kind, 40)
-        out.append(
-            {
-                "type": kind,
-                "label": label,
-                "reverse": _label(item, report, p, "", 40, "reverse"),
-                "from": _ends(item, "from", types, report, p),
-                "to": _ends(item, "to", types, report, p),
-            }
+        link = {
+            "type": kind,
+            "label": label,
+            "reverse": _label(item, report, p, "", 40, "reverse"),
+            "from": _ends(item, "from", types, report, p),
+            "to": _ends(item, "to", types, report, p),
+        }
+        # Absents sinon : une déclaration sans options de lien ne change pas d'un octet.
+        options = _choices(
+            item.get("options"), report, f"{p}.options", "Une option de lien", MAX_LINK_OPTIONS
         )
+        if options:
+            link["options"] = options
+        if item.get("request") is True:
+            link["request"] = True
+        out.append(link)
     return out
 
 
@@ -133,6 +143,9 @@ class Vocabulary:
     events: set[str] = field(default_factory=set)
     links: set[str] = field(default_factory=set)
     settings: dict[str, list] = field(default_factory=dict)
+    link_options: dict[str, list] = field(
+        default_factory=dict
+    )  # option de lien → valeurs, tous liens confondus
 
 
 def vocabulary(bricks: list[dict], links: list[dict], settings: list[dict], statuses: set[str]) -> Vocabulary:
@@ -145,6 +158,12 @@ def vocabulary(bricks: list[dict], links: list[dict], settings: list[dict], stat
             ]
         voc.events |= {e["key"] for e in brick["events"]}
     voc.links = {link["type"] for link in links}
+    for link in links:
+        for option in link.get("options", []):
+            voc.link_options.setdefault(option["key"], [])
+            voc.link_options[option["key"]] += [
+                v for v in option["values"] if not among(v, voc.link_options[option["key"]])
+            ]
     voc.settings = {s["key"]: s["values"] for s in settings}
     return voc
 
@@ -177,18 +196,20 @@ def _check_quantified(expected, voc: Vocabulary, report: Report, p: str, depth: 
     if extra in expected:
         allowed = voc.types if scope == "elements" else voc.links
         ok = _known(expected[extra], allowed, report, f"{p}.{extra}", "unknown_" + extra, "Nom")
+    via = scope in ("incoming", "outgoing")  # un voisin direct : le lien traversé se lit (`link_option`)
     if counted:
         ok = check_count(expected["count"], report, f"{p}.count", voc.settings) and ok
         if "where" in expected:
-            ok = check_condition(expected["where"], voc, report, f"{p}.where", depth + 1, True) and ok
+            ok = check_condition(expected["where"], voc, report, f"{p}.where", depth + 1, True, via) and ok
         return ok
-    return check_condition(expected[used[0]], voc, report, f"{p}.{used[0]}", depth + 1, True) and ok
+    return check_condition(expected[used[0]], voc, report, f"{p}.{used[0]}", depth + 1, True, via) and ok
 
 
 def check_condition(
-    cond, voc: Vocabulary, report: Report, path: str, depth: int = 0, element: bool = True
+    cond, voc: Vocabulary, report: Report, path: str, depth: int = 0, element: bool = True, via: bool = False
 ) -> bool:
-    """Vérifie une condition. `element` : la condition porte sur un élément (sinon, sur la situation)."""
+    """Vérifie une condition. `element` : la condition porte sur un élément (sinon, sur la situation) ;
+    `via` : elle porte sur un voisin direct, atteint par un lien dont les options se lisent."""
     if not isinstance(cond, dict) or not cond:
         report.error(path, "type", "Une condition est un objet non vide.", example=EXAMPLE_CONDITION)
         return False
@@ -213,6 +234,16 @@ def check_condition(
             ok &= _check_pairs(expected, voc.options, report, p, "option", voc.settings)
         elif key == "setting":
             ok &= _check_pairs(expected, voc.settings, report, p, "setting", voc.settings)
+        elif key == "link_option":
+            if via:
+                ok &= _check_pairs(expected, voc.link_options, report, p, "link_option", voc.settings)
+            else:
+                report.error(
+                    p,
+                    "no_link",
+                    "« link_option » porte sur le lien traversé : dans incoming ou outgoing seulement.",
+                )
+                ok = False
         elif key in (*NEIGHBOURS, "elements"):
             ok &= _check_quantified(expected, voc, report, p, depth, key)
         elif key in ("all", "any"):
@@ -220,12 +251,13 @@ def check_condition(
             if not fine:
                 report.error(p, "type", f"« {key} » prend une liste de 1 à 12 conditions.")
             for i, item in enumerate(expected if fine else []):
-                ok &= check_condition(item, voc, report, f"{p}[{i}]", depth + 1, element)
+                ok &= check_condition(item, voc, report, f"{p}[{i}]", depth + 1, element, via)
             ok &= fine
         elif key == "not":
-            ok &= check_condition(expected, voc, report, p, depth + 1, element)
+            ok &= check_condition(expected, voc, report, p, depth + 1, element, via)
         else:
-            report.error(p, "unknown_test", "Test inconnu.", expected=[*ELEMENT_TESTS, *SHARED_TESTS])
+            tests = [*ELEMENT_TESTS, *SHARED_TESTS, *(["link_option"] if via else [])]
+            report.error(p, "unknown_test", "Test inconnu.", expected=tests)
             ok = False
     return ok
 
@@ -501,7 +533,10 @@ def _situation_link(item, decl: dict, elements: dict, seen: set, report: Report,
         report.error(p, "duplicate", "Ce lien est posé deux fois.", received=item)
     else:
         seen.add((a, kind, b))
-        return {"from": a, "to": b, "type": kind}
+        link = {"from": a, "to": b, "type": kind}
+        if kinds[kind].get("options"):
+            link["options"] = _chosen(kinds[kind]["options"], item.get("options"), report, f"{p}.options")
+        return link
     return None
 
 
@@ -599,10 +634,19 @@ def from_query(decl: dict, query: dict[str, list[str]]) -> dict:
         if key in by_id and event in [e["key"] for e in bricks[by_id[key]["type"]]["events"]]:
             by_id[key]["events"].append(event)
     links = []
+    kinds = {link["type"]: link for link in decl["links"]}
     for raw in query.get("l", []):
         parts = raw.split(":")
         if len(parts) == 3:
-            links.append({"from": parts[0], "type": parts[1], "to": parts[2]})
+            link: dict[str, Any] = {"from": parts[0], "type": parts[1], "to": parts[2]}
+            declared = kinds.get(parts[1], {}).get("options", [])
+            values = {
+                o["key"]: _typed(declared, o["key"], (query.get(f"lo.{raw}.{o['key']}") or [""])[-1])
+                for o in declared
+            }
+            if declared:
+                link["options"] = {k: v for k, v in values.items() if v is not None}
+            links.append(link)
     settings = {}
     for item in decl["settings"]:
         value = _typed(decl["settings"], item["key"], (query.get(f"r.{item['key']}") or [""])[-1])
@@ -625,7 +669,15 @@ def to_query(decl: dict, sit: dict) -> list[tuple[str, str]]:
             if not same(element["options"][o["key"]], o["default"])
         ]
     out += [("ev", f"{key}:{event}") for key, events in sit["events"].items() for event in events]
-    out += [("l", f"{link['from']}:{link['type']}:{link['to']}") for link in sit["links"]]
+    kinds = {link["type"]: link for link in decl["links"]}
+    for link in sit["links"]:
+        value = f"{link['from']}:{link['type']}:{link['to']}"
+        out.append(("l", value))
+        out += [
+            (f"lo.{value}.{o['key']}", text_of(link["options"][o["key"]]))
+            for o in kinds[link["type"]].get("options", [])
+            if not same(link["options"][o["key"]], o["default"])
+        ]
     out += [
         (f"r.{item['key']}", text_of(sit["settings"][item["key"]]))
         for item in decl["settings"]
@@ -649,38 +701,43 @@ class World:
     events: dict[str, set[str]]
     settings: dict[str, Any]
     states: dict[str, str]
+    link_options: dict[tuple, dict] = field(default_factory=dict)  # (de, type, vers) → options du lien
 
 
-def _quantified(expected: dict, world: World, items: list[dict]) -> bool:
+def _quantified(expected: dict, world: World, items: list[tuple[dict, dict | None]]) -> bool:
+    """`items` : les briques visées, chacune avec les options du lien par lequel on l'atteint (ou None)."""
     if "count" in expected:
         where = expected.get("where")
-        found = sum(1 for item in items if where is None or holds(where, world, item))
+        found = sum(1 for item, via in items if where is None or holds(where, world, item, via))
         return matches(found, expected["count"], world.settings)
     if "all" in expected:
-        return all(holds(expected["all"], world, item) for item in items)
+        return all(holds(expected["all"], world, item, via) for item, via in items)
     if "any" in expected:
-        return any(holds(expected["any"], world, item) for item in items)
-    return not any(holds(expected["none"], world, item) for item in items)
+        return any(holds(expected["any"], world, item, via) for item, via in items)
+    return not any(holds(expected["none"], world, item, via) for item, via in items)
 
 
-def _neighbours(world: World, element: dict, side: str, expected: dict) -> list[dict]:
+def _neighbours(world: World, element: dict, side: str, expected: dict) -> list[tuple[dict, dict | None]]:
     """Les voisins d'un élément : directs (`incoming`, `outgoing`) ou de proche en proche (`upstream`,
     `downstream`), par les liens du type demandé. Un circuit fermé ne fait pas tourner en rond."""
     wanted = as_list(expected["link"]) if "link" in expected else None
     pairs = world.incoming if side in ("incoming", "upstream") else world.outgoing
-    found: list[str] = []
+    found: dict[str, dict | None] = {}
     queue = [element["id"]]
     while queue:
-        for other, kind in pairs.get(queue.pop(0), []):
+        here = queue.pop(0)
+        for other, kind in pairs.get(here, []):
             if (wanted is None or kind in wanted) and other not in found and other != element["id"]:
-                found.append(other)
+                ends = (other, kind, here) if side == "incoming" else (here, kind, other)
+                found[other] = world.link_options.get(ends, {}) if side in ("incoming", "outgoing") else None
                 if side in ("upstream", "downstream"):
                     queue.append(other)
-    return [world.elements[key] for key in found]
+    return [(world.elements[key], via) for key, via in found.items()]
 
 
-def holds(cond: dict, world: World, element: dict | None) -> bool:
-    """Vrai si la condition est satisfaite. `element` vaut None quand elle porte sur toute la situation."""
+def holds(cond: dict, world: World, element: dict | None, via: dict | None = None) -> bool:
+    """Vrai si la condition est satisfaite. `element` vaut None quand elle porte sur toute la situation ;
+    `via` : les options du lien par lequel on a atteint cette brique (voisin direct)."""
     for key, expected in cond.items():
         if key == "status":
             fine = world.states[element["id"]] in as_list(expected)
@@ -697,14 +754,18 @@ def holds(cond: dict, world: World, element: dict | None) -> bool:
         elif key == "elements":
             wanted = as_list(expected["type"]) if "type" in expected else None
             fine = _quantified(
-                expected, world, [e for e in world.elements.values() if wanted is None or e["type"] in wanted]
+                expected,
+                world,
+                [(e, None) for e in world.elements.values() if wanted is None or e["type"] in wanted],
             )
+        elif key == "link_option":
+            fine = via is not None and pairs_hold(expected, via, world.settings)
         elif key == "all":
-            fine = all(holds(c, world, element) for c in expected)
+            fine = all(holds(c, world, element, via) for c in expected)
         elif key == "any":
-            fine = any(holds(c, world, element) for c in expected)
+            fine = any(holds(c, world, element, via) for c in expected)
         else:  # not
-            fine = not holds(expected, world, element)
+            fine = not holds(expected, world, element, via)
         if not fine:
             return False
     return True
@@ -727,6 +788,9 @@ def world_of(decl: dict, situation: dict, default_status: str, start: dict | Non
         events={key: set(found) for key, found in situation["events"].items()},
         settings=situation["settings"],
         states={key: (start or {}).get(key) or initial[e["type"]] for key, e in elements.items()},
+        link_options={
+            (lk["from"], lk["type"], lk["to"]): lk["options"] for lk in situation["links"] if "options" in lk
+        },
     )
 
 
@@ -738,11 +802,28 @@ def _proposed(decl: dict, world: World) -> list[dict]:
         for rule in decl["rules"]:
             if element["type"] in rule["on"] and holds(rule["when"], world, element):
                 if rule["then"] != world.states[key]:
-                    changes.append(
-                        {"id": key, "from": world.states[key], "to": rule["then"], "rule": rule["key"]}
-                    )
+                    change = {"id": key, "from": world.states[key], "to": rule["then"], "rule": rule["key"]}
+                    by = _by(rule["when"], world, element)
+                    if by:  # la demande : les voisins directs qui ont fait jouer la règle
+                        change["by"] = by
+                    changes.append(change)
                 break
     return changes
+
+
+def _by(when: dict, world: World, element: dict) -> list[str]:
+    """Les voisins directs qui satisfont un `any` ou un `count … where` de la condition : ceux dont vient la
+    demande. Vide quand la règle ne tient pas à un voisin en particulier."""
+    out: list[str] = []
+    for side in ("incoming", "outgoing"):
+        expected = when.get(side)
+        inner = (expected or {}).get("any") or (expected or {}).get("where")
+        if inner is None:
+            continue
+        for other, via in _neighbours(world, element, side, expected):
+            if holds(inner, world, other, via) and other["id"] not in out:
+                out.append(other["id"])
+    return out
 
 
 def places_of(resource: dict, world: World) -> tuple[int, int]:
@@ -907,13 +988,45 @@ def waiting(decl: dict, world: World) -> dict[str, dict]:
     return out
 
 
+def _asks(decl: dict, when: dict) -> bool:
+    """La règle répond-elle à une demande : une condition sur un voisin direct, par un lien `request` ?"""
+    requests = {link["type"] for link in decl["links"] if link.get("request")}
+    return any(
+        side in when and "link" in when[side] and set(as_list(when[side]["link"])) <= requests
+        for side in ("incoming", "outgoing")
+    )
+
+
+def no_effect(decl: dict, world: World) -> dict[str, dict]:
+    """Les demandes restées sans effet : une règle qui répond à une demande (lien `request`) a toutes ses
+    conditions remplies sauf l'état de la brique, qui a déjà changé. Au plus une par brique."""
+    out = {}
+    for key, element in world.elements.items():
+        state = world.states[key]
+        for rule in decl["rules"]:
+            when = rule["when"]
+            if element["type"] not in rule["on"] or "status" not in when or state in as_list(when["status"]):
+                continue
+            rest = {k: v for k, v in when.items() if k != "status"}
+            if _asks(decl, when) and holds(rest, world, element):
+                out[key] = {
+                    "rule": rule["key"],
+                    "title": rule["title"],
+                    "by": _by(when, world, element),
+                    "state": state,
+                    "why": "la demande n'a pas d'effet : la brique a déjà quitté l'état que la règle attend",
+                }
+                break
+    return out
+
+
 def extra(decl: dict, result: dict) -> dict:
     """Ce que cette famille ajoute à la réponse d'un déroulé : pour une situation stabilisée, ce qui retient
-    chaque brique qui attend encore (`waiting`)."""
+    chaque brique qui attend encore (`waiting`) et les demandes restées sans effet (`no_effect`)."""
     if result["end"] != "stable":
         return {}
-    found = waiting(decl, result["world"])
-    return {"waiting": found} if found else {}
+    found = {"waiting": waiting(decl, result["world"]), "no_effect": no_effect(decl, result["world"])}
+    return {name: value for name, value in found.items() if value}
 
 
 END_NOTES = {

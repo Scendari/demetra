@@ -573,6 +573,7 @@ dialog.help form { display: grid; gap: var(--s-4); padding: var(--s-4); }
 .inv-counts { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
 .at-wait { margin: 0.2rem 0 0; color: var(--ink-3); font-size: var(--t-xs); }
 .at-resource { margin: var(--s-2) 0 0; color: var(--ink-2); font-size: var(--t-sm); }
+.at-link-options { flex-basis: 100%; margin-top: var(--s-1); }
 .cov-inventory .sub { color: var(--ink-3); font-size: var(--t-xs); overflow-wrap: anywhere; }
 .pick-number input { width: 7.5rem; }
 .at-calc-total { font-size: var(--t-lg); }
@@ -843,7 +844,7 @@ details.json pre { margin-top: var(--s-2); max-height: 24rem; }
 .at-bounds input { font-variant-numeric: tabular-nums; }
 .at-links { display: grid; gap: var(--s-1); padding-top: var(--s-2); border-top: 1px solid var(--line); font-size: var(--t-sm); }
 .at-links ul { display: grid; }
-.at-links li { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); color: var(--ink-2); }
+.at-links li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-2); color: var(--ink-2); }
 .at-links b { color: var(--ink); font-weight: 640; }
 .at-links .icon-btn { width: 1.7rem; height: 1.7rem; }
 .at-links select { font-size: var(--t-sm); }

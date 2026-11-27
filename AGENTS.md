@@ -147,6 +147,8 @@ URLs. `deploiement/` : modèle d'installation sur un serveur (compose, Caddyfile
   `test_pourquoi_rien.py` : ce qui retient une brique qui attend encore (`waiting`), moteur, API et écran.
   `test_ressources.py` : ressource à places (arbitrage, politique, attente expliquée, exemple du guide) ;
   `test_demo_mairie.py` : l'étude de démonstration qui la déclare.
+  `test_options_lien.py` : options portées par un lien (`link_option`), trace d'une demande (`by`), demande sans
+  effet (`no_effect`), adresse et case décochée.
   `test_statiques.py` : adresse des fichiers statiques versionnée en développement.
 - `tests/e2e/test_parcours.py` : parcours complet dans Chromium (sauté si Chromium manque). Les tests de l'atelier
   passent aussi dans WebKit (fixture `engine`), parce que Safari ne donne pas le focus à une case cliquée ; ils

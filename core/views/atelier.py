@@ -106,6 +106,12 @@ def _asked(request, decl: dict) -> dict[str, list[str]]:
         for item in decl["settings"]:
             if _is_switch(item):
                 query[f"r.{item['key']}"] = ["true" if f"r.{item['key']}" in query else "false"]
+        kinds = {link["type"]: link for link in decl.get("links", [])}
+        for raw in query.get("l", []):
+            for option in kinds.get(raw.split(":")[1] if raw.count(":") == 2 else "", {}).get("options", []):
+                if _is_switch(option):
+                    name = f"lo.{raw}.{option['key']}"
+                    query[name] = ["true" if name in query else "false"]
     removed = set(query.get("del", []))
     query["e"] = [raw for raw in query.get("e", []) if raw.partition(":")[0] not in removed]
     taken = [raw.partition(":")[0] for raw in query["e"]]
@@ -205,18 +211,25 @@ def _links_of(decl: dict, sit: dict, element: dict, names: dict) -> list[dict]:
     for link in sit["links"]:
         kind, value = kinds[link["type"]], f"{link['from']}:{link['type']}:{link['to']}"
         if link["to"] == element["id"] and kind["reverse"]:
-            out.append({"text": kind["reverse"], "other": names[link["from"]], "value": value})
+            row = {"text": kind["reverse"], "other": names[link["from"]], "value": value}
         elif link["from"] == element["id"]:
-            out.append({"text": kind["label"], "other": names[link["to"]], "value": value})
+            row = {"text": kind["label"], "other": names[link["to"]], "value": value}
         elif link["to"] == element["id"]:
-            out.append(
-                {"text": f"{names[link['from']]} {kind['label']}", "other": "cette brique", "value": value}
-            )
+            row = {"text": f"{names[link['from']]} {kind['label']}", "other": "cette brique", "value": value}
+        else:
+            continue
+        # Les options d'un lien se règlent depuis la brique d'où il part : une seule fiche les porte.
+        if link["from"] == element["id"]:
+            row["options"] = [
+                _choice(o, f"lo.{value}.{o['key']}", link["options"][o["key"]])
+                for o in kind.get("options", [])
+            ]
+        out.append(row)
     return out
 
 
 def _cards(
-    study: Study, sit: dict, final: dict, feeds: dict | None = None, waiting: dict | None = None
+    study: Study, sit: dict, final: dict, feeds: dict | None = None, extra: dict | None = None
 ) -> list[dict]:
     """Une fiche par brique posée : son nom, ses options, ce qu'on y provoque, ses liens, son état final et,
     s'il attend encore, ce qui le retient (`waiting`) — ou, pour une période, les lignes de l'historique
@@ -249,7 +262,8 @@ def _cards(
                 ],
                 "links": _links_of(decl, sit, element, names),
                 "link_choices": _link_choices(decl, sit, element, names),
-                "wait": (waiting or {}).get(key),
+                "wait": (extra or {}).get("waiting", {}).get(key),
+                "no_effect": _no_effect(names, (extra or {}).get("no_effect", {}).get(key)),
                 "final": {
                     "key": final.get(key) if status else None,
                     "label": status.get("label", ""),
@@ -258,6 +272,17 @@ def _cards(
             }
         )
     return cards
+
+
+def _no_effect(names: dict, found: dict | None) -> str:
+    """Une demande restée sans effet sur cette brique, en une phrase."""
+    if not found:
+        return ""
+    who = ", ".join(names.get(key, key) for key in found["by"]) or "une autre brique"
+    return (
+        f"La demande de {who} (règle {found['rule']}) est restée sans effet : la brique avait déjà changé "
+        "d'état."
+    )
 
 
 def _bounds(decl: dict, element: dict) -> dict | None:
@@ -594,7 +619,7 @@ def study_workshop(request, sid: str):
             sit,
             final,
             _feeds(decl, run["extra"], final) if run else None,
-            run["extra"].get("waiting") if run else None,
+            run["extra"] if run else None,
         ),
         hidden=[(name, value) for name, value in family.to_query(decl, sit) if name in ("e", "l")],
         words=WORDS[families.name_of(decl)],
