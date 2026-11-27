@@ -19,7 +19,7 @@ import math
 from typing import Any
 
 from .casemodel import Report
-from .rules import among, as_list, pairs_hold, same, text_of
+from .rules import among, as_list, comparison_issue, pairs_hold, same, text_of
 from .rules import bricks as _bricks
 from .rules import choices as _choices
 from .rules import chosen as _chosen
@@ -232,9 +232,15 @@ def _check_when(when, known: dict, report: Report, p: str) -> dict:
         allowed = known[test]
         if allowed is bool:
             fine = isinstance(expected, bool)
-        elif isinstance(allowed, dict):  # {réglage: valeur}
+        elif isinstance(allowed, dict):  # {réglage: valeur, ou comparaison}
             fine = isinstance(expected, dict) and all(
-                key in allowed and among(value, allowed[key]) for key, value in expected.items()
+                key in allowed
+                and (
+                    among(value, allowed[key])
+                    or isinstance(value, dict)
+                    and not comparison_issue(value, allowed[key])
+                )
+                for key, value in expected.items()
             )
         else:
             expected = as_list(expected)

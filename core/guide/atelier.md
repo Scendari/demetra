@@ -83,21 +83,22 @@ Une condition est un objet ; **toutes** ses entrées doivent être vraies.
 |---|---|
 | `"status": "FAIT"` ou `["FAIT", "IGNORE"]` | l'élément est dans cet état, ou dans l'un d'eux |
 | `"type": "tache"` | l'élément est une brique de ce type |
-| `"option": {"obligatoire": true}` | chaque option citée a cette valeur |
+| `"option": {"obligatoire": true}` | chaque option citée a cette valeur (ou satisfait une comparaison, voir plus bas) |
 | `"event": "echec"` | cet évènement a été provoqué sur l'élément |
-| `"setting": {"arret": true}` | chaque réglage cité a cette valeur |
+| `"setting": {"arret": true}` | chaque réglage cité a cette valeur (ou satisfait une comparaison) |
 | `"incoming": {"link": "avant", "all": { … }}` | les éléments **d'où part** un lien vers celui-ci satisfont la condition |
 | `"outgoing": { … }` | les éléments **vers lesquels** part un lien depuis celui-ci |
 | `"upstream": { … }`, `"downstream": { … }` | les mêmes, de proche en proche : toute la chaîne en amont, ou en aval |
 | `"elements": {"type": "tache", "any": { … }}` | les éléments de toute la situation (y compris celui-ci) |
 | `"all": [ … ]`, `"any": [ … ]`, `"not": { … }` | et, ou, non |
 
-- `incoming`, `outgoing`, `upstream`, `downstream` et `elements` prennent **un seul** quantificateur : `all` (tous ; vrai s'il n'y en a aucun), `any` (au moins un), `none` (aucun). `link` restreint à un type de lien ; `type`, dans `elements`, à un type de brique.
+- `incoming`, `outgoing`, `upstream`, `downstream` et `elements` prennent **un seul** quantificateur : `all` (tous ; vrai s'il n'y en a aucun), `any` (au moins un), `none` (aucun), ou **`count`**, qui compte : `{"count": {"gte": 2}, "where": {"status": "OK"}}` (au moins deux voisins en `OK` ; sans `where`, tous comptent ; `count` entier = exactement ce nombre). `link` restreint à un type de lien ; `type`, dans `elements`, à un type de brique.
 - L'égalité est stricte : `true` ne vaut pas `1`, `"1"` ne vaut pas `1`.
+- **Comparer** : dans `option` et `setting`, une valeur peut être remplacée par une comparaison d'**une** entrée : `{"gt": 100}`, `{"gte": 100}`, `{"lt": 3}`, `{"lte": 3}` (nombres ; l'option ou le réglage doit n'avoir que des valeurs numériques, sinon `not_numeric`), `{"ne": "toit"}` (différent de), `{"in": ["hall", "quai"]}` (l'une de ces valeurs déclarées). Exemple : `"option": {"niveau": {"gte": 2}}`. Une valeur simple garde son sens d'égalité stricte.
 - Les conditions s'emboîtent sur 5 niveaux au plus (`too_deep`).
 - Dans `outcome[].when`, la condition porte sur la situation, pas sur un élément : seuls `setting`, `elements`, `all`, `any`, `not` y ont un sens (`no_element` sinon).
 
-Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `unknown_option`, `unknown_setting`, `unknown_event`, `unknown_link`, `unknown_value`, `unknown_field`, `duplicate`, `too_deep`, `no_element`, `type`, `required`, `unknown_dimension` (un réglage lu dans une dimension que l'étude ne déclare pas). Chaque erreur donne le chemin exact (`workshop.rules[3].when.incoming.all.status`).
+Erreurs de déclaration : `unknown_test`, `unknown_status`, `unknown_brick`, `unknown_option`, `unknown_setting`, `unknown_event`, `unknown_link`, `unknown_value`, `unknown_field`, `duplicate`, `too_deep`, `no_element`, `type`, `required`, `not_numeric` (comparaison d'ordre sur des valeurs qui ne sont pas des nombres), `unknown_dimension` (un réglage lu dans une dimension que l'étude ne déclare pas). Chaque erreur donne le chemin exact (`workshop.rules[3].when.incoming.all.status`).
 
 ## Comment le site déroule une situation
 
@@ -272,7 +273,7 @@ Une source rattachée (toute source après la première) :
 
 La base accepte `several` et `tie`, pas `mode` ni `match` : sans période de base en vigueur, il n'y a pas d'image.
 
-Conditions de `image.status[].when` : `"missing": "remise"` ou `["a", "b"]` (aucune période retenue pour l'une de ces sources), `"present": […]` (une période retenue pour chacune), `"setting": {…}`. Conditions de `outcome[].when` : `"blocked": true|false`, `"empty": true|false` (aucune image), `"status": "REMISE"` ou une liste (au moins une image a ce statut).
+Conditions de `image.status[].when` : `"missing": "remise"` ou `["a", "b"]` (aucune période retenue pour l'une de ces sources), `"present": […]` (une période retenue pour chacune), `"setting": {…}` (valeurs ou comparaisons, comme pour les éléments reliés). Conditions de `outcome[].when` : `"blocked": true|false`, `"empty": true|false` (aucune image), `"status": "REMISE"` ou une liste (au moins une image a ce statut).
 
 ### Comment le site combine
 

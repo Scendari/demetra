@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .casemodel import ID_RE, Report, _is_str
-from .rules import among, as_list, pairs_hold, same, text_of
+from .rules import among, as_list, check_count, matches, pairs_hold, same, text_of
 from .rules import bricks as _bricks
 from .rules import check_pairs as _check_pairs
 from .rules import choices as _choices
@@ -148,13 +148,15 @@ def _known(values, allowed, report: Report, p: str, code: str, what: str) -> boo
 def _check_quantified(expected, voc: Vocabulary, report: Report, p: str, depth: int, scope: str) -> bool:
     """Voisins directs (`incoming`, `outgoing`), toute la chaîne (`upstream`, `downstream`), ou toute la
     situation (`elements`)."""
-    used = [q for q in QUANTIFIERS if isinstance(expected, dict) and q in expected]
+    used = [q for q in (*QUANTIFIERS, "count") if isinstance(expected, dict) and q in expected]
     extra = "type" if scope == "elements" else "link"
-    if len(used) != 1 or set(expected) - {used[0], extra}:
+    counted = used == ["count"]
+    if len(used) != 1 or set(expected) - {used[0], extra, *(["where"] if counted else [])}:
         report.error(
             p,
             "type",
-            f"S'écrit {{{extra}?, all | any | none: condition}} : un seul quantificateur.",
+            f"S'écrit {{{extra}?, all | any | none: condition}}, ou {{{extra}?, count, where?}} : un seul "
+            "quantificateur.",
             received=expected,
             example={"all": {"status": "OK"}},
         )
@@ -163,6 +165,11 @@ def _check_quantified(expected, voc: Vocabulary, report: Report, p: str, depth: 
     if extra in expected:
         allowed = voc.types if scope == "elements" else voc.links
         ok = _known(expected[extra], allowed, report, f"{p}.{extra}", "unknown_" + extra, "Nom")
+    if counted:
+        ok = check_count(expected["count"], report, f"{p}.count") and ok
+        if "where" in expected:
+            ok = check_condition(expected["where"], voc, report, f"{p}.where", depth + 1, True) and ok
+        return ok
     return check_condition(expected[used[0]], voc, report, f"{p}.{used[0]}", depth + 1, True) and ok
 
 
@@ -542,6 +549,10 @@ class World:
 
 
 def _quantified(expected: dict, world: World, items: list[dict]) -> bool:
+    if "count" in expected:
+        where = expected.get("where")
+        found = sum(1 for item in items if where is None or holds(where, world, item))
+        return matches(found, expected["count"])
     if "all" in expected:
         return all(holds(expected["all"], world, item) for item in items)
     if "any" in expected:

@@ -22,9 +22,81 @@ EXAMPLE_BRICK = {
 }
 
 
+# Une valeur attendue peut être une valeur déclarée (égalité stricte) ou une comparaison : {"gte": 100}.
+COMPARISONS = ("gt", "gte", "lt", "lte", "ne", "in")
+ORDERED = ("gt", "gte", "lt", "lte")
+EXAMPLE_COMPARISON = {"gte": 100}
+
+
+def is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def matches(actual, wanted) -> bool:
+    """La valeur `actual` satisfait-elle `wanted` : une valeur (égalité stricte) ou une comparaison ?"""
+    if not isinstance(wanted, dict):
+        return same(actual, wanted)
+    op, operand = next(iter(wanted.items()))
+    if op == "ne":
+        return not same(actual, operand)
+    if op == "in":
+        return among(actual, operand)
+    if not is_number(actual):
+        return False
+    return {
+        "gt": actual > operand,
+        "gte": actual >= operand,
+        "lt": actual < operand,
+        "lte": actual <= operand,
+    }[op]
+
+
+def comparison_issue(wanted, allowed) -> tuple[str, str, str] | None:
+    """Ce qui ne va pas dans une comparaison {op: valeur} : (suffixe du chemin, code, message), ou None.
+    `allowed` : les valeurs déclarées de l'option ou du réglage comparé."""
+    if not isinstance(wanted, dict) or len(wanted) != 1 or next(iter(wanted)) not in COMPARISONS:
+        return "", "type", "Une comparaison s'écrit {gt | gte | lt | lte | ne | in: valeur}."
+    op, operand = next(iter(wanted.items()))
+    if op in ORDERED:
+        if not is_number(operand):
+            return f".{op}", "type", "On compare à un nombre."
+        if not all(is_number(v) for v in allowed):
+            return f".{op}", "not_numeric", "Ces valeurs ne sont pas des nombres : elles ne se comparent pas."
+        return None
+    if op == "in":
+        fine = isinstance(operand, list) and operand and all(among(v, allowed) for v in operand)
+    else:
+        fine = among(operand, allowed)
+    return None if fine else (f".{op}", "unknown_value", "Valeur inconnue.")
+
+
+def check_count(value, report: Report, p: str) -> bool:
+    """Un nombre d'éléments attendu : un entier, ou une comparaison à un entier ({"gte": 2})."""
+
+    def whole(v) -> bool:
+        return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
+    if whole(value):
+        return True
+    if isinstance(value, dict) and len(value) == 1:
+        op, operand = next(iter(value.items()))
+        if (op in ORDERED and is_number(operand)) or (op == "ne" and whole(operand)):
+            return True
+        if op == "in" and isinstance(operand, list) and operand and all(whole(v) for v in operand):
+            return True
+    report.error(
+        p,
+        "type",
+        "« count » : un entier, ou une comparaison à un entier.",
+        received=value,
+        example={"gte": 2},
+    )
+    return False
+
+
 def pairs_hold(expected: dict, values: dict) -> bool:
-    """Vrai si chaque nom cité a la valeur attendue (`option`, `setting`)."""
-    return all(name in values and same(values[name], wanted) for name, wanted in expected.items())
+    """Vrai si chaque nom cité a la valeur attendue, ou satisfait la comparaison (`option`, `setting`)."""
+    return all(name in values and matches(values[name], wanted) for name, wanted in expected.items())
 
 
 def same(a, b) -> bool:
@@ -227,6 +299,12 @@ def check_pairs(expected, allowed: dict, report: Report, p: str, what: str) -> b
                 f"{p}.{key}", f"unknown_{what}", "Nom inconnu.", received=key, expected=sorted(allowed)
             )
             ok = False
+        elif isinstance(value, dict):
+            issue = comparison_issue(value, allowed[key])
+            if issue:
+                suffix, code, message = issue
+                report.error(f"{p}.{key}{suffix}", code, message, received=value, example=EXAMPLE_COMPARISON)
+                ok = False
         elif not among(value, allowed[key]):
             report.error(
                 f"{p}.{key}", "unknown_value", "Valeur inconnue.", received=value, expected=allowed[key]
