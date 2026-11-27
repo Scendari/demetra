@@ -18,6 +18,7 @@ import itertools
 import math
 from typing import Any
 
+from . import temps
 from .casemodel import Report
 from .rules import among, as_list, comparison_issue, is_number, pairs_hold, same, text_of, values_of
 from .rules import bricks as _bricks
@@ -54,6 +55,7 @@ FIELDS = {
 EPSILON = 1e-9
 __all__ = ["LETTERS", "MAX_ELEMENTS", "next_id", "same", "text_of"]  # ce que l'écran lit dans toute famille
 
+EXAMPLE_CALENDAR = {"label": "Date", "calendar": "day", "from": "2025-01-01", "to": "2027-12-31"}
 EXAMPLE = {
     "family": "periods",
     "axis": {"label": "Jour", "min": 1, "max": 10, "grain": 1},
@@ -90,8 +92,74 @@ def _neat(value: float) -> int | float:
 # ---------------------------------------------------------------------------
 
 
+MAX_CALENDAR_GRAINS = 4000  # en jours, onze ans ; en mois, plus de trois siècles
+
+
+def _calendar(raw: dict, report: Report, p: str) -> dict | None:
+    """Un axe en dates : {calendar: day | month, from, to} ; en interne, des rangs comptés depuis `from`."""
+    unit = raw.get("calendar")
+    first, last = temps.parse(unit, raw.get("from")), temps.parse(unit, raw.get("to"))
+    grain = raw.get("grain", 1)
+    fine = unit in temps.UNITS and first and last and first < last
+    fine = fine and isinstance(grain, int) and not isinstance(grain, bool) and grain >= 1
+    span = temps.index(unit, first, last) if fine else 0
+    if not fine or span / grain > MAX_CALENDAR_GRAINS:
+        report.error(
+            p,
+            "type",
+            "Un axe en dates : {calendar: day | month, from, to, grain?}, dates ISO (« 2026-01-01 » ou "
+            f"« 2026-01 »), de {MAX_CALENDAR_GRAINS} pas au plus.",
+            received=raw,
+            example=EXAMPLE_CALENDAR,
+        )
+        return None
+    default = "Date" if unit == "day" else "Mois"
+    return {
+        "label": _label(raw, report, p, default, 40),
+        "min": 0,
+        "max": span,
+        "grain": grain,
+        "step": grain,
+        "calendar": unit,
+        "from": temps.iso(unit, first, 0),
+    }
+
+
+def origin_of(axis: dict):
+    """La date d'origine d'un axe en dates ; None pour un axe numérique."""
+    return temps.parse(axis["calendar"], axis["from"]) if axis.get("calendar") else None
+
+
+def _when(axis: dict, value) -> str:
+    """« Mois 3 » sur un axe numérique, « 1 mars 2026 » sur un axe en dates."""
+    return moment(axis, value) if axis.get("calendar") else f"{axis['label']} {text_of(value)}"
+
+
+def moment(axis: dict, value) -> str:
+    """Un point de l'axe, pour l'écran : une date pour un axe en dates, sinon le nombre."""
+    origin = origin_of(axis)
+    return temps.label(axis["calendar"], origin, value) if origin else text_of(value)
+
+
+def bound_text(axis: dict, value) -> str:
+    """Un point de l'axe, pour un champ ou une adresse : ISO pour un axe en dates, sinon le nombre."""
+    origin = origin_of(axis)
+    return temps.iso(axis["calendar"], origin, value) if origin else text_of(value)
+
+
+def _bound_value(axis: dict, raw):
+    """Une borne écrite (nombre, ou date ISO sur un axe en dates) ramenée à un rang ; None si illisible."""
+    origin = origin_of(axis)
+    if origin and isinstance(raw, str):
+        day = temps.parse(axis["calendar"], raw)
+        return temps.index(axis["calendar"], origin, day) if day else None
+    return raw
+
+
 def _axis(raw, report: Report, p: str) -> dict:
     out = {"label": "Temps", "min": 0, "max": 10, "grain": 1, "step": 1}
+    if isinstance(raw, dict) and "calendar" in raw:
+        return _calendar(raw, report, p) or out
     if not isinstance(raw, dict):
         report.error(
             p,
@@ -556,15 +624,18 @@ def _rule(decl: dict, role: str) -> str:
 
 
 def _bound(value, axis: dict, report: Report, p: str):
-    """Une borne : un nombre sur l'axe, ou rien (une borne absente doit pouvoir se voir dans l'atelier)."""
+    """Une borne : un nombre sur l'axe (une date ISO sur un axe en dates), ou rien (une borne absente doit
+    pouvoir se voir dans l'atelier)."""
     if value in (None, ""):
         return None
+    received, value = value, _bound_value(axis, value)
     if not _number(value) or not axis["min"] <= value <= axis["max"]:
+        what = "une date" if axis.get("calendar") else "un nombre"
         report.error(
             p,
             "out_of_range",
-            f"Une borne est un nombre de {text_of(axis['min'])} à {text_of(axis['max'])}.",
-            received=value,
+            f"Une borne est {what} de {bound_text(axis, axis['min'])} à {bound_text(axis, axis['max'])}.",
+            received=received,
         )
         return None
     return _neat(value)
@@ -699,7 +770,8 @@ def from_query(decl: dict, query: dict[str, list[str]]) -> dict:
         if name:
             element["label"] = name
         for side, param in (("start", "de"), ("end", "a")):
-            value = _parsed((query.get(f"{param}.{key}") or [""])[-1])
+            text = (query.get(f"{param}.{key}") or [""])[-1]
+            value = _bound_value(axis, text) if axis.get("calendar") else _parsed(text)
             if value is not None:
                 element[side] = min(max(value, axis["min"]), axis["max"])
         for option in bricks[kind]["options"]:
@@ -722,8 +794,9 @@ def to_query(decl: dict, sit: dict) -> list[tuple[str, str]]:
     out = [("e", f"{e['id']}:{e['type']}") for e in sit["elements"]]
     for element in sit["elements"]:
         brick, key = bricks[element["type"]], element["id"]
-        out.append((f"de.{key}", "" if element["start"] is None else text_of(element["start"])))
-        out.append((f"a.{key}", "" if element["end"] is None else text_of(element["end"])))
+        axis = decl["axis"]
+        out.append((f"de.{key}", "" if element["start"] is None else bound_text(axis, element["start"])))
+        out.append((f"a.{key}", "" if element["end"] is None else bound_text(axis, element["end"])))
         if element["label"] != f"{brick['label']} {key}":
             out.append((f"n.{key}", element["label"]))
         out += [
@@ -746,15 +819,18 @@ def to_query(decl: dict, sit: dict) -> list[tuple[str, str]]:
 def placed(decl: dict, query: dict[str, list[str]], letter: str, kind: str) -> list[str]:
     """Une période qu'on vient de poser : elle commence où finit la dernière de sa source, pour deux pas."""
     axis = decl["axis"]
+    read = (lambda t: _bound_value(axis, t)) if axis.get("calendar") else _parsed
     ends = [
-        _parsed((query.get(f"a.{raw.partition(':')[0]}") or [""])[-1])
+        read((query.get(f"a.{raw.partition(':')[0]}") or [""])[-1])
         for raw in query.get("e", [])
         if raw.partition(":")[2] == kind
     ]
     start = max([e for e in ends if e is not None], default=axis["min"])
     start = min(start, axis["max"] - axis["grain"])
-    query[f"de.{letter}"] = [text_of(_neat(start))]
-    query[f"a.{letter}"] = [text_of(_neat(min(start + 2 * axis["grain"], axis["max"])))]
+    # Deux pas d'axe ; sur un axe en jours, un mois : deux jours ne se verraient pas.
+    length = 30 if axis.get("calendar") == "day" and axis["grain"] == 1 else 2 * axis["grain"]
+    query[f"de.{letter}"] = [bound_text(axis, _neat(start))]
+    query[f"a.{letter}"] = [bound_text(axis, _neat(min(start + length, axis["max"])))]
     return []
 
 
@@ -954,9 +1030,8 @@ def _state_at(period: dict, row: dict | None, edge: float) -> str | None:
 def _ties(decl: dict, images: list[dict]) -> list[str]:
     """Les images qu'une égalité entre deux périodes d'une même source empêche de composer."""
     labels = {b["type"]: b["label"] for b in decl["bricks"]}
-    when = decl["axis"]["label"]
     return [
-        f"{when} {text_of(image['start'])} : plusieurs « {labels[brick]} » en vigueur, à égalité"
+        f"{_when(decl['axis'], image['start'])} : plusieurs « {labels[brick]} » en vigueur, à égalité"
         for image in images
         for brick, how in image["how"].items()
         if how == "tie"
@@ -1144,6 +1219,14 @@ def extra(decl: dict, result: dict) -> dict:
                 "id": image["id"],
                 "start": image["start"],
                 "end": image["end"],
+                **(
+                    {
+                        "start_date": bound_text(decl["axis"], image["start"]),
+                        "end_date": bound_text(decl["axis"], image["end"]),
+                    }
+                    if decl["axis"].get("calendar")
+                    else {}
+                ),
                 "fields": {f["key"]: image["fields"][f["key"]] for f in fields},
                 "status": image["status"],
                 "from": image["picked"],
@@ -1194,7 +1277,7 @@ def _step(decl: dict, situation: dict, step: dict, blocking: list[str]) -> dict:
         if step.get("apart"):
             note += " Inconnues de la dernière exécution : " + _listed(step["apart"]) + "."
         return {"title": "Contrôle des périodes posées", "note": note[:1900], "changes": changes}
-    when = f"{decl['axis']['label']} {text_of(step['at'])}"
+    when = _when(decl["axis"], step["at"])
     if step["kind"] == "gap":
         label = next(b["label"] for b in decl["bricks"] if b["type"] == step["absent"])
         note = f"Aucune période « {label} » en vigueur."
@@ -1253,6 +1336,8 @@ def to_case(decl: dict, situation: dict, result: dict, default_status: str) -> d
         "entities": entities,
         "steps": steps,
     }
+    if decl["axis"].get("calendar"):  # le dessin écrira des dates au lieu des rangs
+        case["time_axis"] = {"unit": decl["axis"]["calendar"], "origin": decl["axis"]["from"]}
     found = outcome(decl, result)
     if found:
         case["outcome"] = found

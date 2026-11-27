@@ -29,8 +29,12 @@ def _images(decl, elements):
     return periods.run(decl, situation, "A_VENIR")["images"]
 
 
-def _rows(images):
-    return [(i["start"], i["end"], i["fields"]["garanties"], i["fields"]["surprime"]) for i in images]
+def _rows(images, axis=None):
+    axis = axis or _decl()["axis"]
+    day = lambda v: periods.bound_text(axis, v)
+    return [
+        (day(i["start"]), day(i["end"]), i["fields"]["garanties"], i["fields"]["surprime"]) for i in images
+    ]
 
 
 ELEMENTS = garanties._SITUATIONS[3][3]  # trois garanties qui se croisent
@@ -38,12 +42,12 @@ ELEMENTS = garanties._SITUATIONS[3][3]  # trois garanties qui se croisent
 
 def test_les_surprimes_s_additionnent_et_les_noms_se_lisent_ensemble():
     assert _rows(_images(_decl(), ELEMENTS)) == [
-        (1, 3, "Vol", 5),
-        (3, 5, "Vol + Bris de glace", 8),
-        (5, 6, "Vol + Bris de glace + Assistance", 16),
-        (6, 7, "Vol + Bris de glace", 8),
-        (7, 9, "Bris de glace", 3),
-        (9, 13, None, None),
+        ("2025-01-01", "2025-07-01", "Vol", 5),
+        ("2025-07-01", "2026-01-01", "Vol + Bris de glace", 8),
+        ("2026-01-01", "2026-04-01", "Vol + Bris de glace + Assistance", 16),
+        ("2026-04-01", "2026-07-01", "Vol + Bris de glace", 8),
+        ("2026-07-01", "2027-01-01", "Bris de glace", 3),
+        ("2027-01-01", "2028-01-01", None, None),
     ]
 
 

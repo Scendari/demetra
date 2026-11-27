@@ -280,6 +280,7 @@ Vous ne déclarez **pas de table de règles** : vous déclarez comment une image
 | `family` | `"periods"` | — |
 | `title` | Titre de l'atelier | 80 caractères |
 | `axis` | L'axe du temps : `label`, `min`, `max`, `grain` (le pas : une image par pas), `step` (la finesse des bornes qu'on saisit ; `grain` par défaut). Des nombres : jours d'un mois, heures, rangs | 400 pas au plus |
+| `axis` en dates | `{"label": "Date", "calendar": "day", "from": "2025-01-01", "to": "2028-01-01", "grain": 1}` ou `"calendar": "month"` (`"from": "2025-01"`). Voir « Axe en dates » plus bas | 4 000 pas au plus (onze ans en jours) |
 | `bricks` | Les sources de périodes : `type`, `label`, `options` (les champs d'une période, même forme que dans l'autre famille). Ni `events` ni `initial` ; `start` et `end` sont réservés aux bornes | 1 à 8 |
 | `settings` | Réglages de toute la situation ; `dimension` facultatif, comme pour les éléments reliés | 8 |
 | `image.sources` | La **base** d'abord, puis les sources rattachées, dans l'ordre où elles se résolvent | une par brique au plus |
@@ -306,6 +307,15 @@ Une source rattachée (toute source après la première) :
 La base accepte `several` et `tie`, pas `mode` ni `match` : sans période de base en vigueur, il n'y a pas d'image.
 
 Conditions de `image.status[].when` : `"missing": "remise"` ou `["a", "b"]` (aucune période retenue pour l'une de ces sources), `"present": […]` (une période retenue pour chacune), `"setting": {…}` (valeurs ou comparaisons, comme pour les éléments reliés). Conditions de `outcome[].when` : `"blocked": true|false`, `"empty": true|false` (aucune image), `"status": "REMISE"` ou une liste (au moins une image a ce statut).
+
+### Axe en dates
+
+Pour des périodes datées (contrats, droits, paie), déclarez un axe en **jours** ou en **mois** plutôt qu'en nombres : `"axis": {"label": "Date", "calendar": "day", "from": "2025-01-01", "to": "2028-01-01"}`.
+
+- Les bornes des périodes s'écrivent en dates ISO : `{"id": "B", "type": "garantie", "start": "2025-03-01", "end": "2026-03-01"}` (`"2025-03"` sur un axe en mois). La fin reste **exclue** : une période du 1er mars 2025 au 1er mars 2026 couvre le dernier jour de février 2026. Une date hors de l'axe : `out_of_range`.
+- Les mois ont leur vraie longueur ; en jours, chaque jour compte (année bissextile comprise). `grain` est un nombre de jours (ou de mois) par pas, 1 par défaut. 4 000 pas au plus.
+- La réponse donne, pour chaque ligne de l'historique, `start` et `end` (rangs comptés depuis `from`) et `start_date`, `end_date` (ISO). L'adresse porte les dates (`de.B=2025-03-01`), l'atelier des champs de date, et le cas produit un `time_axis` (chapitre `cases`) : la frise se gradue en dates (« janv. 2026 »).
+- Une forme fausse (unité inconnue, dates illisibles ou dans le désordre, trop de pas) : `type` sur `workshop.axis`.
 
 ### Comment le site combine
 

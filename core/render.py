@@ -25,6 +25,7 @@ import re
 from dataclasses import dataclass, field
 from html import escape
 
+from . import temps
 from .bricks import with_defaults
 from .casemodel import ACYCLIC_LINK_TYPES, ROLE_LABELS
 
@@ -1013,23 +1014,40 @@ def _timeline_items(ctx: Context, view: dict, layout: dict, sv: dict) -> tuple[l
     return items, step_at
 
 
-def _timeline_axis(lo_axis: float, hi_axis: float, tick: float, fmt: str, x_of, geo: dict) -> str:
-    """Graduations et ligne de base de l'axe du temps."""
-    top, height = geo["top"], geo["height"]
-    grid = []
+def _timeline_scale(calendar: dict | None, lo: float, hi: float, fmt: str) -> tuple:
+    """Les bornes de l'axe, son pas et ses graduations. Des rangs en jours ou en mois (`time_axis` du cas) :
+    l'axe va d'un bout à l'autre et se gradue en dates ; sinon un pas rond, chaque valeur selon `fmt`."""
+    if calendar:
+        origin = temps.parse(calendar["unit"], calendar["origin"])
+        return lo, hi, None, temps.ticks(calendar["unit"], origin, lo, hi)
+    tick = _nice_step(hi - lo)
+    lo_axis, hi_axis = math.floor(lo / tick) * tick, math.ceil(hi / tick) * tick
+    return lo_axis, hi_axis, tick, _timeline_ticks(lo_axis, hi_axis, tick, fmt)
+
+
+def _timeline_ticks(lo_axis: float, hi_axis: float, tick: float, fmt: str) -> list[tuple[float, str]]:
+    """Les graduations d'un axe numérique : un pas rond, chaque valeur écrite selon `fmt` (« J+{n} »)."""
+    out = []
     value = lo_axis
-    guard = 0
-    while value <= hi_axis + 1e-9 and guard < 60:
-        x = x_of(value)
+    while value <= hi_axis + 1e-9 and len(out) < 60:
         number = _fmt_number(int(value) if float(value).is_integer() else round(value, 2))
         # « J+{n} » devient « J-30 » pour une valeur négative, pas « J+-30 ».
         text = fmt.replace("+{n}", number) if value < 0 and "+{n}" in fmt else fmt.replace("{n}", number)
+        out.append((value, text))
+        value += tick
+    return out
+
+
+def _timeline_axis(ticks: list[tuple[float, str]], x_of, geo: dict) -> str:
+    """Graduations et ligne de base de l'axe du temps."""
+    top, height = geo["top"], geo["height"]
+    grid = []
+    for value, text in ticks:
+        x = x_of(value)
         grid.append(
             f'<line class="tl-grid" x1="{x:.1f}" y1="{top - 6}" x2="{x:.1f}" y2="{height - 8:.1f}"/>'
             f'<text class="tl-tick" x="{x:.1f}" y="{top - 12}" text-anchor="middle">{escape(text)}</text>'
         )
-        value += tick
-        guard += 1
     base = (
         f'<line class="tl-base" x1="{geo["label_w"]}" y1="{top - 6}" '
         f'x2="{geo["label_w"] + geo["plot_w"]}" y2="{top - 6}"/>'
@@ -1206,9 +1224,7 @@ def _render_timeline(ctx: Context, view: dict, sv: dict) -> str:
         lo, hi = min(lo, ctx.span[0]), max(hi, ctx.span[1])
     if hi == lo:
         hi = lo + 1
-    tick = _nice_step(hi - lo)
-    lo_axis = math.floor(lo / tick) * tick
-    hi_axis = math.ceil(hi / tick) * tick
+    lo_axis, hi_axis, tick, ticks = _timeline_scale(ctx.case.get("time_axis"), lo, hi, layout["axis_format"])
     row_by = layout["row_by"]
     rows: list[str] = []
     for item in items:
@@ -1224,7 +1240,7 @@ def _render_timeline(ctx: Context, view: dict, sv: dict) -> str:
     def x_of(value):
         return geo["label_w"] + (value - lo_axis) / (hi_axis - lo_axis) * geo["plot_w"]
 
-    parts = [_timeline_axis(lo_axis, hi_axis, tick, layout["axis_format"], x_of, geo)]
+    parts = [_timeline_axis(ticks, x_of, geo)]
     parts += _timeline_row_labels(ctx, rows, items, row_by, geo, sv)
     fixed = None
     if time["brick"] == "time.static":

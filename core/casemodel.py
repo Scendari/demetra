@@ -693,6 +693,7 @@ KNOWN_CASE_FIELDS = {
     "compare_with",
     "params",
     "covers",
+    "time_axis",
 }
 
 
@@ -810,17 +811,25 @@ def _plain_case(raw: Any, ctx: StudyContext, path: str) -> tuple[dict | None, Re
         case["covers"] = covers
     if highlights:
         case["highlights"] = highlights
-    question = _case_question(raw, report, path)
-    if question:
-        case["question"] = question
-    compare = _case_compare_with(raw, report, path)
-    if compare:
-        case["compare_with"] = compare
+    _case_extras(raw, case, report, path)
     if measures:
         case["measures"] = measures
     if not report.ok:  # « question » et « compare_with » sont vérifiés après l'assemblage
         return None, report
     return case, report
+
+
+def _case_extras(raw: dict, case: dict, report: Report, path: str) -> None:
+    """Les champs facultatifs de présentation : chacun absent du cas quand il n'est pas donné, pour que le
+    contenu des autres cas ne change pas d'un octet."""
+    for name, read in (
+        ("question", _case_question),
+        ("time_axis", _case_time_axis),
+        ("compare_with", _case_compare_with),
+    ):
+        value = read(raw, report, path)
+        if value:
+            case[name] = value
 
 
 def _case_header(raw: dict, ctx: StudyContext, report: Report, path: str) -> dict:
@@ -1636,6 +1645,28 @@ def _warn_never_changing(entities: list[dict], initial: dict, steps: list[dict],
                 f"L'entité « {ent['id']} » ne change jamais d'état et n'a pas d'état initial explicite.",
                 received=ent["id"],
             )
+
+
+def _case_time_axis(raw: dict, report: Report, path: str) -> dict | None:
+    """« time_axis » : les temps du cas (attrs start, end, at ; at des étapes) sont des rangs comptés en jours
+    ou en mois depuis une date d'origine ; le dessin écrit alors des dates."""
+    from . import temps
+
+    axis = raw.get("time_axis")
+    if axis is None:
+        return None
+    unit = axis.get("unit") if isinstance(axis, dict) else None
+    origin = temps.parse(unit, axis.get("origin")) if unit in temps.UNITS else None
+    if origin is None or set(axis) - {"unit", "origin"}:
+        report.error(
+            f"{path}.time_axis",
+            "type",
+            "« time_axis » : {unit: day | month, origin: date ISO}, d'où se comptent les temps du cas.",
+            received=axis,
+            example={"unit": "day", "origin": "2026-01-01"},
+        )
+        return None
+    return {"unit": unit, "origin": temps.iso(unit, origin, 0)}
 
 
 def _case_question(raw: dict, report: Report, path: str) -> str | None:

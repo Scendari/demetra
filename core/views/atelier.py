@@ -291,13 +291,17 @@ def _bounds(decl: dict, element: dict) -> dict | None:
         return None
     axis = decl["axis"]
     return {
-        "start": "" if element["start"] is None else workshop.text_of(element["start"]),
-        "end": "" if element["end"] is None else workshop.text_of(element["end"]),
-        "min": workshop.text_of(axis["min"]),
-        "max": workshop.text_of(axis["max"]),
+        "start": "" if element["start"] is None else periods.bound_text(axis, element["start"]),
+        "end": "" if element["end"] is None else periods.bound_text(axis, element["end"]),
+        "min": periods.bound_text(axis, axis["min"]),
+        "max": periods.bound_text(axis, axis["max"]),
         "step": workshop.text_of(axis["step"]),
         "grain": workshop.text_of(axis.get("grain", axis["step"])),
         "axis": axis["label"],
+        "calendar": axis.get("calendar", ""),
+        "origin": axis.get("from", ""),
+        "rank_min": workshop.text_of(axis["min"]),
+        "rank_max": workshop.text_of(axis["max"]),
     }
 
 
@@ -358,9 +362,9 @@ CHANGE_ICONS = {"added": "plus", "closed": "lock", "changed": "changed", "same":
 CHANGE_ROWS = {"added": "is-new", "closed": "is-changed", "changed": "is-changed", "removed": "is-gone"}
 
 
-def _line(line: dict, smap: dict) -> dict:
+def _line(line: dict, smap: dict, axis: dict) -> dict:
     """Une ligne publiée par une exécution, et ce que cette exécution lui a fait."""
-    start, end = workshop.text_of(line["start"]), workshop.text_of(line["end"])
+    start, end = periods.moment(axis, line["start"]), periods.moment(axis, line["end"])
     values = ["" if v is None else workshop.text_of(v) for v in line["fields"].values()]
     status = smap.get(line["status"], {}).get("label", line["status"] or "")
     change = line.get("change", "")
@@ -375,7 +379,7 @@ def _line(line: dict, smap: dict) -> dict:
         "word": periods.CHANGES.get(change, ""),
         "icon": CHANGE_ICONS.get(change, ""),
         "row": CHANGE_ROWS.get(change, ""),
-        "was": _line(line["was"], smap)["text"] if "was" in line else "",
+        "was": _line(line["was"], smap, axis)["text"] if "was" in line else "",
     }
 
 
@@ -400,8 +404,8 @@ def _runs(study: Study, extra: dict, sit: dict) -> list[dict]:
                 "blocking": entry["blocking"],
                 "news": [names[key] for key in entry["new"]],
                 "gone": [names[key] for key in entry["withdrawn"]],
-                "lines": [_line(line, smap) for line in entry["lines"]],
-                "removed": [_line(line, smap) for line in entry["removed"]],
+                "lines": [_line(line, smap, study.workshop["axis"]) for line in entry["lines"]],
+                "removed": [_line(line, smap, study.workshop["axis"]) for line in entry["removed"]],
             }
         )
     return out
@@ -484,9 +488,9 @@ def _calc(study: Study, extra: dict) -> dict:
     }
 
 
-def _history_row(image: dict, smap: dict) -> dict:
+def _history_row(image: dict, smap: dict, axis: dict) -> dict:
     """Une ligne de l'historique, avec de quoi dire d'où elle vient et la comparer à celle d'avant."""
-    start, end = workshop.text_of(image["start"]), workshop.text_of(image["end"])
+    start, end = periods.moment(axis, image["start"]), periods.moment(axis, image["end"])
     values = ["" if v is None else workshop.text_of(v) for v in image["fields"].values()]
     status = smap.get(image["status"], {}).get("label", image["status"] or "")
     rules = image["rules"]
@@ -516,7 +520,7 @@ def _history(study: Study, extra: dict) -> dict:
         "history": {
             "axis": study.workshop["axis"]["label"],
             "fields": [f["label"] for f in study.workshop["image"]["fields"]],
-            "rows": [_history_row(image, smap) for image in extra["images"]],
+            "rows": [_history_row(image, smap, study.workshop["axis"]) for image in extra["images"]],
         },
         "blocking": extra["blocking"],
     }
@@ -530,7 +534,8 @@ def _feeds(decl: dict, extra: dict, final: dict) -> dict | None:
     lines: dict[str, list[str]] = {}
     for image in extra["images"]:
         for key in image["sources"]:
-            span = f"du {workshop.text_of(image['start'])} au {workshop.text_of(image['end'])}"
+            axis = decl["axis"]
+            span = f"du {periods.moment(axis, image['start'])} au {periods.moment(axis, image['end'])}"
             lines.setdefault(key, []).append(span)
     apart = (decl["states"]["invalid"], decl["states"]["ignored"])
     return {

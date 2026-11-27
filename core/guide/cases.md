@@ -64,6 +64,7 @@ Version {{version}}.
 | `question` | non | **Ce que vous demandez au relecteur de vérifier**, en une phrase (300 caractères au plus). Affichée juste au-dessus des boutons Valider / Refuser : l'avis répond à cette question. Ne change pas les avis. |
 | `compare_with` | non | Les clés de 1 à 3 cas à **comparer** à celui-ci, typiquement le même cas avec l'option inverse. Le panneau les liste sous le schéma, avec un tableau de ce qui diffère (dimensions, réglages, options des entités, résultat) et un lien qui ouvre le cas. Un cas ne se compare pas à lui-même (`self_reference`) ; une clé absente ou retirée est signalée par les contrôles (`compare_missing_case`). Ne change pas les avis. |
 | `proof` | non | `asserted` (affirmé, par défaut) ou `observed` (constaté sur le système réel, par un test ou une exécution). |
+| `time_axis` | non | `{"unit": "day" ou "month", "origin": "2026-01-01"}` : les temps du cas (`attrs.start`, `end`, `at`, et `at` des étapes) sont des rangs comptés en jours ou en mois depuis `origin`. La frise écrit alors des dates (« janv. 2026 ») au lieu des nombres. Les cas produits par un atelier en dates le portent d'eux-mêmes. Ne change pas les avis. |
 | `covers` | non | Les clés des **points de l'inventaire** de l'étude que ce cas couvre (chapitre `studies`, champ `inventory`). Un point inconnu est refusé (`unknown_inventory_point`). Ne change pas les avis. |
 
 Le site **rejoue** les changements pour reconstruire l'état complet à chaque étape ; `GET …/cases/{key}` renvoie ces états dans `frames`.

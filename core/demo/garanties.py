@@ -1,6 +1,6 @@
 """Étude de démonstration : les garanties d'un contrat, avec un atelier de périodes qui les combine.
 
-Un contrat court sur des mois ; des garanties s'y ajoutent, chacune avec sa surprime. Quand plusieurs
+Un contrat court sur trois ans ; des garanties s'y ajoutent, chacune avec sa surprime. Quand plusieurs
 garanties sont en vigueur en même temps, leurs surprimes s'additionnent et leurs noms se lisent ensemble :
 le site combine les périodes au lieu d'en garder une. Rien, dans le site, ne connaît ce contrat : tout tient
 dans la déclaration. Données fictives.
@@ -18,7 +18,7 @@ TITLE = "Garanties d'un contrat"
 WORKSHOP = {
     "family": "periods",
     "title": "Composer les garanties d'un contrat",
-    "axis": {"label": "Mois", "min": 1, "max": 13, "grain": 1},
+    "axis": {"label": "Date", "calendar": "day", "from": "2025-01-01", "to": "2028-01-01"},
     "bricks": [
         {
             "type": "contrat",
@@ -67,8 +67,9 @@ WORKSHOP = {
 
 DEFINITION = {
     "title": TITLE,
-    "description": "Un contrat et ses garanties, mois par mois. Quand deux garanties se chevauchent, leurs "
-    "surprimes s'additionnent. Exemple d'étude qui déclare un atelier de périodes combinées.",
+    "description": "Un contrat et ses garanties, jour par jour sur trois ans. Quand deux garanties se "
+    "chevauchent, leurs surprimes s'additionnent. Exemple d'étude qui déclare un atelier de périodes "
+    "combinées, sur un axe en dates.",
     "kind": "temporal",
     "statuses": [
         {"key": "A_VENIR", "label": "À venir", "role": "waiting", "default": True},
@@ -95,7 +96,7 @@ DEFINITION = {
         {
             "key": "G1",
             "title": "Surprimes cumulées",
-            "text": "Les garanties en vigueur le même mois s'ajoutent : leurs surprimes s'additionnent.",
+            "text": "Les garanties en vigueur le même jour s'ajoutent : leurs surprimes s'additionnent.",
         },
         {
             "key": "G2",
@@ -107,23 +108,30 @@ DEFINITION = {
 }
 
 
-def _contrat(start: int, end: int, formule: str = "Essentielle") -> dict:
+def _contrat(start: str, end: str, formule: str = "Essentielle") -> dict:
     return {"id": "A", "type": "contrat", "start": start, "end": end, "options": {"formule": formule}}
 
 
-def _garantie(key: str, start: int, end: int, nom: str, surprime: int) -> dict:
+def _garantie(key: str, start: str, end: str, nom: str, surprime: int) -> dict:
     options = {"nom": nom, "surprime": surprime}
     return {"id": key, "type": "garantie", "start": start, "end": end, "options": options}
 
 
 # (clé, titre, résumé, périodes, chevauchement, règles)
 _SITUATIONS = [
-    ("contrat-seul", "Un contrat sans garantie", "Rien ne s'ajoute.", [_contrat(1, 13)], "aucune", ["G2"]),
+    (
+        "contrat-seul",
+        "Un contrat sans garantie",
+        "Rien ne s'ajoute.",
+        [_contrat("2025-01-01", "2028-01-01")],
+        "aucune",
+        ["G2"],
+    ),
     (
         "une-garantie",
         "Une garantie de quelques mois",
         "La surprime ne court que pendant la garantie.",
-        [_contrat(1, 13), _garantie("B", 4, 8, "Vol", 5)],
+        [_contrat("2025-01-01", "2028-01-01"), _garantie("B", "2025-10-01", "2026-10-01", "Vol", 5)],
         "une",
         ["G1", "G2"],
     ),
@@ -131,19 +139,23 @@ _SITUATIONS = [
         "deux-garanties-qui-se-chevauchent",
         "Deux garanties qui se chevauchent",
         "Pendant le chevauchement, les deux garanties se lisent ensemble et leurs surprimes s'additionnent.",
-        [_contrat(1, 13), _garantie("B", 2, 8, "Vol", 5), _garantie("C", 6, 11, "Bris de glace", 3)],
+        [
+            _contrat("2025-01-01", "2028-01-01"),
+            _garantie("B", "2025-04-01", "2026-10-01", "Vol", 5),
+            _garantie("C", "2026-04-01", "2027-06-01", "Bris de glace", 3),
+        ],
         "plusieurs",
         ["G1", "G2"],
     ),
     (
         "trois-garanties",
-        "Trois garanties le même mois",
-        "Au mois où les trois se croisent, la surprime vaut leur somme.",
+        "Trois garanties en même temps",
+        "Quand les trois se croisent, la surprime vaut leur somme.",
         [
-            _contrat(1, 13, "Confort"),
-            _garantie("B", 1, 7, "Vol", 5),
-            _garantie("C", 3, 9, "Bris de glace", 3),
-            _garantie("D", 5, 6, "Assistance", 8),
+            _contrat("2025-01-01", "2028-01-01", "Confort"),
+            _garantie("B", "2025-01-01", "2026-07-01", "Vol", 5),
+            _garantie("C", "2025-07-01", "2027-01-01", "Bris de glace", 3),
+            _garantie("D", "2026-01-01", "2026-04-01", "Assistance", 8),
         ],
         "plusieurs",
         ["G1", "G2"],

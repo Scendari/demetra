@@ -549,10 +549,31 @@
     const closePop = () => { if (pop) pop.remove(); pop = null; mark(null, "is-picked"); };
     /* Frise : déplacer une période, ou en tirer un bord. Le geste revient à changer ses deux champs de bornes ;
        il se cale sur le pas des champs et reste dans l'axe. Pendant le geste, seule la barre bouge. */
+    /* Un axe en dates : le champ porte une date ISO, le geste calcule sur des rangs (jours ou mois depuis
+       l'origine que porte le champ). Un axe numérique garde ses nombres. */
+    const utc = (text) => { const [y, m, d] = text.split("-").map(Number); return Date.UTC(y, m - 1, d || 1); };
+    const rankOf = (field, text) => {
+      const value = text === undefined ? field.value : text;
+      const unit = field.dataset.unit;
+      if (!unit) return Number(value);
+      const [y, m] = value.split("-").map(Number);
+      const [oy, om] = field.dataset.origin.split("-").map(Number);
+      return unit === "month" ? (y - oy) * 12 + (m - om) : Math.round((utc(value) - utc(field.dataset.origin)) / 864e5);
+    };
+    const textOf = (field, rank) => {
+      const unit = field.dataset.unit;
+      if (!unit) return String(rank);
+      if (unit === "month") {
+        const [oy, om] = field.dataset.origin.split("-").map(Number);
+        const months = om - 1 + rank;
+        return Math.floor(oy + months / 12) + "-" + String((months % 12 + 12) % 12 + 1).padStart(2, "0");
+      }
+      return new Date(utc(field.dataset.origin) + rank * 864e5).toISOString().slice(0, 10);
+    };
     const boundsOf = (id) => {
       const start = doc.getElementById("at-de-" + id);
       const end = doc.getElementById("at-a-" + id);
-      const fine = start && end && start.value !== "" && end.value !== "" && Number(start.value) < Number(end.value);
+      const fine = start && end && start.value !== "" && end.value !== "" && rankOf(start) < rankOf(end);
       return fine ? { start: start, end: end } : null;
     };
     const tidy = (value) => Math.round(value * 1e6) / 1e6;
@@ -571,11 +592,11 @@
       const svg = drag.node.ownerSVGElement;
       const [low, high, origin, width] = svg.dataset.span.split(" ").map(Number);
       drag.fields = fields;
-      drag.was = { start: Number(fields.start.value), end: Number(fields.end.value) };
+      drag.was = { start: rankOf(fields.start), end: rankOf(fields.end) };
       drag.now = drag.was;
       drag.step = Number(fields.start.dataset.grain) || Number(fields.start.step) || 1;   // le pas de l'axe
-      drag.min = Number(fields.start.min);
-      drag.max = Number(fields.start.max);
+      drag.min = fields.start.dataset.unit ? Number(fields.start.dataset.rankMin) : Number(fields.start.min);
+      drag.max = fields.start.dataset.unit ? Number(fields.start.dataset.rankMax) : Number(fields.start.max);
       drag.unit = width / (high - low) * svg.getScreenCTM().a;   // pixels d'écran par unité de l'axe
       drag.xOf = (value) => origin + (value - low) / (high - low) * width;
       drag.hint = ($("[data-at-hint-text]", atelier) || {}).textContent;
@@ -603,12 +624,12 @@
       }
       drag.now = { start: tidy(start), end: tidy(end) };
       drawBar(drag.node, drag.xOf(start), drag.xOf(end));
-      say(nameOf(drag.period) + " : du " + drag.now.start + " au " + drag.now.end + ", fin exclue.");
+      say(nameOf(drag.period) + " : du " + textOf(drag.fields.start, drag.now.start) + " au " + textOf(drag.fields.end, drag.now.end) + ", fin exclue.");
     };
     const dropPeriod = (done) => {
       if (done.now.start === done.was.start && done.now.end === done.was.end) return say(done.hint);
-      done.fields.start.value = String(done.now.start);
-      done.fields.end.value = String(done.now.end);
+      done.fields.start.value = textOf(done.fields.start, done.now.start);
+      done.fields.end.value = textOf(done.fields.end, done.now.end);
       submit(build());
     };
     const openPop = (plan, event, title, choices) => {
