@@ -770,7 +770,7 @@ def test_atelier(site, engine):
     # Enregistrer la situation comme cas : un geste humain, le cas attend un avis.
     page.fill("#at-title", "A échoue, C nettoie")
     page.get_by_role("button", name="Enregistrer comme cas").click()
-    expect(page).to_have_url(re.compile(r"cas=atelier-1"))
+    expect(page).to_have_url(re.compile(r"cas=atelier-\d+$"))  # Chromium et WebKit partagent la base
     expect(page.locator(".cp-title, [data-panel] h2").first).to_contain_text("A échoue, C nettoie")
 
     # Une seconde étude, sans rapport avec un workflow de tâches : ses seules déclarations font son atelier.
@@ -1072,7 +1072,7 @@ def test_atelier_periodes(site, engine):
     # Enregistrer la situation comme cas : les périodes posées et l'historique obtenu y figurent.
     page.fill("#at-title", "Remise d'un mois")
     page.get_by_role("button", name="Enregistrer comme cas").click()
-    expect(page).to_have_url(re.compile(r"cas=atelier-1"))
+    expect(page).to_have_url(re.compile(r"cas=atelier-\d+$"))  # Chromium et WebKit partagent la base
     expect(page.locator(".cp-title, [data-panel] h2").first).to_contain_text("Remise d'un mois")
     assert not problems, problems
     context.close()

@@ -550,7 +550,7 @@ Le client OpenID Connect est écrit avec la bibliothèque standard.
 | SQLite | — | domaine public | base de données |
 | Police Archivo | variable | SIL OFL 1.1 | interface ; fichier et licence dans `core/static/core/fonts/` |
 | Chromium | — | BSD-3-Clause et autres licences permissives | téléchargé par Playwright sur le poste, **non redistribué** |
-| WebKit | — | LGPL-2.1 et BSD (WebCore, JavaScriptCore) | **tests seulement** : téléchargé par Playwright pour les tests de l'atelier, jamais redistribué ni mis dans l'image ; à confirmer par le porteur du projet (copyleft faible) |
+| WebKit | — | LGPL-2.1 et BSD (WebCore, JavaScriptCore) | **tests seulement** : téléchargé par Playwright pour les tests de l'atelier, jamais redistribué ni mis dans l'image ; accepté par le porteur du projet à cette condition (27/11/2026) |
 
 Les icônes, les dessins et tout le JavaScript de l'interface sont écrits pour ce projet : aucune bibliothèque
 côté navigateur. Le personnage de Demetra (accueil, logo du menu, icône d'onglet et du site) est une image générée et fournie
